@@ -13,8 +13,9 @@
 
     <!-- 母线贯通字标（立体、带开场动画）。动画只用 CSS，系统开启「减少动态效果」时直接显示最终状态。 -->
     <template id="wordmark_animated" name="NODO: Animated wordmark">
-        <t t-set="nodo_wm_path" t-value="'M10 66 V18 L42 66 V8 H80 V18 A24 24 0 1 1 80 66 A24 24 0 1 1 80 18 V8 H118 V66 H130 A24 24 0 0 0 130 18 H118 V8 H192 V18 A24 24 0 1 1 192 66 A24 24 0 1 1 192 18 V8 H236'"/>
-        <svg class="o_nodo_wm" viewBox="0 0 258 88" role="img" aria-label="NODO">
+        <t t-set="nodo_wm_path" t-value="'M10 66 V18 L42 66 V8 H77 V18 A24 24 0 1 1 77 66 A24 24 0 1 1 77 18 V8 H113 V66 H125 A24 24 0 0 0 125 18 H113 V8 H184 V18 A24 24 0 1 1 184 66 A24 24 0 1 1 184 18 V8 H228'"/>
+        <!-- 带错误或提示信息的页面（如密码输错后重新加载）直接显示静态字标，避免每次重播 -->
+        <svg t-att-class="'o_nodo_wm o_nodo_wm_static' if (error or message) else 'o_nodo_wm'" viewBox="0 0 250 88" role="img" aria-label="NODO">
             <title>NODO</title>
             <g transform="translate(6,4)">
                 <g class="o_nodo_wm_ext">
@@ -33,7 +34,7 @@
                         <circle cx="-1.8" cy="-1.8" r="1.7" fill="#FFFFFF" fill-opacity="0.6"/>
                     </g>
                 </g>
-                <g transform="translate(236 8)">
+                <g transform="translate(228 8)">
                     <g class="o_nodo_wm_node o_nodo_wm_node_end">
                         <circle cx="2.2" cy="2.2" r="6" fill="#0B6E4E"/>
                         <circle r="6" fill="#34D399"/>
@@ -52,25 +53,25 @@
     <template id="login_background" name="NODO: Login background">
         <svg class="o_nodo_login_bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
             <g class="o_nodo_bg_lines">
-                <path d="M-10 210 H140 V96 H300 L356 40 V-10"/>
-                <path d="M140 96 V-10"/>
-                <path d="M300 96 V170 H420"/>
-                <path d="M1450 690 H1300 V804 H1140 L1084 860 V910"/>
-                <path d="M1300 804 V910"/>
-                <path d="M1140 804 V730 H1020"/>
+                <path d="M-10 190 H90 V76 H250 L306 20 V-10"/>
+                <path d="M90 76 V-10"/>
+                <path d="M250 76 V150 H370"/>
+                <path d="M1450 710 H1350 V824 H1190 L1134 880 V910"/>
+                <path d="M1350 824 V910"/>
+                <path d="M1190 824 V750 H1070"/>
                 <path d="M1450 120 H1330 V40 H1240"/>
                 <path d="M-10 780 H110 V860 H200"/>
             </g>
             <g class="o_nodo_bg_nodes">
-                <circle cx="140" cy="210" r="5"/><circle cx="140" cy="96" r="5"/><circle cx="300" cy="96" r="5"/>
-                <circle cx="356" cy="40" r="5"/><circle cx="300" cy="170" r="5"/>
-                <circle cx="1300" cy="690" r="5"/><circle cx="1300" cy="804" r="5"/><circle cx="1140" cy="804" r="5"/>
-                <circle cx="1084" cy="860" r="5"/><circle cx="1140" cy="730" r="5"/>
+                <circle cx="90" cy="190" r="5"/><circle cx="90" cy="76" r="5"/><circle cx="250" cy="76" r="5"/>
+                <circle cx="306" cy="20" r="5"/><circle cx="250" cy="150" r="5"/>
+                <circle cx="1350" cy="710" r="5"/><circle cx="1350" cy="824" r="5"/><circle cx="1190" cy="824" r="5"/>
+                <circle cx="1134" cy="880" r="5"/><circle cx="1190" cy="750" r="5"/>
                 <circle cx="1330" cy="120" r="5"/><circle cx="1330" cy="40" r="5"/>
                 <circle cx="110" cy="780" r="5"/><circle cx="110" cy="860" r="5"/>
             </g>
             <g class="o_nodo_bg_accents">
-                <circle cx="420" cy="170" r="5.5"/><circle cx="1020" cy="730" r="5.5"/>
+                <circle cx="370" cy="150" r="5.5"/><circle cx="1070" cy="750" r="5.5"/>
                 <circle cx="1240" cy="40" r="5.5"/><circle cx="200" cy="860" r="5.5"/>
             </g>
         </svg>
@@ -87,6 +88,10 @@
                     </div>
                     <div class="card o_nodo_login_card o_database_list">
                         <div class="card-body">
+                            <!-- 非正式环境标识：系统参数 nodo.environment 为 dev / test 时显示，正式环境不设置 -->
+                            <t t-set="nodo_env" t-value="request.env['ir.config_parameter'].sudo().get_str('nodo.environment') if request and request.db else ''"/>
+                            <t t-set="nodo_env_label" t-value="{'dev': '开发环境', 'test': '测试环境'}.get(nodo_env)"/>
+                            <span t-if="nodo_env_label" class="o_nodo_env_badge" t-out="nodo_env_label"/>
                             <t t-out="0"/>
                         </div>
                     </div>
@@ -107,10 +112,16 @@
             <p class="o_nodo_login_subtitle">使用管理员为你开通的账号</p>
         </xpath>
         <xpath expr="//label[@for='login']" position="replace">
-            <label for="login" class="form-label">账号</label>
+            <label for="login" class="form-label d-flex justify-content-between">账号</label>
         </xpath>
         <xpath expr="//input[@name='login']" position="attributes">
             <attribute name="placeholder">name@company.com</attribute>
+        </xpath>
+        <!-- 登录失败提示：上游文案「错误的登录名/密码」改为更自然的说法，其他错误原样显示 -->
+        <xpath expr="//p[hasclass('alert-danger')][@t-if='error']" position="replace">
+            <p class="alert alert-danger o_nodo_login_alert" t-if="error" role="alert">
+                <t t-out="'账号或密码不正确' if error in ('Wrong login/password', '错误的登录名/密码') else error"/>
+            </p>
         </xpath>
         <xpath expr="//div[hasclass('oe_login_buttons')]" position="after">
             <p t-if="not reset_password_enabled" class="o_nodo_login_hint">忘记密码请联系管理员</p>

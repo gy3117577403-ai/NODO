@@ -39,5 +39,8 @@ env["ir.config_parameter"].set_str("report.url", "http://localhost:8069")
 env["ir.default"].set("res.partner", "lang", "zh_CN")
 env["ir.default"].set("res.partner", "tz", "Asia/Shanghai")
 
+# 登录页显示「开发环境」标识；试点和正式环境不要设置为 dev
+env["ir.config_parameter"].set_str("nodo.environment", "dev")
+
 env.cr.commit()
 print("NODO_SETUP_OK", company.name, company.country_id.code, company.currency_id.name, admin.login, admin.lang, admin.tz)

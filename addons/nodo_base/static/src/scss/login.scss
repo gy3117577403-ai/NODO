@@ -93,15 +93,78 @@ body:has(.o_nodo_login) {
         }
     }
 
-    // 密码框右侧「显示密码」按钮和输入框连成一体
-    .input-group > .form-control {
-        border-top-right-radius: 0;
-        border-bottom-right-radius: 0;
+    // 密码框和右侧「显示密码」按钮作为一个整体：焦点框包住整组
+    .input-group {
+        border-radius: 8px;
+
+        > .form-control {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+
+            &:focus {
+                box-shadow: none;
+            }
+        }
+        &:focus-within {
+            box-shadow: 0 0 0 3px rgba(31, 79, 70, 0.18);
+
+            > .form-control,
+            > .o_show_password {
+                border-color: $nodo-primary !important;
+            }
+        }
     }
     .o_show_password {
         border-color: $nodo-border !important;
         border-radius: 0 8px 8px 0;
         color: $nodo-text-muted;
+        background-color: #FFFFFF;
+    }
+
+    // 登录失败与成功提示
+    .o_nodo_login_alert,
+    .alert-danger,
+    .alert-success {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .o_nodo_login_alert,
+    .alert-danger {
+        background-color: #FEF3F2;
+        border: 1px solid #FECDCA;
+        color: $nodo-danger-text;
+
+        &::before {
+            content: "";
+            flex: none;
+            width: 16px;
+            height: 16px;
+            background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='none' stroke='%23B42318' stroke-width='1.5'/%3E%3Cpath d='M8 4.5v4.2' stroke='%23B42318' stroke-width='1.6' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='11.3' r='0.95' fill='%23B42318'/%3E%3C/svg%3E");
+        }
+    }
+    .alert-success {
+        background-color: $nodo-accent-soft;
+        border: 1px solid #B7E4D3;
+        color: $nodo-success-text;
+    }
+
+    // 非正式环境标识
+    .o_nodo_env_badge {
+        display: inline-block;
+        margin-bottom: 16px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background-color: #FEF6E7;
+        border: 1px solid #F7D9A4;
+        color: $nodo-warning-text;
+        font-size: 12px;
+        line-height: 20px;
     }
 
     .btn-primary {
@@ -188,7 +251,7 @@ body:has(.o_nodo_login) {
     .o_nodo_wm_face { stroke: $nodo-primary; }
     .o_nodo_wm_hl {
         stroke: #7FC2B1;
-        stroke-opacity: 0.45;
+        stroke-opacity: 0.18;
         stroke-width: 1.6;
     }
 
@@ -211,7 +274,7 @@ body:has(.o_nodo_login) {
 // 只有支持运动路径的浏览器才显示电流光点
 @supports (offset-path: path("M0 0")) {
     .o_nodo_wm .o_nodo_wm_spark {
-        offset-path: path("M10 66 V18 L42 66 V8 H80 V18 A24 24 0 1 1 80 66 A24 24 0 1 1 80 18 V8 H118 V66 H130 A24 24 0 0 0 130 18 H118 V8 H192 V18 A24 24 0 1 1 192 66 A24 24 0 1 1 192 18 V8 H236");
+        offset-path: path("M10 66 V18 L42 66 V8 H77 V18 A24 24 0 1 1 77 66 A24 24 0 1 1 77 18 V8 H113 V66 H125 A24 24 0 0 0 125 18 H113 V8 H184 V18 A24 24 0 1 1 184 66 A24 24 0 1 1 184 18 V8 H228");
         offset-rotate: 0deg;
         animation: nodo-wm-spark 1.5s cubic-bezier(0.65, 0, 0.35, 1) 2.45s both;
     }
@@ -242,6 +305,17 @@ body:has(.o_nodo_login) {
     8% { opacity: 1; }
     90% { opacity: 1; }
     100% { offset-distance: 100%; opacity: 0; }
+}
+
+// 静态字标：带错误或提示信息的页面
+.o_nodo_wm.o_nodo_wm_static {
+    .o_nodo_wm_line,
+    .o_nodo_wm_node {
+        animation: none !important;
+    }
+    .o_nodo_wm_spark {
+        display: none;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

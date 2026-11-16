@@ -36,6 +36,7 @@ class TestNodoLoginPage(HttpCase):
         self.assertNotIn('Powered by', self.html)
 
     def test_wordmark_and_layout(self):
+        # 正常打开登录页时播放动画（没有 o_nodo_wm_static）
         self.assertIn('class="o_nodo_wm"', self.html)
         self.assertIn('o_nodo_login_card', self.html)
         self.assertIn('o_nodo_login_bg', self.html)
@@ -46,6 +47,28 @@ class TestNodoLoginPage(HttpCase):
         self.assertNotIn('/web/signup', self.html)
         self.assertNotIn('/web/reset_password', self.html)
         self.assertIn('忘记密码请联系管理员', self.html)
+
+    def test_environment_badge(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        self.assertNotIn('o_nodo_env_badge', self.html)
+        ICP.set_str('nodo.environment', 'test')
+        html = self.url_open(f'/web/login?db={self.env.cr.dbname}').text
+        self.assertIn('测试环境', html)
+        ICP.set_str('nodo.environment', 'prod')
+        html = self.url_open(f'/web/login?db={self.env.cr.dbname}').text
+        self.assertNotIn('o_nodo_env_badge', html)
+
+    def test_default_company_logo_route_serves_nodo_wordmark(self):
+        company = self.env.company
+        self.assertTrue(company.uses_default_logo)
+        response = self.url_open(f'/logo.png?company={company.id}&db={self.env.cr.dbname}')
+        self.assertEqual(response.status_code, 200)
+        with open(self._nodo_logo_path(), 'rb') as fh:
+            self.assertEqual(response.content, fh.read())
+
+    def _nodo_logo_path(self):
+        from odoo.tools.misc import file_path
+        return file_path('nodo_base/static/img/nodo-wordmark.png')
 
     def test_webmanifest_uses_nodo_icons(self):
         manifest = self.url_open(f'/web/manifest.webmanifest?db={self.env.cr.dbname}').json()
