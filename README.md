@@ -4,7 +4,7 @@ NODO 是面向电气成套、钣金机柜、光伏配电工厂的垂直智能制
 
 ## 当前状态
 
-阶段 0：工程底座，进行中。
+阶段 0：工程底座，开发者自检完成，待用户验收（记录见 `docs/验收/阶段0验收记录.md`）。
 
 | 任务 | 内容 | 状态 |
 |---|---|---|
@@ -12,7 +12,7 @@ NODO 是面向电气成套、钣金机柜、光伏配电工厂的垂直智能制
 | P0-2 | 建仓库和项目文档 | 已完成 |
 | P0-3 | NODO 开发环境（Docker、中文字体、开发库） | 已完成 |
 | P0-4 | `nodo_base`：品牌与角色 | 已完成（残留项见 `docs/品牌残留.md`） |
-| P0-5 | 测试与验收 | 未开始 |
+| P0-5 | 测试与验收 | 已完成自检：17 个测试通过，中文报价单 PDF 正常 |
 
 ## 开发环境
 
@@ -39,6 +39,10 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，�
 ### 中文字体
 
 官方镜像已带 Noto CJK 字体，但没有语言标记时汉字会回退到日文字形（`Noto Sans CJK JP`）。`Dockerfile` 设定 `FC_LANG=zh-cn`，构建时校验汉字回退到简体中文字形。已用 wkhtmltopdf 实测：官方镜像生成的 PDF 嵌入 `NotoSansCJKjp`，NODO 镜像嵌入 `NotoSansCJKsc`。
+
+### 打印地址
+
+打印 PDF 时 wkhtmltopdf 会回连 Odoo 下载样式。默认用浏览器访问的地址，在 Docker 里连不上，单据会丢失样式。开发库已把系统参数 `report.url` 设为容器内地址 `http://localhost:8069`（`init-db` 会自动设置）。以后部署到服务器时同样要设置。
 
 ## 目录
 

@@ -32,6 +32,10 @@ admin.write({
     "password": password,
 })
 
+# 打印 PDF 时 wkhtmltopdf 要回连 Odoo 下载样式。默认用浏览器访问的地址（宿主机 127.0.0.1:8079），
+# 在容器里连不上，单据会没有样式。改为容器内地址。
+env["ir.config_parameter"].set_str("report.url", "http://localhost:8069")
+
 env["ir.default"].set("res.partner", "lang", "zh_CN")
 env["ir.default"].set("res.partner", "tz", "Asia/Shanghai")
 
