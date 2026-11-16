@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        NODO 七类角色。每个角色是一个「权限范围」（res.groups.privilege），里面只有一个组，
+        这样用户表单上每个角色单独选择，一个人可以同时有多个角色。
+        本模块只建组、只隐含「内部用户」，不授予任何应用权限；
+        应用级权限由各业务模块通过 implied 组和访问规则落实（见 docs/权限矩阵.md）。
+    -->
+    <record id="module_category_nodo_roles" model="ir.module.category">
+        <field name="name">NODO 角色</field>
+        <field name="description">NODO 业务角色，一个人可以同时拥有多个角色。</field>
+        <field name="sequence">1</field>
+    </record>
+
+    <record id="privilege_role_sales" model="res.groups.privilege">
+        <field name="name">销售</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">10</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责询盘、报价备案、跟进客户和合同。</field>
+    </record>
+    <record id="group_role_sales" model="res.groups">
+        <field name="name">销售人员</field>
+        <field name="privilege_id" ref="privilege_role_sales"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_costing" model="res.groups.privilege">
+        <field name="name">核算</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">20</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责报价的成本核算和价格明细。</field>
+    </record>
+    <record id="group_role_costing" model="res.groups">
+        <field name="name">核算员</field>
+        <field name="privilege_id" ref="privilege_role_costing"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_approval" model="res.groups.privilege">
+        <field name="name">批准</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">30</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责批准或驳回报价和合同。</field>
+    </record>
+    <record id="group_role_approval" model="res.groups">
+        <field name="name">审批人</field>
+        <field name="privilege_id" ref="privilege_role_approval"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_engineering" model="res.groups.privilege">
+        <field name="name">技术</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">40</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责图纸资料、物料清单、工序模板和技术交接。</field>
+    </record>
+    <record id="group_role_engineering" model="res.groups">
+        <field name="name">技术员</field>
+        <field name="privilege_id" ref="privilege_role_engineering"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_purchase" model="res.groups.privilege">
+        <field name="name">采购</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">50</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责采购申请、采购订单、到货和库存。</field>
+    </record>
+    <record id="group_role_purchase" model="res.groups">
+        <field name="name">采购员</field>
+        <field name="privilege_id" ref="privilege_role_purchase"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_production" model="res.groups.privilege">
+        <field name="name">生产</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">60</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责生产订单、工单、排产和报工。</field>
+    </record>
+    <record id="group_role_production" model="res.groups">
+        <field name="name">生产人员</field>
+        <field name="privilege_id" ref="privilege_role_production"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="privilege_role_quality" model="res.groups.privilege">
+        <field name="name">质检</field>
+        <field name="category_id" ref="module_category_nodo_roles"/>
+        <field name="sequence">70</field>
+        <field name="placeholder">否</field>
+        <field name="description">负责检验、不合格品处理和质量追溯。</field>
+    </record>
+    <record id="group_role_quality" model="res.groups">
+        <field name="name">质检员</field>
+        <field name="privilege_id" ref="privilege_role_quality"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+</odoo>

@@ -12,7 +12,9 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   logs            查看 Odoo 日志（最近 200 行）
   init-db         创建开发库 nodo_dev 并安装标准应用（库已存在则拒绝）
   check           只读核对开发库状态
+  install <模块>  在 nodo_dev 中安装模块
   update <模块>   在 nodo_dev 中升级模块
+  seed-users      为七类角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
   shell           进入 nodo_dev 的 odoo shell
 #>
@@ -126,6 +128,7 @@ switch ($Command) {
 | 用途 | 数据库 | 账号 | 密码 |
 |---|---|---|---|
 | 管理员 | $DevDb | admin@nodo.test | $adminPassword |
+
 "@
         [IO.File]::WriteAllText($AccountsFile, $accounts, $Utf8NoBom)
         Write-Host '管理员账号已写入 config/dev-accounts.local.md'
@@ -135,6 +138,29 @@ switch ($Command) {
         Write-Host "开发库 $DevDb 已就绪"
     }
     'check' { Assert-Initialized; Invoke-OdooShellScript 'check_dev_db.py' }
+    'install' {
+        Assert-ModuleName $Module
+        Assert-Initialized
+        Invoke-Compose stop odoo
+        Invoke-Compose run --rm --no-deps odoo odoo module install -c $OdooConf -d $DevDb $Module
+        Invoke-Compose up -d --wait --wait-timeout 120 odoo
+    }
+    'seed-users' {
+        Assert-Initialized
+        $out = Invoke-OdooShellScript 'seed_role_users.py'
+        $created = @($out | Where-Object { $_ -like 'NODO_USER_CREATED *' })
+        $out | Where-Object { $_ -like 'NODO_USER_EXISTS *' } | ForEach-Object { Write-Host ('已存在，未改动：' + ($_ -split ' ')[1]) }
+        if ($created.Count -gt 0) {
+            if (-not (Test-Path -LiteralPath $AccountsFile)) { throw '找不到 config/dev-accounts.local.md，请先运行 init-db' }
+            $rows = $created | ForEach-Object {
+                $p = $_ -split ' '
+                "| 角色：$($p[1]) | $DevDb | $($p[2]) | $($p[3]) |"
+            }
+            [IO.File]::AppendAllText($AccountsFile, (($rows -join "`n") + "`n"), $Utf8NoBom)
+            $created | ForEach-Object { Write-Host ('已创建：' + ($_ -split ' ')[2]) }
+            Write-Host '密码已写入 config/dev-accounts.local.md'
+        }
+    }
     'update' {
         Assert-ModuleName $Module
         Assert-Initialized
@@ -164,6 +190,6 @@ switch ($Command) {
     }
     'shell' { Assert-Initialized; Invoke-Compose exec odoo odoo shell -c $OdooConf -d $DevDb }
     default {
-        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 18
+        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 20
     }
 }

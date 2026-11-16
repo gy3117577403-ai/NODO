@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 邮件通知页脚：去掉「Powered by」，保留取消关注链接 -->
+    <template id="mail_notification_layout" inherit_id="mail.mail_notification_layout" name="NODO: Mail notification layout">
+        <xpath expr="//span[@id='mail_unfollow']/.." position="replace">
+            <div t-if="show_footer and show_unfollow" style="color: #555555; font-size:11px;">
+                <span id="mail_unfollow">
+                    <a href="/mail/unfollow" style="text-decoration:none; color:#555555;">取消关注</a>
+                </span>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="mail_notification_light" inherit_id="mail.mail_notification_light" name="NODO: Mail notification light">
+        <xpath expr="//span[@id='mail_unfollow']/.." position="replace">
+            <td align="center" style="min-width: 590px;">
+                <span t-if="show_unfollow" id="mail_unfollow">
+                    <a href="/mail/unfollow" style="text-decoration:none; color:#555555;">取消关注</a>
+                </span>
+            </td>
+        </xpath>
+    </template>
+</odoo>

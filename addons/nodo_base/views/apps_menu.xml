@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        「应用」菜单：上游的 base_install_request 把它开放给全部内部用户（用于申请安装应用）。
+        NODO 的模块由管理员统一开通，普通角色不需要浏览应用列表，改回只对系统管理员可见。
+        nodo_base 依赖 base_install_request，保证本设置在它之后加载。
+    -->
+    <record id="base.menu_management" model="ir.ui.menu">
+        <field name="group_ids" eval="[(6, 0, [ref('base.group_system')])]"/>
+    </record>
+
+    <!-- 应用列表不显示企业版占位应用（带「升级」按钮的推广项） -->
+    <record id="base.open_module_tree" model="ir.actions.act_window">
+        <field name="domain">[('to_buy', '=', False)]</field>
+    </record>
+</odoo>

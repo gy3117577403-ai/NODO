@@ -1,0 +1,57 @@
+// 登录、注册、重置密码等共用 web.login_layout 的页面
+
+body:has(.o_nodo_login) {
+    background-color: $nodo-background !important;
+}
+
+.o_nodo_login {
+    .card {
+        max-width: 360px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid $nodo-border !important;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(31, 79, 70, 0.08);
+    }
+
+    .o_nodo_login_brand {
+        border-bottom: 1px solid $nodo-border;
+    }
+
+    .o_nodo_wordmark {
+        display: inline-block;
+        color: $nodo-primary;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        line-height: 1;
+        // 视觉居中：抵消最后一个字母后的字距
+        margin-right: -0.12em;
+    }
+
+    .btn-primary {
+        --btn-bg: #{$nodo-primary};
+        --btn-border-color: #{$nodo-primary};
+        --btn-hover-bg: #{$nodo-primary-hover};
+        --btn-hover-border-color: #{$nodo-primary-hover};
+        --btn-active-bg: #{$nodo-primary-hover};
+        --btn-active-border-color: #{$nodo-primary-hover};
+        background-color: $nodo-primary;
+        border-color: $nodo-primary;
+        color: #FFFFFF;
+
+        &:hover, &:focus, &:active {
+            background-color: $nodo-primary-hover;
+            border-color: $nodo-primary-hover;
+            color: #FFFFFF;
+        }
+    }
+
+    a:not(.btn) {
+        color: $nodo-primary;
+    }
+
+    .form-control:focus {
+        border-color: $nodo-primary;
+        box-shadow: 0 0 0 0.2rem rgba(31, 79, 70, 0.2);
+    }
+}

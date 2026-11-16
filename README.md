@@ -11,7 +11,7 @@ NODO 是面向电气成套、钣金机柜、光伏配电工厂的垂直智能制
 | P0-1 | 把本机预览环境移到 `_preview/` | 已完成 |
 | P0-2 | 建仓库和项目文档 | 已完成 |
 | P0-3 | NODO 开发环境（Docker、中文字体、开发库） | 已完成 |
-| P0-4 | `nodo_base`：品牌与角色 | 未开始 |
+| P0-4 | `nodo_base`：品牌与角色 | 已完成（残留项见 `docs/品牌残留.md`） |
 | P0-5 | 测试与验收 | 未开始 |
 
 ## 开发环境
@@ -26,7 +26,9 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 up        # 启动
 powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，数据保留
 ```
 
-其他命令：`logs`、`check`（核对开发库）、`update <模块>`、`test <模块>`、`shell`。不带参数运行可查看说明。
+其他命令：`logs`、`check`（核对开发库）、`install <模块>`、`update <模块>`、`seed-users`（七类角色测试用户）、`test <模块>`、`shell`。不带参数运行可查看说明。
+
+首次搭建后依次运行 `install nodo_base` 和 `seed-users`。
 
 - 地址 http://127.0.0.1:8079 ，只绑定本机
 - 管理员账号和密码在 `config/dev-accounts.local.md`（本地生成，不提交）
@@ -49,13 +51,16 @@ NODO/
 ├─ .env.example         环境变量模板
 ├─ config/
 │  └─ odoo.conf.example 配置模板（生成的 odoo.conf 不提交）
-├─ addons/              NODO 自研模块
+├─ addons/
+│  └─ nodo_base/        品牌、主题、七类角色（必装）
 ├─ scripts/
 │  ├─ nodo.ps1          开发环境命令
 │  └─ odoo/             在 odoo shell 中执行的初始化和核对脚本
 ├─ docs/
 │  ├─ 开发方案.md        阶段划分、模块和技术路线
-│  └─ 权限矩阵.md        七类角色的权限草案
+│  ├─ 权限矩阵.md        七类角色的权限草案
+│  ├─ 品牌残留.md        仍会出现上游名称的位置
+│  └─ 验收/             验收截图
 └─ _preview/            本机预览环境和安装包构建目录，不纳入版本管理
 ```
 

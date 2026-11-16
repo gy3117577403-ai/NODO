@@ -1,0 +1,22 @@
+// NODO 主题变量。前置到 web._assets_primary_variables，先于标准的 !default 定义生效。
+// 色值与对比度规则见仓库根目录 DESIGN.md。
+
+$nodo-primary: #1F4F46;
+$nodo-primary-hover: #183F38;
+$nodo-accent: #34D399;
+$nodo-accent-soft: #E3F5EE;
+$nodo-background: #F7FAF9;
+$nodo-text: #1E2A27;
+$nodo-text-muted: #5B6B67;
+$nodo-border: #DCE5E2;
+$nodo-success-text: #047857;
+$nodo-warning-text: #B54708;
+$nodo-danger-text: #B42318;
+
+$o-community-color: $nodo-primary;
+$o-enterprise-color: $nodo-primary; // 新手引导气泡等少数组件使用
+$o-brand-odoo: $nodo-primary;
+$o-brand-primary: $nodo-primary;
+$o-gray-100: $nodo-background;
+
+$o-system-fonts: ("Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");

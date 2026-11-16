@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 安装为网页应用（PWA）时显示的名称 -->
+    <function model="ir.config_parameter" name="set_str" eval="['web.web_app_name', 'NODO']"/>
+
+    <!-- 公司邮件按钮色（门户和登录页按钮也用）改为 NODO 主色；系统机器人改名为「NODO 助手」。只改上游默认值。 -->
+    <function model="res.company" name="_nodo_apply_branding"/>
+</odoo>
