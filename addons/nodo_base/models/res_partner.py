@@ -11,22 +11,30 @@ NODO_AVATAR_COLORS = ['#1F4F46', '#2F6F62', '#3B6E8F', '#5A5F8F', '#7A5C3E', '#3
 GENERATED_AVATAR_MARK = b'font-size="96" text-anchor="middle"'
 
 
+def nodo_avatar_color(seed):
+    """按种子（姓名、频道编号等）固定取一个 NODO 色板颜色。"""
+    digest = hashlib.sha256(str(seed or '').encode('utf-8')).digest()
+    return NODO_AVATAR_COLORS[digest[0] % len(NODO_AVATAR_COLORS)]
+
+
+def nodo_text_avatar_svg(text, seed):
+    initial = escape((text or '')[:1].upper())
+    return BinaryBytes((
+        '<?xml version="1.0" encoding="UTF-8" ?>'
+        '<svg height="180" width="180" xmlns="http://www.w3.org/2000/svg">'
+        f'<rect fill="{nodo_avatar_color(seed)}" height="180" width="180"/>'
+        f'<text fill="#ffffff" font-size="96" text-anchor="middle" x="90" y="125" font-family="sans-serif">{initial}</text>'
+        '</svg>'
+    ).encode(), filename='avatar.svg')
+
+
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
     def _avatar_generate_svg(self):
         """按姓名首字生成头像，底色从 NODO 色板中按姓名固定取一个。"""
         name = self[self._avatar_name_field] or ''
-        initial = escape(name[:1].upper())
-        digest = hashlib.sha256(name.encode('utf-8')).digest()
-        color = NODO_AVATAR_COLORS[digest[0] % len(NODO_AVATAR_COLORS)]
-        return BinaryBytes((
-            '<?xml version="1.0" encoding="UTF-8" ?>'
-            '<svg height="180" width="180" xmlns="http://www.w3.org/2000/svg">'
-            f'<rect fill="{color}" height="180" width="180"/>'
-            f'<text fill="#ffffff" font-size="96" text-anchor="middle" x="90" y="125" font-family="sans-serif">{initial}</text>'
-            '</svg>'
-        ).encode(), filename='avatar.svg')
+        return nodo_text_avatar_svg(name, name)
 
     def _nodo_has_generated_avatar(self):
         """头像是否为系统按姓名自动生成的（而不是用户上传的图片）。"""

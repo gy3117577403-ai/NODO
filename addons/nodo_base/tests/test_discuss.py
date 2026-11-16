@@ -59,12 +59,20 @@ class TestNodoDiscuss(TransactionCase):
         if channel:
             self.assertEqual(channel.name, '全员通知')
 
+    def test_channel_avatar_uses_nodo_palette(self):
+        channel = self.env['discuss.channel'].create({'name': '生产调度', 'channel_type': 'channel'})
+        svg = _content(channel._generate_avatar()).decode()
+        self.assertTrue(any(color in svg for color in NODO_AVATAR_COLORS), svg[:200])
+        self.assertIn('生', svg)
+
     def test_discuss_assets_in_backend_bundle(self):
         Asset = self.env['ir.asset']
         paths = [p[0] for p in Asset._get_asset_paths('web.assets_backend', Asset._get_asset_params())]
         for suffix in (
             'nodo_base/static/src/js/discuss_patch.js',
+            'nodo_base/static/src/js/record_cards.js',
             'nodo_base/static/src/xml/discuss.xml',
+            'nodo_base/static/src/xml/record_cards.xml',
             'nodo_base/static/src/scss/discuss.scss',
         ):
             self.assertTrue(any(p.endswith(suffix) for p in paths), suffix)

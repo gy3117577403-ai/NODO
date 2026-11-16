@@ -13,6 +13,37 @@
         </xpath>
     </t>
 
+    <!-- 「消息」分栏按类型分组：私聊下面各列最近的频道和单据 -->
+    <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
+        <xpath expr="//MessagingMenuItem[@t-foreach='this.channels()']" position="after">
+            <t t-set="nodoGroups" t-value="this.nodoGroups()"/>
+            <t t-if="nodoGroups.channels.length">
+                <div class="o_nodo_group_header">
+                    <span>频道</span>
+                    <button type="button" class="btn btn-link p-0" t-on-click="() => this.state().selectTab(nodoGroups.channelTab)">全部</button>
+                </div>
+                <MessagingMenuItem
+                    t-foreach="nodoGroups.channels" t-as="channel" t-key="'nodo_channel_' + channel.localId"
+                    channel="channel"
+                    activeTab="() => nodoGroups.channelTab"
+                    onClick="this.onClickChannel"
+                />
+            </t>
+            <t t-if="nodoGroups.documents.length">
+                <div class="o_nodo_group_header">
+                    <span>单据</span>
+                    <button type="button" class="btn btn-link p-0" t-on-click="() => this.state().selectTab(nodoGroups.documentTab)">全部</button>
+                </div>
+                <MessagingMenuItem
+                    t-foreach="nodoGroups.documents" t-as="message" t-key="'nodo_document_' + message.localId"
+                    message="message"
+                    activeTab="() => nodoGroups.documentTab"
+                    onClick="this.onClickMessage"
+                />
+            </t>
+        </xpath>
+    </t>
+
     <!-- 开启桌面通知的提示：换成品牌色和更直白的文案 -->
     <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
         <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']" position="attributes">

@@ -54,6 +54,83 @@ body .o-mail-Message {
     color: #FFFFFF !important;
 }
 
+// 「消息」分栏里的分组标题
+.o_nodo_group_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 6px 2px;
+    font-size: 12px;
+    color: $nodo-text-muted;
+
+    .btn-link {
+        font-size: 12px;
+        color: $nodo-primary;
+        text-decoration: none;
+    }
+}
+
+// 对话里的单据卡片
+.o_nodo_record_cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+.o_nodo_record_card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 240px;
+    max-width: 360px;
+    padding: 8px 10px;
+    text-align: left;
+    background-color: #FFFFFF;
+    border: 1px solid $nodo-border;
+    border-left: 3px solid $nodo-primary;
+    border-radius: 8px;
+    color: $nodo-text;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+
+    &:hover, &:focus-visible {
+        border-color: $nodo-primary;
+        box-shadow: 0 2px 8px rgba(31, 79, 70, 0.10);
+        outline: none;
+    }
+}
+.o_nodo_record_card_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.o_nodo_record_card_title {
+    font-weight: 500;
+}
+.o_nodo_record_card_sub {
+    font-size: 12px;
+    color: $nodo-text-muted;
+}
+.o_nodo_record_card_state {
+    flex: none;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 999px;
+
+    &.o_nodo_state_warning { background-color: #FEF6E7; color: $nodo-warning-text; }
+    &.o_nodo_state_info { background-color: #EAF2FB; color: #1D5A9A; }
+    &.o_nodo_state_success { background-color: $nodo-accent-soft; color: $nodo-success-text; }
+    &.o_nodo_state_muted { background-color: #F1F4F3; color: $nodo-text-muted; }
+}
+// 已显示为卡片的单据链接，在正文里不再重复显示原始网址
+.o-mail-Message-body:has(> .o_nodo_record_cards) {
+    a[href*="/odoo/sale.order/"], a[href*="/odoo/sales/"], a[href*="/odoo/crm/"], a[href*="/odoo/crm.lead/"],
+    a[href*="/odoo/purchase/"], a[href*="/odoo/purchase.order/"], a[href*="/odoo/manufacturing/"], a[href*="/odoo/mrp.production/"] {
+        display: none;
+    }
+}
+
 // 开启桌面通知的提示
 .o_nodo_push_request {
     background-color: $nodo-accent-soft !important;
