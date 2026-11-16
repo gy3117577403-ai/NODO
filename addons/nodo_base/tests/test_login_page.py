@@ -42,6 +42,12 @@ class TestNodoLoginPage(HttpCase):
         self.assertIn('o_nodo_login_bg', self.html)
         self.assertIn('登录', visible_text(self.html))
 
+    def test_click_to_replay_script(self):
+        # 点击字标重播：脚本存在，且没有被转义成 &amp;（会导致脚本语法错误）
+        self.assertIn('o_nodo_wm_reset', self.html)
+        script = self.html[self.html.index('o_nodo_wm_reset') - 1500:self.html.index('o_nodo_wm_reset') + 300]
+        self.assertNotIn('&amp;', script)
+
     def test_signup_and_reset_password_disabled(self):
         # 首次安装时关闭自助注册和邮件重置密码，登录页改为提示联系管理员
         self.assertNotIn('/web/signup', self.html)

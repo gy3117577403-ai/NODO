@@ -50,6 +50,9 @@ body:has(.o_nodo_login) {
     .o_nodo_login_brand {
         text-align: center;
         margin-bottom: 24px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
     }
 
     .o_nodo_login_card {
@@ -305,6 +308,11 @@ body:has(.o_nodo_login) {
     8% { opacity: 1; }
     90% { opacity: 1; }
     100% { offset-distance: 100%; opacity: 0; }
+}
+
+// 重播：短暂去掉动画再恢复，浏览器会从头播放
+.o_nodo_wm.o_nodo_wm_reset * {
+    animation: none !important;
 }
 
 // 静态字标：带错误或提示信息的页面

@@ -83,9 +83,27 @@
             <div class="o_nodo_login">
                 <t t-call="nodo_base.login_background"/>
                 <div class="o_nodo_login_inner">
-                    <div class="o_nodo_login_brand">
+                    <div class="o_nodo_login_brand" title="点击重播">
                         <t t-call="nodo_base.wordmark_animated"/>
                     </div>
+                    <!-- 点击字标重播开场动画；系统开启「减少动态效果」时不重播。不进 Tab 顺序，键盘焦点仍先到账号框。 -->
+                    <script>
+                        (function () {
+                            var brand = document.currentScript.previousElementSibling;
+                            if (!brand) { return; }
+                            var mark = brand.querySelector('svg.o_nodo_wm');
+                            if (!mark) { return; }
+                            var reduce = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+                            // 点击字标不抢走输入框的焦点
+                            brand.addEventListener('mousedown', function (event) { event.preventDefault(); });
+                            brand.addEventListener('click', function () {
+                                if (reduce ? reduce.matches : false) { return; }
+                                mark.classList.add('o_nodo_wm_reset');
+                                mark.getBoundingClientRect();
+                                mark.classList.remove('o_nodo_wm_reset', 'o_nodo_wm_static');
+                            });
+                        })();
+                    </script>
                     <div class="card o_nodo_login_card o_database_list">
                         <div class="card-body">
                             <!-- 非正式环境标识：系统参数 nodo.environment 为 dev / test 时显示，正式环境不设置 -->
