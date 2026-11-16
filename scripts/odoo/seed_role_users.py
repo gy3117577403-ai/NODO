@@ -1,4 +1,4 @@
-# 在 odoo shell 中执行：为七类 NODO 角色各建一个测试用户（只建缺少的，不改已有用户）。
+# 在 odoo shell 中执行：为每类 NODO 角色各建一个测试用户（只建缺少的，不改已有用户）。
 # 由 scripts/nodo.ps1 seed-users 调用；新建用户的随机密码打印到标准输出，由脚本写入本地账号文件。
 import secrets
 
@@ -9,6 +9,7 @@ ROLES = [
     ("engineering", "技术", "nodo_base.group_role_engineering"),
     ("purchase", "采购", "nodo_base.group_role_purchase"),
     ("production", "生产", "nodo_base.group_role_production"),
+    ("operator", "车间操作", "nodo_base.group_role_operator"),
     ("quality", "质检", "nodo_base.group_role_quality"),
 ]
 

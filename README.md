@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 up        # 启动
 powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，数据保留
 ```
 
-其他命令：`logs`、`check`（核对开发库）、`install <模块>`、`update <模块>`、`seed-users`（七类角色测试用户）、`test <模块>`、`shell`。不带参数运行可查看说明。
+其他命令：`logs`、`check`（核对开发库）、`install <模块>`、`update <模块>`、`seed-users`（每个角色一个测试用户）、`test <模块>`、`shell`。不带参数运行可查看说明。
 
 首次搭建后依次运行 `install nodo_base` 和 `seed-users`。
 
@@ -56,13 +56,13 @@ NODO/
 ├─ config/
 │  └─ odoo.conf.example 配置模板（生成的 odoo.conf 不提交）
 ├─ addons/
-│  └─ nodo_base/        品牌、主题、七类角色（必装）
+│  └─ nodo_base/        品牌、主题、八类角色（必装）
 ├─ scripts/
 │  ├─ nodo.ps1          开发环境命令
 │  └─ odoo/             在 odoo shell 中执行的初始化和核对脚本
 ├─ docs/
 │  ├─ 开发方案.md        阶段划分、模块和技术路线
-│  ├─ 权限矩阵.md        七类角色的权限草案
+│  ├─ 权限矩阵.md        八类角色的权限和用户决定
 │  ├─ 品牌残留.md        仍会出现上游名称的位置
 │  └─ 验收/             验收截图
 └─ _preview/            本机预览环境和安装包构建目录，不纳入版本管理

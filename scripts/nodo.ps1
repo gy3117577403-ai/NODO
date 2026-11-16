@@ -14,7 +14,7 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   check           只读核对开发库状态
   install <模块>  在 nodo_dev 中安装模块
   update <模块>   在 nodo_dev 中升级模块
-  seed-users      为七类角色各建一个测试用户（只建缺少的），密码写入本地账号文件
+  seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
   shell           进入 nodo_dev 的 odoo shell
 #>

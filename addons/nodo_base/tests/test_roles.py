@@ -7,6 +7,7 @@ ROLE_XMLIDS = [
     'nodo_base.group_role_engineering',
     'nodo_base.group_role_purchase',
     'nodo_base.group_role_production',
+    'nodo_base.group_role_operator',
     'nodo_base.group_role_quality',
 ]
 
@@ -20,9 +21,11 @@ class TestNodoRoles(TransactionCase):
         cls.category = cls.env.ref('nodo_base.module_category_nodo_roles')
         cls.roles = [cls.env.ref(x) for x in ROLE_XMLIDS]
 
-    def test_seven_roles_in_nodo_category(self):
+    def test_eight_roles_in_nodo_category(self):
         names = [g.privilege_id.name for g in self.roles]
-        self.assertEqual(names, ['销售', '核算', '批准', '技术', '采购', '生产', '质检'])
+        self.assertEqual(names, ['销售', '核算', '批准', '技术', '采购', '生产', '车间操作', '质检'])
+        # 按权限范围的顺序排列，用户表单上的显示顺序与此一致
+        self.assertEqual(self.roles, sorted(self.roles, key=lambda g: g.privilege_id.sequence))
         for group in self.roles:
             self.assertEqual(group.privilege_id.category_id, self.category)
             # 每个权限范围只有一个组，用户表单上各角色独立选择
