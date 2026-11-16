@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    只在首次安装时执行（noupdate），之后管理员在设置里改了不会被模块升级覆盖。
+    - 关闭自助注册：NODO 是内部系统，账号由管理员开通。
+    - 关闭邮件重置密码：未配置外发邮件服务器时，重置会提示已发送但收不到邮件；
+      登录页改为提示「忘记密码请联系管理员」。配置好邮件服务器后可在设置里重新开启。
+-->
+<odoo noupdate="1">
+    <function model="ir.config_parameter" name="set_str" eval="['auth_signup.invitation_scope', 'b2b']"/>
+    <function model="ir.config_parameter" name="set_bool" eval="['auth_signup.reset_password', False]"/>
+</odoo>

@@ -35,6 +35,22 @@ class TestNodoLoginPage(HttpCase):
         self.assertNotIn('www.odoo.com', self.html)
         self.assertNotIn('Powered by', self.html)
 
-    def test_wordmark_and_layout_class(self):
-        self.assertIn('o_nodo_wordmark', self.html)
-        self.assertIn('o_nodo_login', self.html)
+    def test_wordmark_and_layout(self):
+        self.assertIn('class="o_nodo_wm"', self.html)
+        self.assertIn('o_nodo_login_card', self.html)
+        self.assertIn('o_nodo_login_bg', self.html)
+        self.assertIn('登录', visible_text(self.html))
+
+    def test_signup_and_reset_password_disabled(self):
+        # 首次安装时关闭自助注册和邮件重置密码，登录页改为提示联系管理员
+        self.assertNotIn('/web/signup', self.html)
+        self.assertNotIn('/web/reset_password', self.html)
+        self.assertIn('忘记密码请联系管理员', self.html)
+
+    def test_webmanifest_uses_nodo_icons(self):
+        manifest = self.url_open(f'/web/manifest.webmanifest?db={self.env.cr.dbname}').json()
+        self.assertEqual(manifest['name'], 'NODO')
+        self.assertEqual(manifest['theme_color'], '#1F4F46')
+        self.assertTrue(manifest['icons'])
+        for icon in manifest['icons']:
+            self.assertTrue(icon['src'].startswith('/nodo_base/static/img/'), icon)
