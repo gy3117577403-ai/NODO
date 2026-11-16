@@ -1,0 +1,87 @@
+// 讨论（聊天）界面。规则见 DESIGN.md「讨论」。
+
+// 气泡配色：自己的消息浅绿，别人的消息白底细边，@ 我的消息浅琥珀
+body .o-mail-Message {
+    .o-mail-Message-bubble, .o-mail-Message-bubbleTail {
+        &.o-green {
+            --o-bubble-bg: #{$nodo-accent-soft};
+            --o-bubble-bg-muted: #{$nodo-accent-soft};
+            --o-bubble-border-color: #C7EAD9;
+        }
+        &.o-blue {
+            --o-bubble-bg: #FFFFFF;
+            --o-bubble-bg-muted: #FFFFFF;
+            --o-bubble-border-color: #{$nodo-border};
+        }
+        &.o-orange {
+            --o-bubble-bg: #FEF6E7;
+            --o-bubble-bg-muted: #FEF6E7;
+            --o-bubble-border-color: #F7D9A4;
+        }
+    }
+}
+
+// 讨论主界面中自己发的消息靠右（与上游小聊天窗口的做法一致）
+.o-mail-Message.o_nodo_aligned_right {
+    flex-direction: row-reverse;
+
+    .o-mail-Message-core, .o-mail-Message-textContent {
+        flex-direction: row-reverse;
+    }
+    .o-mail-Message-header {
+        justify-content: flex-end;
+    }
+    .o-mail-Message-author {
+        display: none;
+    }
+}
+
+// 左侧窄栏：选中项浅绿底、深绿图标；未读数用主色
+.o-mail-MessagingMenu-tab {
+    color: $nodo-text-muted;
+
+    &.active {
+        color: $nodo-primary;
+
+        .o-mail-MessagingMenu-tabIcon {
+            background-color: $nodo-accent-soft !important;
+            color: $nodo-primary !important;
+        }
+    }
+}
+.o-mail-MessagingMenu-tabCounter:not(.o-muted) {
+    background-color: $nodo-primary !important;
+    color: #FFFFFF !important;
+}
+
+// 开启桌面通知的提示
+.o_nodo_push_request {
+    background-color: $nodo-accent-soft !important;
+    color: $nodo-text;
+}
+
+// 没有选中对话时的提示
+.o_nodo_discuss_empty {
+    color: $nodo-text-muted;
+
+    .o_nodo_discuss_empty_mark {
+        width: 28px;
+        height: 40px;
+        color: $nodo-primary;
+        opacity: 0.85;
+        margin-bottom: 12px;
+
+        .o_nodo_node {
+            fill: $nodo-accent;
+        }
+    }
+    .o_nodo_discuss_empty_title {
+        font-size: 16px;
+        font-weight: 500;
+        color: $nodo-text;
+        margin-bottom: 4px;
+    }
+    .o_nodo_discuss_empty_hint {
+        font-size: 13px;
+    }
+}

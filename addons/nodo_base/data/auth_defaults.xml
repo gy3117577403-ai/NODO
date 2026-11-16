@@ -4,8 +4,16 @@
     - 关闭自助注册：NODO 是内部系统，账号由管理员开通。
     - 关闭邮件重置密码：未配置外发邮件服务器时，重置会提示已发送但收不到邮件；
       登录页改为提示「忘记密码请联系管理员」。配置好邮件服务器后可在设置里重新开启。
+    - 已有内部用户改为系统内通知：单据讨论和 @ 提醒出现在讨论的「单据」分栏。
+    - 全员频道改名为「全员通知」。
 -->
 <odoo noupdate="1">
     <function model="ir.config_parameter" name="set_str" eval="['auth_signup.invitation_scope', 'b2b']"/>
     <function model="ir.config_parameter" name="set_bool" eval="['auth_signup.reset_password', False]"/>
+    <function model="res.users" name="_nodo_use_inbox_notifications"/>
+
+    <record id="mail.channel_all_employees" model="discuss.channel">
+        <field name="name">全员通知</field>
+        <field name="description">公司公告和全员通知</field>
+    </record>
 </odoo>

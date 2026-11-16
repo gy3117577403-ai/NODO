@@ -9,7 +9,7 @@ NODO 基础模块（必装）：品牌、界面主题、八类角色组。
     'category': 'Hidden',
     'author': 'NODO',
     'license': 'Other proprietary',
-    'depends': ['base', 'web', 'mail', 'base_setup', 'base_install_request'],
+    'depends': ['base', 'web', 'mail', 'mail_bot', 'base_setup', 'base_install_request'],
     'data': [
         'security/nodo_roles.xml',
         'data/ir_config_parameter.xml',
@@ -28,6 +28,7 @@ NODO 基础模块（必装）：品牌、界面主题、八类角色组。
         'web.assets_backend': [
             'nodo_base/static/src/js/*.js',
             'nodo_base/static/src/xml/*.xml',
+            'nodo_base/static/src/scss/discuss.scss',
         ],
     },
     'installable': True,

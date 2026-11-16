@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- 讨论窄栏：「聊天」叫「消息」，单据通知分栏叫「单据」并用文件图标 -->
+    <t t-inherit="mail.MessagingMenu-navigation" t-inherit-mode="extension">
+        <xpath expr="//i[@t-att-data-icon]" position="attributes">
+            <attribute name="t-att-data-icon">tab.id === 'notification' ? 'description' : (this.activeTab().eq(tab) and tab.activeIcon ? tab.activeIcon : tab.icon)</attribute>
+        </xpath>
+        <xpath expr="//span[hasclass('o-xsmaller')]" position="attributes">
+            <attribute name="t-out">({chat: '消息', notification: '单据'})[tab.id] or tab.label</attribute>
+        </xpath>
+        <xpath expr="//button[hasclass('o-mail-MessagingMenu-tab')]" position="attributes">
+            <attribute name="t-att-aria-label">({chat: '消息', notification: '单据'})[tab.id] or tab.label</attribute>
+        </xpath>
+    </t>
+
+    <!-- 开启桌面通知的提示：换成品牌色和更直白的文案 -->
+    <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
+        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']" position="attributes">
+            <attribute name="className">'o_nodo_push_request o-my-0_5'</attribute>
+        </xpath>
+        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']/t[@t-set-slot='body']" position="replace">
+            <t t-set-slot="body">开启桌面通知，及时收到新消息</t>
+        </xpath>
+        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']//a[hasclass('btn-info')]" position="attributes">
+            <attribute name="class">btn btn-primary btn-sm rounded-pill px-2 py-0</attribute>
+        </xpath>
+    </t>
+
+    <!-- 没有选中对话时的提示 -->
+    <t t-inherit="mail.DiscussContent" t-inherit-mode="extension">
+        <xpath expr="//h4[hasclass('text-muted')]" position="replace">
+            <div class="o_nodo_discuss_empty text-center">
+                <svg class="o_nodo_discuss_empty_mark" viewBox="0 0 52 76" aria-hidden="true">
+                    <path d="M10 66 V18 L42 66 V8" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+                    <circle cx="10" cy="66" r="7" class="o_nodo_node"/>
+                    <circle cx="42" cy="8" r="7" class="o_nodo_node"/>
+                </svg>
+                <div class="o_nodo_discuss_empty_title">选择一个对话</div>
+                <div class="o_nodo_discuss_empty_hint">从左侧选择同事、频道或单据，或点击「聊天」发起新的对话</div>
+            </div>
+        </xpath>
+    </t>
+</templates>
