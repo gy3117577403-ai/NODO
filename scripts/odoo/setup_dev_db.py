@@ -17,14 +17,14 @@ if not cny.active:
 
 company = env.ref("base.main_company")
 company.write({
-    "name": "NODO 测试公司",
+    "name": "NODO",
     "country_id": env.ref("base.cn").id,
     "currency_id": cny.id,
 })
 
 admin = env.ref("base.user_admin")
 admin.write({
-    "name": "NODO 管理员（测试）",
+    "name": "系统管理员",
     "login": "admin@nodo.test",
     "email": "admin@nodo.test",
     "lang": "zh_CN",

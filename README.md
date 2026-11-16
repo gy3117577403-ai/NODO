@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，�
 
 - 地址 http://127.0.0.1:8079 ，只绑定本机
 - 管理员账号和密码在 `config/dev-accounts.local.md`（本地生成，不提交）
-- 开发库 `nodo_dev`：简体中文、时区 Asia/Shanghai、公司「NODO 测试公司」（中国，人民币），不含演示数据；已安装联系人、CRM、销售、采购、库存、制造、讨论
+- 开发库 `nodo_dev`：简体中文、时区 Asia/Shanghai、公司「NODO」（中国，人民币），不含演示数据；已安装联系人、CRM、销售、采购、库存、制造、讨论
 - Compose 项目 `nodo-dev`，数据卷 `nodo-dev_odoo-data`、`nodo-dev_pg-data`，网段 `10.239.70.0/28`
 - `test <模块>` 会新建一个一次性测试库 `nodo_test_<时间>`，测试结束后自动删除，不影响 `nodo_dev`
 

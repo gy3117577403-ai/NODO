@@ -1,5 +1,6 @@
 # 在 odoo shell 中执行：阶段 0 验收用，生成一张中文报价单并导出 PDF。
-# 客户和产品均为虚构，名称前加「【测试】」。可以重复执行，会复用已有记录。
+# 客户和产品均为虚构。产品名按成品呈现，不带「测试」字样；客户名待用户确认（见阶段 0 验收记录）。
+# 可以重复执行，会复用已有记录。
 import os
 
 OUT_DIR = "/var/lib/odoo/nodo-acceptance"
@@ -22,9 +23,9 @@ def product(name, price):
     })
 
 lines = [
-    (product("【测试】GGD 低压配电柜柜体 800×600×2200", 4680.0), 3),
-    (product("【测试】冷轧钢板折弯件 1.5mm 喷塑 RAL7035", 268.0), 12),
-    (product("【测试】光伏并网箱 3 进 1 出 镀锌板", 1950.0), 2),
+    (product("GGD 低压配电柜柜体 800×600×2200", 4680.0), 3),
+    (product("冷轧钢板折弯件 1.5mm 喷塑 RAL7035", 268.0), 12),
+    (product("光伏并网箱 3 进 1 出 镀锌板", 1950.0), 2),
 ]
 
 order = env["sale.order"].search([("client_order_ref", "=", REF)], limit=1)
