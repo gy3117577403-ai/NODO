@@ -106,10 +106,6 @@
                     </script>
                     <div class="card o_nodo_login_card o_database_list">
                         <div class="card-body">
-                            <!-- 非正式环境标识：系统参数 nodo.environment 为 dev / test 时显示，正式环境不设置 -->
-                            <t t-set="nodo_env" t-value="request.env['ir.config_parameter'].sudo().get_str('nodo.environment') if request and request.db else ''"/>
-                            <t t-set="nodo_env_label" t-value="{'dev': '开发环境', 'test': '测试环境'}.get(nodo_env)"/>
-                            <span t-if="nodo_env_label" class="o_nodo_env_badge" t-out="nodo_env_label"/>
                             <t t-out="0"/>
                         </div>
                     </div>
@@ -126,14 +122,14 @@
         </xpath>
         <xpath expr="//meta[@name='twitter:site']" position="replace"/>
         <xpath expr="//h1[hasclass('visually-hidden')]" position="replace">
-            <h1 class="o_nodo_login_title">登录</h1>
-            <p class="o_nodo_login_subtitle">使用管理员为你开通的账号</p>
+            <h1 class="o_nodo_login_title">欢迎回来</h1>
+            <p class="o_nodo_login_subtitle">使用企业账号登录 NODO</p>
         </xpath>
         <xpath expr="//label[@for='login']" position="replace">
             <label for="login" class="form-label d-flex justify-content-between">账号</label>
         </xpath>
         <xpath expr="//input[@name='login']" position="attributes">
-            <attribute name="placeholder">name@company.com</attribute>
+            <attribute name="placeholder">输入账号</attribute>
         </xpath>
         <!-- 登录失败提示：上游文案「错误的登录名/密码」改为更自然的说法，其他错误原样显示 -->
         <xpath expr="//p[hasclass('alert-danger')][@t-if='error']" position="replace">
@@ -141,8 +137,37 @@
                 <t t-out="'账号或密码不正确' if error in ('Wrong login/password', '错误的登录名/密码') else error"/>
             </p>
         </xpath>
+        <!-- 忘记密码提示：系统参数 nodo.login_help 可填管理员联系方式（如「分机 8001」），未填时只提示联系管理员 -->
         <xpath expr="//div[hasclass('oe_login_buttons')]" position="after">
-            <p t-if="not reset_password_enabled" class="o_nodo_login_hint">忘记密码请联系管理员</p>
+            <t t-if="not reset_password_enabled">
+                <t t-set="nodo_login_help" t-value="request.env['ir.config_parameter'].sudo().get_str('nodo.login_help') if request and request.db else ''"/>
+                <p class="o_nodo_login_hint">
+                    <t t-if="nodo_login_help">忘记密码？请联系管理员 · <t t-out="nodo_login_help"/></t>
+                    <t t-else="">忘记密码请联系管理员</t>
+                </p>
+            </t>
+        </xpath>
+        <!--
+            提交中的转圈和防重复提交由上游登录脚本负责（按钮加 o_btn_loading），样式和「正在登录…」文字见 login.scss。
+            这里只处理一种情况：登录后按浏览器「返回」，页面从缓存恢复时按钮还停在加载状态。
+        -->
+        <xpath expr="//form[@data-captcha='login']" position="after">
+            <script>
+                (function () {
+                    var form = document.currentScript.previousElementSibling;
+                    if (!form) { return; }
+                    window.addEventListener('pageshow', function (event) {
+                        if (!event.persisted) { return; }
+                        var button = form.querySelector('button.o_btn_loading');
+                        if (!button) { return; }
+                        button.classList.remove('o_btn_loading', 'o_btn_keep_loading', 'disabled', 'pe-none');
+                        button.disabled = false;
+                        button.removeAttribute('aria-disabled');
+                        var spinner = button.querySelector('.o_btn_loading_spinner');
+                        if (spinner) { spinner.remove(); }
+                    });
+                })();
+            </script>
         </xpath>
     </template>
 

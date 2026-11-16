@@ -54,15 +54,19 @@ class TestNodoLoginPage(HttpCase):
         self.assertNotIn('/web/reset_password', self.html)
         self.assertIn('忘记密码请联系管理员', self.html)
 
-    def test_environment_badge(self):
-        ICP = self.env['ir.config_parameter'].sudo()
-        self.assertNotIn('o_nodo_env_badge', self.html)
-        ICP.set_str('nodo.environment', 'test')
+    def test_product_copy(self):
+        # 成品文案：欢迎语、通用账号提示，不出现环境字样
+        text = visible_text(self.html)
+        self.assertIn('欢迎回来', text)
+        self.assertIn('使用企业账号登录 NODO', text)
+        self.assertIn('placeholder="输入账号"', self.html)
+        for word in ('开发环境', '测试环境', 'o_nodo_env_badge'):
+            self.assertNotIn(word, self.html)
+
+    def test_login_help_contact(self):
+        self.env['ir.config_parameter'].sudo().set_str('nodo.login_help', '分机 8001')
         html = self.url_open(f'/web/login?db={self.env.cr.dbname}').text
-        self.assertIn('测试环境', html)
-        ICP.set_str('nodo.environment', 'prod')
-        html = self.url_open(f'/web/login?db={self.env.cr.dbname}').text
-        self.assertNotIn('o_nodo_env_badge', html)
+        self.assertIn('忘记密码？请联系管理员 · 分机 8001', visible_text(html))
 
     def test_default_company_logo_route_serves_nodo_wordmark(self):
         company = self.env.company

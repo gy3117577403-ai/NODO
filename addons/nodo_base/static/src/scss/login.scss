@@ -67,9 +67,10 @@ body:has(.o_nodo_login) {
     }
 
     .o_nodo_login_title {
-        font-size: 22px;
-        font-weight: 600;
-        color: $nodo-text;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 1.4;
+        color: $nodo-text !important; // 上游门户样式会把标题强制设为黑色
         margin: 0 0 4px;
     }
 
@@ -77,6 +78,36 @@ body:has(.o_nodo_login) {
         font-size: 14px;
         color: $nodo-text-muted;
         margin: 0 0 24px;
+    }
+
+    // 提交中：上游脚本给按钮加 o_btn_loading 并插入转圈；这里统一样式，把文字换成「正在登录…」
+    .oe_login_buttons .btn-primary.o_btn_loading {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 0;
+        opacity: 1;
+        cursor: progress;
+
+        &::after {
+            content: "正在登录…";
+            font-size: 15px;
+        }
+        // 上游把转圈做成盖住整个按钮的半透明白色遮罩；这里改为和文字并排，不加遮罩
+        .o_btn_loading_spinner {
+            position: static;
+            inset: auto;
+            display: inline-flex;
+            background: none;
+        }
+        .spinner-border {
+            width: 14px;
+            height: 14px;
+            border-width: 2px;
+            border-color: rgba(255, 255, 255, 0.4);
+            border-top-color: #FFFFFF;
+        }
     }
 
     .form-label {
@@ -155,19 +186,6 @@ body:has(.o_nodo_login) {
         background-color: $nodo-accent-soft;
         border: 1px solid #B7E4D3;
         color: $nodo-success-text;
-    }
-
-    // 非正式环境标识
-    .o_nodo_env_badge {
-        display: inline-block;
-        margin-bottom: 16px;
-        padding: 2px 10px;
-        border-radius: 999px;
-        background-color: #FEF6E7;
-        border: 1px solid #F7D9A4;
-        color: $nodo-warning-text;
-        font-size: 12px;
-        line-height: 20px;
     }
 
     .btn-primary {
