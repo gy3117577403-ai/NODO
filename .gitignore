@@ -1,0 +1,36 @@
+# 本机 Odoo 预览环境与安装包构建目录（含明文密码、数据库和大文件）
+/_preview/
+
+# 本地凭据与生成的配置
+.env
+.env.*
+!.env.example
+/config/odoo.conf
+*.local.*
+
+# 日志
+*.log
+logs/
+日志/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Odoo 文件存储与本地数据
+filestore/
+sessions/
+odoo-data/
+pgdata/
+*.dump
+*.sql.gz
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
