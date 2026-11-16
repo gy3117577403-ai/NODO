@@ -1,0 +1,42 @@
+# NODO 开发环境。只用 scripts/nodo.ps1 操作，不要和预览环境 odoo-preview 混用。
+name: nodo-dev
+
+services:
+  odoo:
+    build: .
+    image: nodo-odoo:20.0-20261112-p0
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${NODO_HTTP_PORT:-8079}:8069"
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons:ro
+      - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
+      - ./scripts/odoo:/mnt/nodo-scripts:ro
+
+  db:
+    image: postgres:16.16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: ${NODO_DB_PASSWORD:?Run scripts/nodo.ps1 init first}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "odoo", "-d", "postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  odoo-data:
+  pg-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        # 本机 Docker 默认地址池已用完；10.239.69.0/28 属于预览环境。
+        - subnet: 10.239.70.0/28

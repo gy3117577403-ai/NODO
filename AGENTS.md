@@ -46,8 +46,9 @@
 1. 禁止 `docker system prune`、`docker volume prune`、`docker image prune`、`docker network prune`。
 2. 只操作 NODO 自己的 Compose 项目。预览环境 `odoo-preview` 不得执行 `down --volumes`。本机其他项目的容器、卷和网络一律不碰。
 3. 本机 Docker 默认地址池已用完，新建 Compose 网络要显式指定一个核对过不冲突的专属网段。`10.239.69.0/28` 已被预览环境占用。
-4. 删除任何文件、目录、容器或数据卷之前先问用户，说明删什么、能否恢复。
-5. 被系统或权限拒绝的操作，如实报告，不换个方式绕过。
+4. 删除任何文件、目录、容器或数据卷之前先问用户，说明删什么、能否恢复。唯一例外：`scripts/nodo.ps1 test` 自己新建的一次性测试库 `nodo_test_*`，测试结束后由脚本自动删除。
+5. 开发环境一律通过 `scripts/nodo.ps1` 操作；Compose 项目 `nodo-dev`，网段 `10.239.70.0/28`，端口 `127.0.0.1:8079`。
+6. 被系统或权限拒绝的操作，如实报告，不换个方式绕过。
 
 ## 工作方式
 

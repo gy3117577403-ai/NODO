@@ -1,0 +1,15 @@
+; 由 scripts/nodo.ps1 init 生成 config/odoo.conf，占位符会被随机值替换。不要提交生成后的文件。
+[options]
+admin_passwd = __MASTER_PASSWORD__
+db_host = db
+db_port = 5432
+db_user = odoo
+db_password = __DB_PASSWORD__
+addons_path = /mnt/extra-addons
+data_dir = /var/lib/odoo
+; 容器内监听全部地址，宿主机只发布到 127.0.0.1（见 docker-compose.yml）
+http_interface = 0.0.0.0
+list_db = False
+dbfilter = ^nodo_
+log_level = info
+; 开发环境不配置外发邮件服务器，避免误发
