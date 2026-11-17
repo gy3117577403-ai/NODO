@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+    <record id="purchase_order_supplier_selection" model="ir.ui.view">
+        <field name="name">purchase.order.form.nodo.supplier.selection</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id' and @widget='res_partner_many2one']" position="attributes">
+                <attribute name="widget">many2one</attribute>
+                <attribute name="options">{'no_create': True}</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id'][not(ancestor::field)]" position="after">
+                <field name="nodo_has_purchase_suppliers" invisible="1"/>
+                <div class="text-muted small" colspan="2"
+                     invisible="partner_id or nodo_has_purchase_suppliers or state in ('cancel', 'purchase')">
+                    暂无供应商，请先到供应商目录建档
+                </div>
+            </xpath>
+        </field>
+    </record>
+
     <record id="purchase_collaboration_list" model="ir.ui.view">
         <field name="name">purchase.order.list.nodo.collaboration</field>
         <field name="model">purchase.order</field>
@@ -47,7 +66,13 @@
                     <group>
                         <group string="采购信息">
                             <field name="partner_id" string="供应商" readonly="not nodo_can_edit_draft"
+                                   context="{'res_partner_search_mode': 'supplier'}"
                                    options="{'no_create': True, 'no_open': True}"/>
+                            <field name="nodo_has_purchase_suppliers" invisible="1"/>
+                            <div class="text-muted small" colspan="2"
+                                 invisible="partner_id or nodo_has_purchase_suppliers or not nodo_can_edit_draft">
+                                暂无供应商，请先到供应商目录建档
+                            </div>
                             <field name="partner_ref" string="供应商参考号" readonly="not nodo_can_edit_draft"/>
                             <field name="date_order" string="下单日期" readonly="not nodo_can_edit_draft"/>
                             <field name="date_planned" string="预计到货" readonly="not nodo_can_edit_draft"/>

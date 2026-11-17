@@ -8,6 +8,11 @@ ORDER_DRAFT_FIELDS = frozenset({
     'order_line', 'note', 'nodo_technical_user_id',
 })
 REVIEW_RELEVANT_FIELDS = frozenset({'partner_id', 'date_planned', 'nodo_technical_user_id'})
+PURCHASE_SUPPLIER_DOMAIN = Domain([
+    ('supplier_rank', '>', 0),
+    ('active', '=', True),
+    ('employee', '=', False),
+])
 
 
 def without_other_defaults(records, names):
@@ -26,6 +31,8 @@ class PurchaseOrder(models.Model):
     # permission. Suppress the standard open tracking summary in emails.
     amount_untaxed = fields.Monetary(groups='base.group_user,base.group_portal')
 
+    partner_id = fields.Many2one(domain=list(PURCHASE_SUPPLIER_DOMAIN))
+    nodo_has_purchase_suppliers = fields.Boolean(compute='_compute_nodo_has_purchase_suppliers')
     nodo_technical_user_id = fields.Many2one(
         'res.users', string='负责技术人员', check_company=True, copy=False, index=True,
     )
@@ -97,6 +104,23 @@ class PurchaseOrder(models.Model):
             )
             order.nodo_can_confirm_purchase = permissions['confirm'] and order.state in ('draft', 'sent', 'to approve')
 
+    @api.depends('company_id')
+    @api.depends_context('uid', 'company')
+    def _compute_nodo_has_purchase_suppliers(self):
+        partners = self.env['res.partner']
+        for company, orders in self.grouped('company_id').items():
+            company_domain = Domain(partners._check_company_domain(company or self.env.company))
+            domain = PURCHASE_SUPPLIER_DOMAIN & company_domain
+            orders.nodo_has_purchase_suppliers = bool(partners.search_count(domain, limit=1))
+
+    @api.constrains('partner_id', 'company_id')
+    def _check_nodo_supplier(self):
+        for company, orders in self.sudo().grouped('company_id').items():
+            partners = orders.partner_id
+            domain = PURCHASE_SUPPLIER_DOMAIN & Domain(partners._check_company_domain(company))
+            if partners - partners.filtered_domain(domain):
+                raise ValidationError('请选择已建档的供应商。')
+
     @api.constrains('nodo_technical_user_id', 'company_id')
     def _check_nodo_technical_user(self):
         for order in self.sudo():
@@ -155,18 +179,17 @@ class PurchaseOrder(models.Model):
         return True
 
     def button_confirm(self):
-        if self.env.su:
-            return super().button_confirm()
-        self._nodo_require_purchase_action('confirm', '你没有最终确认采购单的权限。')
+        if not self.env.su:
+            self._nodo_require_purchase_action('confirm', '你没有最终确认采购单的权限。')
+        self.filtered(lambda order: order.state in ('draft', 'sent'))._check_nodo_supplier()
         return super(PurchaseOrder, self.sudo()).button_confirm()
 
     def button_approve(self, force=False):
-        if self.env.su:
-            return super().button_approve(force=force)
-        self._nodo_require_purchase_action('confirm', '你没有最终确认采购单的权限。')
-        # The trusted call from button_confirm uses the native one-step path.
-        if any(order.state != 'to approve' for order in self):
-            raise ValidationError('当前状态下无法确认采购单。')
+        if not self.env.su:
+            self._nodo_require_purchase_action('confirm', '你没有最终确认采购单的权限。')
+            if any(order.state != 'to approve' for order in self):
+                raise ValidationError('当前状态下无法确认采购单。')
+        self.filtered(lambda order: order.state in ('draft', 'sent', 'to approve'))._check_nodo_supplier()
         return super(PurchaseOrder, self.sudo()).button_approve(force=force)
 
     def _approval_allowed(self):

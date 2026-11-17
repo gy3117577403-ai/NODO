@@ -1,6 +1,9 @@
+from lxml import etree
+
 from odoo.fields import Command
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import TransactionCase, new_test_user, tagged
+from odoo.tools.safe_eval import safe_eval
 
 
 @tagged('nodo', 'post_install', '-at_install')
@@ -24,7 +27,7 @@ class TestPurchasePermissions(TransactionCase):
             cls.env, login='supply_engineer@nodo.test', groups='nodo_base.group_role_engineering',
         )
         cls.colleague = new_test_user(cls.env, login='supply_colleague@nodo.test')
-        cls.vendor = cls.env['res.partner'].create({'name': '雾岬物资'})
+        cls.vendor = cls.env['res.partner'].with_context(res_partner_search_mode='supplier').create({'name': '雾岬物资'})
         cls.product = cls.env['product.product'].create({
             'name': '配线标识加工', 'type': 'service', 'purchase_ok': True, 'sale_ok': False,
         })
@@ -42,6 +45,72 @@ class TestPurchasePermissions(TransactionCase):
 
     def _purchase_card(self, order, user):
         return self.cards.with_user(user).get_record_cards([{'model': 'purchase.order', 'id': order.id}])
+
+    def test_supplier_selection_uses_the_same_scope_on_both_forms(self):
+        partner = self.env['res.partner']
+        ordinary = partner.create({'name': '弦光联络'})
+        employee = partner.create({'name': '林样甲', 'employee': True, 'supplier_rank': 1})
+        archived = partner.create({'name': '云阜来料', 'supplier_rank': 1, 'active': False})
+        outside = self.env['res.company'].create({'name': '松涧物料'})
+        foreign_vendor = partner.create({'name': '溪亭加工', 'company_id': outside.id, 'supplier_rank': 1})
+        fixtures = (self.vendor | ordinary | employee | archived | foreign_vendor).ids
+
+        for user, view_xmlid in (
+            (self.env.ref('base.user_admin'), 'purchase.purchase_order_form'),
+            (self.assistant, 'nodo_supply.purchase_collaboration_form'),
+        ):
+            with self.subTest(view=view_xmlid):
+                purchase = self.purchase.with_user(user)
+                view = purchase.get_view(self.env.ref(view_xmlid).id, view_type='form')
+                [selector] = etree.fromstring(view['arch']).xpath("//field[@name='partner_id'][not(ancestor::field)]")
+                self.assertTrue(safe_eval(selector.get('options'))['no_create'])
+                self.assertIn(selector.get('widget'), (None, 'many2one'))
+                self.assertIn('暂无供应商，请先到供应商目录建档', view['arch'])
+                domain = selector.get('domain') or purchase.fields_get(
+                    ['partner_id'], attributes=['domain'],
+                )['partner_id']['domain']
+                if isinstance(domain, str):
+                    domain = safe_eval(domain, {'company_id': self.company.id, 'allowed_company_ids': [self.company.id]})
+                lookup = partner.with_user(user).with_context(active_test=False, res_partner_search_mode='supplier')
+                matches = lookup.name_search(domain=[*domain, ('id', 'in', fixtures)])
+                self.assertEqual([record_id for record_id, _name in matches], self.vendor.ids)
+
+    def test_supplier_selection_reports_empty_list(self):
+        partner = self.env['res.partner']
+        partner.create({'name': '林样乙', 'employee': True, 'supplier_rank': 1})
+        order_model = self.purchase.with_user(self.assistant)
+        self.assertTrue(order_model.new({'company_id': self.company.id}).nodo_has_purchase_suppliers)
+        self.vendor.active = False
+        self.assertFalse(order_model.new({'company_id': self.company.id}).nodo_has_purchase_suppliers)
+
+    def test_invalid_supplier_rejected_when_creating_and_changing_purchase_order(self):
+        employee = self.env['res.partner'].create({'name': '林样丙', 'employee': True, 'supplier_rank': 1})
+        ordinary = self.env['res.partner'].create({'name': '杉河联络'})
+        order = self._draft(self.assistant)
+        for partner in (employee, ordinary):
+            with self.assertRaisesRegex(ValidationError, '请选择已建档的供应商'), self.env.cr.savepoint():
+                self._draft(self.assistant, partner_id=partner.id)
+            with self.assertRaisesRegex(ValidationError, '请选择已建档的供应商'), self.env.cr.savepoint():
+                order.write({'partner_id': partner.id})
+            self.assertEqual(order.partner_id, self.vendor)
+
+    def test_purchase_import_rejects_an_employee_contact(self):
+        employee = self.env['res.partner'].create({'name': '林样丁', 'employee': True})
+        result = self.purchase.with_user(self.buyer).load(['partner_id/.id'], [[str(employee.id)]])
+        self.assertFalse(result['ids'])
+        self.assertTrue(any('请选择已建档的供应商' in message['message'] for message in result['messages']))
+
+    def test_archived_supplier_blocks_confirmation_and_approval(self):
+        draft = self._draft(self.buyer)
+        pending = self._draft(self.buyer)
+        pending.sudo().state = 'to approve'
+        self.vendor.active = False
+        with self.assertRaisesRegex(ValidationError, '请选择已建档的供应商'):
+            draft.button_confirm()
+        with self.assertRaisesRegex(ValidationError, '请选择已建档的供应商'):
+            pending.button_approve()
+        self.assertEqual(draft.state, 'draft')
+        self.assertEqual(pending.state, 'to approve')
 
     def test_both_purchasing_roles_can_create_edit_and_confirm(self):
         for user in (self.buyer, self.manager):
