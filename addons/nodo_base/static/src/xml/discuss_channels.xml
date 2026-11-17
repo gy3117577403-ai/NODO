@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
+        <xpath expr="//t[@t-foreach='this.activeTab().actions']" position="attributes">
+            <attribute name="t-foreach">this.activeTab().actions.filter(action => action.id !== 'new_channel' or this.store.self_user?.nodo_can_manage_channels)</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.MessagingMenuEmptyChannel" t-inherit-mode="extension">
+        <xpath expr="//MessagingMenuEmpty" position="attributes">
+            <attribute name="title">'没有可显示的频道'</attribute>
+            <attribute name="subtitle">'浏览频道，加入与你工作相关的讨论。'</attribute>
+        </xpath>
+        <xpath expr="//button[contains(@t-on-click, 'this.onClickFollow')]" position="attributes">
+            <attribute name="t-out">channel.self_member_id ? '显示频道' : '加入频道'</attribute>
+        </xpath>
+        <xpath expr="//button[contains(@t-on-click, 'this.onClickFindMoreChannels')]" position="attributes">
+            <attribute name="t-out">'浏览频道'</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.DiscussContent" t-inherit-mode="extension">
+        <xpath expr="//AutoresizeInput[@onValidate.bind='this.renameThread']" position="after">
+            <div t-if="this.thread.channel?.channel_type === 'channel' and !this.thread.channel.parent_channel_id"
+                 class="o_nodo_channel_info d-flex align-items-center text-nowrap gap-2 ms-2 smaller">
+                <span t-if="this.thread.channel.nodo_restrict_posting" class="o_nodo_channel_announcement rounded-pill px-2">公告</span>
+                <span><t t-out="this.thread.channel.member_count"/> 位成员</span>
+                <span t-if="!this.thread.description and !this.thread.channel.allowEditDescription">暂无频道说明</span>
+            </div>
+        </xpath>
+    </t>
+</templates>

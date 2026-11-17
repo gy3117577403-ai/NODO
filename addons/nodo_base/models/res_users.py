@@ -8,6 +8,10 @@ class ResUsers(models.Model):
     # NODO 内部协作以系统内消息为主，未配置外发邮件服务器时邮件通知也发不出去。
     notification_type = fields.Selection(default='inbox')
 
+    def _store_init_fields(self, res):
+        super()._store_init_fields(res)
+        res.attr('nodo_can_manage_channels', lambda user: user._is_system())
+
     @api.model
     def _nodo_use_inbox_notifications(self):
         """首次安装时把已有内部用户的通知方式改为系统内通知。"""

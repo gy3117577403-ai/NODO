@@ -124,6 +124,15 @@ body .o-mail-Message {
     color: $nodo-text-muted;
 }
 
+.o_nodo_channel_info {
+    color: $nodo-text-muted;
+}
+
+.o_nodo_channel_announcement {
+    @include nodo-state;
+    color: $nodo-primary;
+}
+
 // 对话里的单据卡片
 .o_nodo_record_cards {
     display: flex;

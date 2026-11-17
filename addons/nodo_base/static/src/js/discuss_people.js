@@ -122,20 +122,25 @@ patch(ChannelInvitation.prototype, {
 
 patch(threadActionsRegistry.get("leave"), {
     name({ channel }) {
+        if (channel?.channel_type === "channel") {
+            return "退出频道";
+        }
         return isGroupChat(channel) ? "退出群聊" : super.name;
     },
 });
 
 patch(Thread.prototype, {
     askLeaveConfirmation(body) {
-        if (!isGroupChat(this.channel)) {
+        const isChannel = this.channel?.channel_type === "channel";
+        if (!isChannel && !isGroupChat(this.channel)) {
             return super.askLeaveConfirmation(body);
         }
+        const actionName = isChannel ? "退出频道" : "退出群聊";
         return new Promise((confirm) => {
             this.store.env.services.dialog.add(ConfirmationDialog, {
-                title: "退出群聊",
-                body: "退出后，需再次受邀才能进入此群。确定退出吗？",
-                confirmLabel: "退出群聊",
+                title: actionName,
+                body: isChannel ? "你是频道创建者。确定退出这个频道吗？" : "退出后，需再次受邀才能进入此群。确定退出吗？",
+                confirmLabel: actionName,
                 cancelLabel: "取消",
                 confirm,
                 cancel: () => {},

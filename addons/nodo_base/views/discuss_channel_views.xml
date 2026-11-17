@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="discuss_channel_posting_form" model="ir.ui.view">
+        <field name="name">discuss.channel.nodo.posting.form</field>
+        <field name="model">discuss.channel</field>
+        <field name="inherit_id" ref="mail.discuss_channel_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/field[@name='channel_type']" position="after">
+                <field name="parent_channel_id" invisible="1"/>
+            </xpath>
+            <xpath expr="//field[@name='is_readonly']" position="after">
+                <field name="nodo_restrict_posting" groups="base.group_system"
+                       invisible="channel_type != 'channel' or parent_channel_id"/>
+                <field name="nodo_posting_group_ids" groups="base.group_system" widget="many2many_tags"
+                       options="{'no_create': True, 'no_open': True}"
+                       invisible="channel_type != 'channel' or parent_channel_id or not nodo_restrict_posting"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail.discuss_channel_action" model="ir.actions.act_window">
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">没有可显示的频道</p>
+            <p>加入频道后，可在讨论的「频道」分栏中查看。</p>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+    <record id="mail.channel_all_employees" model="discuss.channel" forcecreate="0">
+        <field name="name">全员通知</field>
+        <field name="description">发布面向全体员工的公司公告。</field>
+        <field name="group_public_id" ref="base.group_user"/>
+        <field name="group_ids" eval="[Command.set([ref('base.group_user')])]"/>
+        <field name="nodo_restrict_posting" eval="True"/>
+        <field name="nodo_posting_group_ids" eval="[Command.set([ref('base.group_system'), ref('nodo_base.group_role_approval')])]"/>
+    </record>
+
+    <!-- Detach the upstream seed from the channel on installation. Keep the message record and XML ID. -->
+    <record id="mail.module_install_notification" model="mail.message" forcecreate="0">
+        <field name="model" eval="False"/>
+        <field name="res_id" eval="False"/>
+    </record>
+
+    <record id="channel_sales_quotes" model="discuss.channel" forcecreate="0">
+        <field name="name">销售报价</field>
+        <field name="channel_type">channel</field>
+        <field name="description">沟通询盘、报价核算和审批进度。</field>
+        <field name="group_public_id" ref="base.group_user"/>
+        <field name="group_ids" eval="[Command.set([ref('nodo_base.group_role_sales'), ref('nodo_base.group_role_costing'), ref('nodo_base.group_role_approval')])]"/>
+    </record>
+
+    <record id="channel_production_coordination" model="discuss.channel" forcecreate="0">
+        <field name="name">生产协调</field>
+        <field name="channel_type">channel</field>
+        <field name="description">协调技术、采购、生产、车间和质检的工作衔接。</field>
+        <field name="group_public_id" ref="base.group_user"/>
+        <field name="group_ids" eval="[Command.set([ref('nodo_base.group_role_engineering'), ref('nodo_base.group_role_purchase'), ref('nodo_base.group_role_production'), ref('nodo_base.group_role_operator'), ref('nodo_base.group_role_quality')])]"/>
+    </record>
+</odoo>

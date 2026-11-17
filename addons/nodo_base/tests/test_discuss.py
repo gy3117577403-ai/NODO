@@ -73,9 +73,11 @@ class TestNodoDiscuss(TransactionCase):
         for suffix in (
             'nodo_base/static/src/js/discuss_patch.js',
             'nodo_base/static/src/js/discuss_people.js',
+            'nodo_base/static/src/js/discuss_channels.js',
             'nodo_base/static/src/js/record_cards.js',
             'nodo_base/static/src/xml/discuss.xml',
             'nodo_base/static/src/xml/discuss_people.xml',
+            'nodo_base/static/src/xml/discuss_channels.xml',
             'nodo_base/static/src/xml/record_cards.xml',
             'nodo_base/static/src/scss/discuss.scss',
             'nodo_base/static/src/scss/material.scss',
