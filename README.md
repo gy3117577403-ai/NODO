@@ -32,6 +32,8 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，�
 
 采购协作试点运行 `install nodo_supply` 和 `seed-supply-pilot`，操作步骤见 [采购协作权限验收](docs/验收/采购协作权限验收.md)。
 
+员工入门、采购与技术协作、管理员权限配置和开发交接见 [NODO 使用与维护手册](docs/手册/README.md)。
+
 - 地址 http://127.0.0.1:8079 ，只绑定本机
 - 管理员账号和密码在 `config/dev-accounts.local.md`（本地生成，不提交）
 - 开发库 `nodo_dev`：简体中文、时区 Asia/Shanghai、公司「NODO」（中国，人民币），不含演示数据；已安装联系人、CRM、销售、采购、库存、制造、讨论
@@ -69,6 +71,7 @@ NODO/
 │  ├─ 开发方案.md        阶段划分、模块和技术路线
 │  ├─ 权限矩阵.md        八类角色的权限和用户决定
 │  ├─ 品牌残留.md        仍会出现上游名称的位置
+│  ├─ 手册/             员工、管理员与开发人员使用说明
 │  └─ 验收/             验收截图
 └─ _preview/            本机预览环境和安装包构建目录，不纳入版本管理
 ```
