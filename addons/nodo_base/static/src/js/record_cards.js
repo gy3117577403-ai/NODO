@@ -1,100 +1,155 @@
-import { Component, onMounted, proxy, types as t, useProps } from "@odoo/owl";
-import { formatMonetary } from "@web/views/fields/formatters";
+import { Component, proxy, types as t, useEffect, useProps } from "@odoo/owl";
+import { Dialog } from "@web/core/dialog/dialog";
+import { useLayoutEffect, useSubEnv } from "@web/owl2/utils";
+import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
-// 消息里的单据链接（/odoo/<模型>/<编号>，或常用应用路径）识别为单据卡片
-const PATH_MODELS = {
+// 兼容历史消息里的应用路径。新引用统一使用 /odoo/<模型>/<编号>。
+const PATH_MODELS = new Map(Object.entries({
     sales: "sale.order",
     crm: "crm.lead",
     purchase: "purchase.order",
     manufacturing: "mrp.production",
     contacts: "res.partner",
-};
-const LINK_RE = /\/odoo\/([a-z_]+(?:\.[a-z_]+)+|sales|crm|purchase|manufacturing|contacts)\/(\d+)/g;
+}));
+const RECORD_PATH = /^\/odoo\/([a-z_][a-z0-9_.]*)\/(\d+)\/?$/;
+const BODY_URLS = /https?:\/\/[^\s<>]+|(?<!\S)\/odoo\/[^\s<>]+/g;
 const MAX_CARDS = 3;
+const CACHE_MS = 5000;
+const STATUS_TYPES = new Set(["warning", "info", "success", "muted"]);
+export const RECORD_SERVICE = "nodo.discuss.record";
 
-const MODEL_LABELS = {
-    "crm.lead": "商机",
-    "purchase.order": "采购单",
-    "mrp.production": "生产订单",
-    "res.partner": "联系人",
-};
-const SALE_STATES = {
-    draft: ["报价单", "待提交", "o_nodo_state_warning"],
-    sent: ["报价单", "已发送", "o_nodo_state_info"],
-    sale: ["销售订单", "已确认", "o_nodo_state_success"],
-    cancel: ["报价单", "已取消", "o_nodo_state_muted"],
-};
-
-/** 从消息正文中找出单据引用，去重，最多 3 个。 */
-export function extractRecordRefs(body) {
-    const refs = [];
-    const seen = new Set();
-    for (const match of String(body || "").matchAll(LINK_RE)) {
-        const model = PATH_MODELS[match[1]] || match[1];
-        const id = parseInt(match[2], 10);
-        const key = `${model},${id}`;
-        if (!seen.has(key)) {
-            seen.add(key);
-            refs.push({ model, id, key });
-        }
-        if (refs.length >= MAX_CARDS) {
-            break;
-        }
-    }
-    return refs;
+function recordKey({ model, id }) {
+    return `${model},${id}`;
 }
 
-const cache = new Map();
-
-async function loadCard(orm, { model, id, key }) {
-    if (!cache.has(key)) {
-        cache.set(key, (async () => {
-            try {
-                if (model === "sale.order") {
-                    const [rec] = await orm.silent.read(model, [id], ["name", "partner_id", "amount_total", "currency_id", "state"]);
-                    if (!rec) {
-                        return null;
-                    }
-                    const [label, stateLabel, stateClass] = SALE_STATES[rec.state] || ["报价单", "", ""];
-                    const amount = formatMonetary(rec.amount_total, { currencyId: rec.currency_id && rec.currency_id[0] });
-                    return {
-                        key, model, id,
-                        title: `${label} ${rec.name}`,
-                        subtitle: [rec.partner_id && rec.partner_id[1], amount].filter(Boolean).join(" · "),
-                        stateLabel, stateClass,
-                    };
-                }
-                const [rec] = await orm.silent.read(model, [id], ["display_name"]);
-                if (!rec) {
-                    return null;
-                }
-                return { key, model, id, title: `${MODEL_LABELS[model] || "单据"} ${rec.display_name}`, subtitle: "", stateLabel: "", stateClass: "" };
-            } catch {
-                // 没有权限或单据已删除：不显示卡片，不弹错误
-                return null;
-            }
-        })());
+function parseRecordRef(href) {
+    if (!href?.includes("/odoo/")) {
+        return null;
     }
-    return cache.get(key);
+    const url = URL.parse(href, window.location.origin);
+    const match = url?.origin === window.location.origin && url.pathname.match(RECORD_PATH);
+    if (!match) {
+        return null;
+    }
+    const [, path, idText] = match;
+    const model = PATH_MODELS.get(path) || path;
+    const id = Number(idText);
+    if (model.includes(".") && Number.isSafeInteger(id) && id > 0) {
+        return { model, id };
+    }
+    return null;
+}
+
+export function extractRecordRefs(body) {
+    const refs = new Map();
+    if (!body?.innerHTML.includes("/odoo/")) {
+        return [];
+    }
+    const nodes = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    for (let node = nodes.nextNode(); node && refs.size < MAX_CARDS; node = nodes.nextNode()) {
+        let urls = [];
+        if (node instanceof HTMLAnchorElement) {
+            urls = [node.getAttribute("href")];
+        } else if (node.nodeType === Node.TEXT_NODE && !node.parentElement?.closest("a")) {
+            urls = Array.from(node.nodeValue.matchAll(BODY_URLS), ([url]) =>
+                url.replace(/[).,;!?，。；！？]+$/, "")
+            );
+        }
+        for (const url of urls) {
+            const ref = parseRecordRef(url);
+            if (ref) {
+                refs.set(recordKey(ref), ref);
+                if (refs.size === MAX_CARDS) {
+                    break;
+                }
+            }
+        }
+    }
+    return [...refs.values()];
+}
+
+export function useRecordCardCache() {
+    // Discuss and chat windows key the Thread component by its conversation, so reopening starts fresh.
+    useSubEnv({ nodoRecordCardCache: new Map() });
+}
+
+async function loadCards(orm, cache, refs) {
+    const now = Date.now();
+    for (const [key, entry] of cache) {
+        if (entry.expiresAt <= now) {
+            cache.delete(key);
+        }
+    }
+    const missing = refs.filter((ref) => !cache.has(recordKey(ref)));
+    if (missing.length) {
+        const batch = orm.silent.call(RECORD_SERVICE, "get_record_cards", [missing])
+            .then((cards) => new Map(cards.map((card) => [recordKey(card), card])))
+            .catch(() => new Map());
+        for (const ref of missing) {
+            const key = recordKey(ref);
+            const entry = { expiresAt: Infinity };
+            entry.promise = batch.then((cards) => {
+                const card = cards.get(key);
+                if (card) {
+                    entry.expiresAt = Date.now() + CACHE_MS;
+                } else {
+                    cache.delete(key);
+                }
+                return card;
+            });
+            cache.set(key, entry);
+        }
+    }
+    return (await Promise.all(refs.map((ref) => cache.get(recordKey(ref)).promise))).filter(Boolean);
 }
 
 export class NodoRecordCards extends Component {
     static template = "nodo_base.RecordCards";
-    props = useProps({ message: t.object() });
+    props = useProps({ message: t.object(), refs: t.array(t.object()) });
+    bodyRef = useProps.static("bodyRef", t.signal(t.ref(HTMLDivElement)));
 
     setup() {
+        const orm = this.env.services.orm;
+        const cache = this.env.nodoRecordCardCache || new Map();
         this.state = proxy({ cards: [] });
-        onMounted(() => this.load());
+        useEffect(() => {
+            const refs = this.props.refs;
+            let active = true;
+            this.state.cards = [];
+            loadCards(orm, cache, refs).then((cards) => {
+                if (active) {
+                    this.state.cards = cards;
+                }
+            });
+            return () => {
+                active = false;
+            };
+        });
+        useLayoutEffect(
+            (body, cards) => {
+                const shown = new Set(cards.map(recordKey));
+                const links = [];
+                for (const link of body?.querySelectorAll("a[href]") || []) {
+                    const ref = parseRecordRef(link.getAttribute("href"));
+                    if (ref && shown.has(recordKey(ref))) {
+                        link.classList.add("o_nodo_link_as_card");
+                        links.push(link);
+                    }
+                }
+                return () => {
+                    for (const link of links) {
+                        link.classList.remove("o_nodo_link_as_card");
+                    }
+                };
+            },
+            () => [this.bodyRef(), this.state.cards, this.props.message.richBody, this.props.message.showTranslation]
+        );
     }
 
-    async load() {
-        const orm = this.env.services.orm;
-        if (!orm) {
-            return;
-        }
-        const refs = extractRecordRefs(this.props.message.body);
-        const cards = await Promise.all(refs.map((ref) => loadCard(orm, ref)));
-        this.state.cards = cards.filter(Boolean);
+    cardKey = recordKey;
+
+    statusClass(card) {
+        return STATUS_TYPES.has(card.status_type) ? `o_nodo_state_${card.status_type}` : "";
     }
 
     open(card) {
@@ -105,5 +160,44 @@ export class NodoRecordCards extends Component {
             views: [[false, "form"]],
             target: "current",
         });
+    }
+}
+
+class RecordTypesDialog extends Component {
+    static template = "nodo_base.RecordTypesDialog";
+    static components = { Dialog };
+    props = useProps({
+        types: t.array(t.object()),
+        select: t.function(),
+        close: t.function(),
+    });
+
+    select(model) {
+        this.props.close();
+        this.props.select(model);
+    }
+}
+
+export async function insertRecordReference(owner, { orm, dialog, notification }) {
+    const types = await orm.silent.call(RECORD_SERVICE, "get_record_card_types", []);
+    if (!types.length) {
+        notification.add("当前没有可引用的单据类型。", { type: "info" });
+        return;
+    }
+    const select = ({ model, label }) => dialog.add(SelectCreateDialog, {
+        resModel: model,
+        title: `引用${label}`,
+        multiSelect: false,
+        noCreate: true,
+        onSelected: ([id]) => {
+            if (id) {
+                owner.addEmoji(` ${window.location.origin}/odoo/${model}/${id} `);
+            }
+        },
+    });
+    if (types.length === 1) {
+        select(types[0]);
+    } else {
+        dialog.add(RecordTypesDialog, { types, select });
     }
 }

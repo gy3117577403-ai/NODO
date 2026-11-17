@@ -192,11 +192,8 @@ body .o-mail-Message {
     &.o_nodo_state_muted { background-color: #F1F4F3; color: $nodo-text-muted; }
 }
 // 已显示为卡片的单据链接，在正文里不再重复显示原始网址
-.o-mail-Message-body:has(> .o_nodo_record_cards) {
-    a[href*="/odoo/sale.order/"], a[href*="/odoo/sales/"], a[href*="/odoo/crm/"], a[href*="/odoo/crm.lead/"],
-    a[href*="/odoo/purchase/"], a[href*="/odoo/purchase.order/"], a[href*="/odoo/manufacturing/"], a[href*="/odoo/mrp.production/"] {
-        display: none;
-    }
+.o-mail-Message-body a.o_nodo_link_as_card {
+    display: none;
 }
 
 // 开启桌面通知的提示

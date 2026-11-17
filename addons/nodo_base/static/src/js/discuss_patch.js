@@ -1,8 +1,8 @@
 import { computed, useEffect } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { registerComposerAction } from "@mail/core/common/composer_actions";
 import { Message } from "@mail/core/common/message";
+import { Thread } from "@mail/core/common/thread";
 import { threadActionsRegistry } from "@mail/core/common/thread_actions";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu/messaging_menu";
 import { MessagingMenuTab } from "@mail/core/public_web/messaging_menu/messaging_menu_tab_model";
@@ -10,7 +10,7 @@ import { MessagingMenuTab } from "@mail/core/public_web/messaging_menu/messaging
 import "@mail/discuss/call/common/thread_actions";
 import "@mail/discuss/core/public_web/messaging_menu_patch";
 
-import { extractRecordRefs, NodoRecordCards } from "./record_cards";
+import { extractRecordRefs, insertRecordReference, NodoRecordCards, useRecordCardCache } from "./record_cards";
 
 // ---------------------------------------------------------------------------
 // 窄栏：不显示「会议」；音视频通话在内网环境验证可用前不开放
@@ -75,7 +75,17 @@ patch(MessagingMenu.prototype, {
 // 消息：讨论主界面里自己发的消息靠右；正文里的单据链接显示为卡片
 // ---------------------------------------------------------------------------
 Message.components = { ...Message.components, NodoRecordCards };
+patch(Thread.prototype, {
+    setup() {
+        super.setup(...arguments);
+        useRecordCardCache();
+    },
+});
 patch(Message.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.nodoRecordRefs = computed(() => extractRecordRefs(this.message.bodyEl));
+    },
     get attClass() {
         return { ...super.attClass, o_nodo_aligned_right: this.isAlignedRight && !this.env.inChatWindow };
     },
@@ -90,13 +100,10 @@ patch(Message.prototype, {
             )
         );
     },
-    get nodoHasRecordRefs() {
-        return extractRecordRefs(this.props.message.body).length > 0;
-    },
 });
 
 // ---------------------------------------------------------------------------
-// 输入框「引用单据」：选一张报价单或订单，插入它的链接，发出后显示为卡片
+// 输入框「引用单据」：从已声明的类型中选单据
 // ---------------------------------------------------------------------------
 registerComposerAction("nodo-insert-record", {
     condition: ({ composer, store }) =>
@@ -104,24 +111,8 @@ registerComposerAction("nodo-insert-record", {
     disabledCondition: ({ owner }) => owner.areAllActionsDisabled,
     icon: "description",
     name: "引用单据",
-    async onSelected({ owner, store }) {
-        const { orm, dialog, notification } = store.env.services;
-        const installed = await orm.silent.searchCount("ir.model", [["model", "=", "sale.order"]]).catch(() => 0);
-        if (!installed) {
-            notification.add("当前系统还没有安装报价模块，暂时无法引用单据。", { type: "warning" });
-            return;
-        }
-        dialog.add(SelectCreateDialog, {
-            resModel: "sale.order",
-            title: "引用报价单或订单",
-            multiSelect: false,
-            noCreate: true,
-            onSelected: ([resId]) => {
-                if (resId) {
-                    owner.addEmoji(` ${window.location.origin}/odoo/sale.order/${resId} `);
-                }
-            },
-        });
+    onSelected({ owner, store }) {
+        return insertRecordReference(owner, store.env.services);
     },
     sequence: 25,
     sequenceQuick: 15,

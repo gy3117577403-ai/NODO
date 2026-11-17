@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_base.ShareRecordDialog">
+        <Dialog title="'发到聊天'">
+            <div class="d-flex flex-column gap-3">
+                <div class="d-flex flex-wrap gap-2" role="group" aria-label="会话类型">
+                    <button t-foreach="this.kinds" t-as="kind" t-key="kind.id" type="button"
+                        class="btn" t-att-class="kind.id === this.state.kind ? 'btn-primary' : 'btn-secondary'"
+                        t-att-aria-pressed="kind.id === this.state.kind ? 'true' : 'false'"
+                        t-att-disabled="this.state.sending" t-on-click="() => this.setKind(kind.id)" t-out="kind.label"/>
+                </div>
+                <input class="form-control" type="search" aria-label="搜索接收人或会话" placeholder="搜索接收人或会话"
+                    maxlength="120" t-att-value="this.state.term" t-att-disabled="this.state.sending" t-on-input="this.onSearch"/>
+                <div aria-live="polite">
+                    <p t-if="this.state.targets === null" class="text-muted mb-0">正在查找…</p>
+                    <p t-elif="!this.state.targets.length and !this.state.error" class="text-muted mb-0">没有可选的接收人或会话。</p>
+                    <div t-else="" class="list-group overflow-auto" style="max-height: 15rem;" aria-label="接收人或会话">
+                        <button t-foreach="this.state.targets" t-as="target" t-key="target.id"
+                            class="list-group-item list-group-item-action" type="button"
+                            t-att-class="{active: target.id === this.state.selected}"
+                            t-att-aria-pressed="target.id === this.state.selected ? 'true' : 'false'"
+                            t-att-disabled="this.state.sending"
+                            t-on-click="() => this.state.selected = target.id" t-out="target.name"/>
+                    </div>
+                </div>
+                <label class="d-flex flex-column gap-1">
+                    附言（选填）
+                    <textarea class="form-control" rows="2" maxlength="2000" t-model="this.note"
+                        t-att-disabled="this.state.sending"/>
+                </label>
+                <p t-if="this.state.error" class="text-danger mb-0" role="alert" t-out="this.state.error"/>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" type="button" t-att-disabled="!this.state.selected or this.state.sending"
+                    t-on-click="this.send">发送</button>
+                <button class="btn btn-secondary" type="button" t-att-disabled="this.state.sending"
+                    t-on-click="this.props.close">取消</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

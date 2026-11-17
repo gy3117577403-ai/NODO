@@ -73,6 +73,13 @@ class ResPartner(models.Model):
         res.one('main_user_id', '_store_main_user_fields', sudo=True)
         res.from_method('_store_nodo_chat_roles_fields', internal=True)
 
+    def _nodo_chat_people_domain(self, channel):
+        return (
+            self._get_channel_invite_domain(channel)
+            & Domain('id', 'not in', [self.env.user.partner_id.id, self.env.ref('base.partner_root').id])
+            & Domain('user_ids', 'any', Domain('active', '=', True) & Domain('share', '=', False))
+        )
+
     @api.readonly
     @api.model
     def nodo_search_chat_people(self, search_term='', role='', channel_id=None):
@@ -91,11 +98,7 @@ class ResPartner(models.Model):
 
         roles = self._nodo_chat_roles()
         eligible_user = Domain('active', '=', True) & Domain('share', '=', False)
-        domain = (
-            self._get_channel_invite_domain(channel)
-            & Domain('id', 'not in', [self.env.user.partner_id.id, self.env.ref('base.partner_root').id])
-            & Domain('user_ids', 'any', eligible_user)
-        )
+        domain = self._nodo_chat_people_domain(channel)
         if role:
             if role not in roles:
                 domain = Domain.FALSE
