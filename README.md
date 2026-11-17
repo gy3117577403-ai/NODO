@@ -57,7 +57,8 @@ NODO/
 │  └─ odoo.conf.example 配置模板（生成的 odoo.conf 不提交）
 ├─ addons/
 │  ├─ nodo_base/        品牌、主题、八类角色、讨论与通用单据卡片（必装）
-│  └─ nodo_base_sale/   报价和销售订单卡片、发到聊天（安装基础和销售后自动安装）
+│  ├─ nodo_base_sale/   报价和销售订单卡片、发到聊天（安装基础和销售后自动安装）
+│  └─ nodo_base_purchase/ 采购询价单和采购单卡片、发到聊天（安装基础和采购后自动安装）
 ├─ scripts/
 │  ├─ nodo.ps1          开发环境命令
 │  └─ odoo/             在 odoo shell 中执行的初始化和核对脚本
