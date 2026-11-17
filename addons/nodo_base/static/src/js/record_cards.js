@@ -22,7 +22,17 @@ function recordKey({ model, id }) {
     return `${model},${id}`;
 }
 
-function parseRecordRef(href) {
+function parseRecordRef(source) {
+    let href = source;
+    if (source instanceof HTMLAnchorElement) {
+        // Odoo uses the same contact URL for a person mention and a record link.
+        const personMention = source.matches('.o_mail_redirect[data-oe-model="res.partner"]') &&
+            source.textContent.trimStart().startsWith("@");
+        if (personMention || source.matches(".o-discuss-mention, .o-discuss-readonly-mention")) {
+            return null;
+        }
+        href = source.getAttribute("href");
+    }
     if (!href?.includes("/odoo/")) {
         return null;
     }
@@ -47,16 +57,16 @@ export function extractRecordRefs(body) {
     }
     const nodes = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
     for (let node = nodes.nextNode(); node && refs.size < MAX_CARDS; node = nodes.nextNode()) {
-        let urls = [];
+        let sources = [];
         if (node instanceof HTMLAnchorElement) {
-            urls = [node.getAttribute("href")];
+            sources = [node];
         } else if (node.nodeType === Node.TEXT_NODE && !node.parentElement?.closest("a")) {
-            urls = Array.from(node.nodeValue.matchAll(BODY_URLS), ([url]) =>
+            sources = Array.from(node.nodeValue.matchAll(BODY_URLS), ([url]) =>
                 url.replace(/[).,;!?，。；！？]+$/, "")
             );
         }
-        for (const url of urls) {
-            const ref = parseRecordRef(url);
+        for (const source of sources) {
+            const ref = parseRecordRef(source);
             if (ref) {
                 refs.set(recordKey(ref), ref);
                 if (refs.size === MAX_CARDS) {
@@ -130,7 +140,7 @@ export class NodoRecordCards extends Component {
                 const shown = new Set(cards.map(recordKey));
                 const links = [];
                 for (const link of body?.querySelectorAll("a[href]") || []) {
-                    const ref = parseRecordRef(link.getAttribute("href"));
+                    const ref = parseRecordRef(link);
                     if (ref && shown.has(recordKey(ref))) {
                         link.classList.add("o_nodo_link_as_card");
                         links.push(link);
