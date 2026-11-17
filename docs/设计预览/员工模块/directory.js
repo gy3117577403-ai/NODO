@@ -44,6 +44,8 @@ const purchasePermissions = [
   { id: "confirm", label: "确认采购单" },
 ];
 const detailOrder = ["profile", "account", "permissions"];
+const archiveFieldLabels = { name: "姓名", number: "人员编号", department: "部门", job: "岗位" };
+const archiveFields = Object.keys(archiveFieldLabels);
 const elements = Object.fromEntries(Array.from(document.querySelectorAll("[id]"), (node) => [node.id, node]));
 const state = {
   view: location.hash === "#departments" ? "departments" : "employees",
@@ -79,17 +81,27 @@ function createEmployeeSamples() {
     }
   }
   return people.map((person, position) => {
-    const number = position % 19 === 7 ? "" : "E" + String(position + 1).padStart(4, "0");
-    return { ...person, id: position + 1, number, review: number && person.job ? person.review : "pending", permissions: {} };
+    const id = position + 1;
+    const digits = String(id).padStart(4, "0");
+    const number = position % 19 === 7 ? "" : "E" + digits;
+    const accountName = number ? number.toLowerCase() : "member" + id;
+    return {
+      ...person,
+      id,
+      number,
+      sourceNumber: "ORG-" + digits,
+      login: person.account !== "none" ? accountName + "@nodo.test" : "",
+      review: number && person.job ? person.review : "pending",
+      purchaseRole: initialPurchaseRole(person),
+      permissions: {},
+    };
   });
 }
 
 const employees = createEmployeeSamples();
 const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
-const departmentCounts = new Map(departments.map((department) => [department.id,
-  employees.filter((employee) => departmentTrail(employee.department).some((item) => item.id === department.id)).length,
-]));
 let noticeTimer;
+let editSession;
 
 function escapeText(value) {
   const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -112,6 +124,10 @@ function departmentTrail(id) {
 
 function departmentName(id) {
   return departmentById.get(id)?.name || "全部部门";
+}
+
+function departmentPath(id) {
+  return departmentTrail(id).map((item) => item.name).join(" / ");
 }
 
 function departmentEmployees(id = state.department) {
@@ -158,7 +174,7 @@ function renderBranch(department, depth) {
     disclosure + '<button type="button" class="tree-select" data-department="' + department.id +
     '"' + (chosen ? ' aria-current="true"' : "") + ' title="' + department.name + '">' +
     icon(children.length ? "folder" : "groups") + '<span class="tree-name">' + department.name +
-    '</span><span class="tree-count">' + departmentCounts.get(department.id) + "</span></button></div>" + branch + "</li>";
+    '</span><span class="tree-count">' + departmentEmployees(department.id).length + "</span></button></div>" + branch + "</li>";
 }
 
 function renderDepartmentTree() {
@@ -175,6 +191,11 @@ function renderDepartmentTree() {
   toggle.title = expanded ? "收起部门" : "展开部门";
 }
 
+function supplementButton(person, field, label, className = "") {
+  return '<button type="button" class="supplement-link truncate ' + className + '" data-supplement-field="' + field +
+    '" aria-label="补充' + escapeText(person.name) + '的' + archiveFieldLabels[field] + '">' + label + "</button>";
+}
+
 function employeeRow(person) {
   const department = departmentById.get(person.department);
   const parent = departmentById.get(department.parent);
@@ -182,14 +203,15 @@ function employeeRow(person) {
     ? '<span class="parent-department truncate">' + parent.name + "</span>"
     : "";
   const active = state.employeeId === person.id;
-  const job = person.job ? escapeText(person.job) : '<span class="missing">待填写</span>';
-  return '<tr data-person="' + person.id + '" data-selected="' + active + '"><td>' +
-    '<button type="button" class="person-cell" aria-label="查看' + escapeText(person.name) +
-    '的员工详情" aria-expanded="' + active + '">' + avatar(person) +
-    '<span class="person-identity"><strong class="truncate">' + escapeText(person.name) +
-    '</strong><span class="person-number truncate">' + escapeText(person.number || "编号待填写") +
-    '</span></span></button></td><td><div class="department-cell"><span class="truncate">' + department.name +
-    "</span>" + origin + '</div></td><td><span class="truncate">' + job + "</span></td><td>" +
+  const number = person.number ? '<span class="person-number truncate">' + escapeText(person.number) + "</span>" :
+    supplementButton(person, "number", "编号待填写", "person-number");
+  const job = person.job ? '<span class="truncate">' + escapeText(person.job) + "</span>" :
+    supplementButton(person, "job", "待填写");
+  return '<tr data-person="' + person.id + '" data-selected="' + active + '"><td><div class="person-cell">' +
+    avatar(person) + '<div class="person-identity"><button type="button" class="person-open truncate" aria-label="查看' +
+    escapeText(person.name) + '的员工详情" aria-expanded="' + active + '">' + escapeText(person.name) +
+    "</button>" + number + '</div></div></td><td><div class="department-cell"><span class="truncate">' + department.name +
+    "</span>" + origin + "</div></td><td>" + job + "</td><td>" +
     reviewTag(person) + "</td><td>" + accountState(person) + '</td><td class="open-cell">' +
     icon("chevron_right") + "</td></tr>";
 }
@@ -236,7 +258,7 @@ function renderDepartmentDetail() {
   const branches = childrenOf(branch);
   const list = branches.map((child) =>
     '<li><button type="button" data-department="' + child.id + '">' + icon("folder") +
-    "<strong>" + child.name + '</strong><span class="subdepartment-count">' + departmentCounts.get(child.id) +
+    "<strong>" + child.name + '</strong><span class="subdepartment-count">' + departmentEmployees(child.id).length +
     " 人</span>" + icon("chevron_right") + "</button></li>"
   ).join("");
   const subdepartments = branches.length
@@ -267,20 +289,24 @@ function fieldRows(rows) {
   ).join("") + "</dl>";
 }
 
+function missingArchiveFields(values) {
+  return archiveFields.filter((field) => !values[field]?.trim());
+}
+
 function profilePanel(person) {
-  const incomplete = [!person.number && "人员编号", !person.job && "岗位"].filter(Boolean);
+  const incomplete = missingArchiveFields(person).map((field) => archiveFieldLabels[field]);
   const needsReview = person.review === "pending";
   const missing = '<span class="missing">待填写</span>';
   const profile = fieldRows([
     ["人员编号", person.number ? escapeText(person.number) : missing],
-    ["部门路径", departmentTrail(person.department).map((item) => item.name).join(" / ")],
+    ["部门路径", departmentPath(person.department)],
     ["岗位", person.job ? escapeText(person.job) : missing],
     ["档案来源", "组织架构图"],
   ]);
   const message = incomplete.length
     ? '<p class="callout">请先补齐' + incomplete.join("和") + "，再确认复核。</p>"
     : needsReview ? '<p class="info-line">确认编号、部门和岗位后，可标记为已复核。</p>' : "";
-  elements["detail-actions"].innerHTML = '<button type="button" class="button" id="open-edit">编辑档案</button>' +
+  elements["detail-actions"].innerHTML = '<button type="button" class="button" id="open-edit">补充信息</button>' +
     (needsReview ? '<button type="button" class="button button-primary" id="confirm-review"' +
       (incomplete.length ? " disabled" : "") + ">确认复核</button>" : "");
   elements["detail-actions"].hidden = false;
@@ -289,23 +315,24 @@ function profilePanel(person) {
 
 function accountPanel(person) {
   const rows = [["账号状态", accountState(person)]];
-  if (person.account !== "none") {
-    const login = person.number ? person.number.toLowerCase() : "member" + person.id;
-    rows.push(["登录名", escapeText(login + "@nodo.test")]);
-  }
+  if (person.login) rows.push(["登录名", escapeText(person.login)]);
   const note = person.account === "none"
     ? "档案已存在。需要登录时，由管理员在用户入口开通并配置权限。"
     : "系统管理员可在用户入口管理登录账号及公司范围。";
   return '<h3 class="detail-section-title">登录账号</h3>' + fieldRows(rows) + '<p class="info-line">' + note + "</p>";
 }
 
-function rolePermissionDefaults(person) {
+function initialPurchaseRole(person) {
   if (person.department === "purchasing") {
-    return ["view", "price", "draft"].concat(person.job === "采购助理" ? [] : ["confirm"]);
+    return person.job === "采购助理" ? "assistant" : "buyer";
   }
-  if (person.department === "engineering") {
-    return ["view", "price", "review"];
-  }
+  return person.department === "engineering" ? "engineering" : "";
+}
+
+function rolePermissionDefaults(person) {
+  if (person.purchaseRole === "assistant") return ["view", "price", "draft"];
+  if (person.purchaseRole === "buyer") return ["view", "price", "draft", "confirm"];
+  if (person.purchaseRole === "engineering") return ["view", "price", "review"];
   return [];
 }
 
@@ -315,8 +342,8 @@ function permissionsPanel(person) {
   }
   const defaults = rolePermissionDefaults(person);
   let scope = "授权公司";
-  if (person.job === "采购助理") scope = "本人草稿";
-  else if (person.department === "engineering") scope = "本人负责的单据";
+  if (person.purchaseRole === "assistant") scope = "本人草稿";
+  else if (person.purchaseRole === "engineering") scope = "本人负责的单据";
   const permissionAllowed = (id) => {
     const mode = person.permissions[id] || "inherit";
     return mode === "inherit" ? defaults.includes(id) : mode === "allow";
@@ -408,7 +435,7 @@ function closeDetails() {
   state.employeeId = null;
   renderEmployees();
   renderEmployeeDetail();
-  document.querySelector('[data-person="' + previous + '"] .person-cell')?.focus();
+  document.querySelector('[data-person="' + previous + '"] .person-open')?.focus();
 }
 
 function notify(message) {
@@ -419,12 +446,63 @@ function notify(message) {
   noticeTimer = setTimeout(() => { notice.hidden = true; }, 2800);
 }
 
-function openEditDialog() {
-  const employee = selectedEmployee();
-  const form = elements["edit-person"];
-  for (const name of ["name", "number", "job"]) form.elements.namedItem(name).value = employee[name];
-  elements["edit-error"].hidden = true;
+function populateDepartmentPicker() {
+  const picker = elements["edit-department"];
+  for (const root of childrenOf("all")) {
+    const options = document.createElement("optgroup");
+    options.label = root.name;
+    for (const department of departments) {
+      if (departmentTrail(department.id)[0].id === root.id) {
+        options.append(new Option(departmentPath(department.id), department.id));
+      }
+    }
+    picker.append(options);
+  }
+}
+
+function editValues() {
+  const formData = new FormData(elements["edit-person"]);
+  return Object.fromEntries(archiveFields.map((field) => [field, String(formData.get(field) ?? "").trim()]));
+}
+
+function showEditError(field, message = "") {
+  const control = elements["edit-" + field];
+  const error = elements["edit-" + field + "-error"];
+  if (!error) return;
+  error.textContent = message;
+  error.hidden = !message;
+  if (message) {
+    control.setAttribute("aria-invalid", "true");
+    control.focus({ preventScroll: false });
+  } else {
+    control.removeAttribute("aria-invalid");
+  }
+}
+
+function renderEditMissingFields() {
+  const missing = missingArchiveFields(editValues());
+  const label = elements["edit-missing-label"];
+  const description = elements["edit-missing-fields"];
+  label.parentElement.dataset.incomplete = Boolean(missing.length);
+  label.textContent = missing.length ? "待补资料" : "资料完整度";
+  description.textContent = missing.length ? missing.map((field) => archiveFieldLabels[field]).join("、") : "资料已齐";
+}
+
+function openEditDialog(employee, trigger, field) {
+  editSession = { employee, trigger };
+  for (const name of archiveFields) {
+    elements["edit-" + name].value = employee[name];
+    showEditError(name);
+  }
+  elements["edit-profile-avatar"].textContent = employee.name[0];
+  elements["edit-profile-name"].textContent = employee.name;
+  elements["edit-profile-position"].textContent = departmentName(employee.department) + " · " + (employee.job || "岗位待填写");
+  elements["edit-profile-review"].innerHTML = reviewTag(employee);
+  elements["edit-source-number"].textContent = employee.sourceNumber;
+  elements["edit-dialog"].querySelector(".supplement-body").scrollTop = 0;
+  renderEditMissingFields();
   elements["edit-dialog"].showModal();
+  elements["edit-" + (field || missingArchiveFields(employee)[0] || "name")].focus();
 }
 
 elements["employee-search"].addEventListener("input", (event) => {
@@ -459,6 +537,9 @@ document.addEventListener("click", (event) => {
   } else if (control.dataset.detailTab) {
     state.detailTab = control.dataset.detailTab;
     renderEmployeeDetail();
+  } else if (control.dataset.supplementField) {
+    const employee = employeeById.get(Number(control.closest("[data-person]").dataset.person));
+    openEditDialog(employee, control, control.dataset.supplementField);
   } else if (control.closest("[data-person]")) {
     state.employeeId = Number(control.closest("[data-person]").dataset.person);
     state.detailTab = "profile";
@@ -480,7 +561,8 @@ const actions = {
     renderDepartmentTree();
   },
   "open-import": () => elements["import-dialog"].showModal(),
-  "open-edit": openEditDialog,
+  "open-edit": (button) => openEditDialog(selectedEmployee(), button),
+  "close-edit": () => elements["edit-dialog"].close(),
   "cancel-edit": () => elements["edit-dialog"].close(),
   "close-employee": closeDetails,
   "drawer-backdrop": closeDetails,
@@ -503,7 +585,7 @@ const actions = {
   },
   "confirm-review": () => {
     const person = selectedEmployee();
-    if (!person.number || !person.job) return;
+    if (missingArchiveFields(person).length) return;
     person.review = "complete";
     renderEmployees();
     renderEmployeeDetail();
@@ -512,7 +594,7 @@ const actions = {
 };
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[id]");
-  if (button && Object.hasOwn(actions, button.id)) actions[button.id]();
+  if (button && Object.hasOwn(actions, button.id)) actions[button.id](button);
 });
 
 elements["detail-content"].addEventListener("change", (event) => {
@@ -523,25 +605,50 @@ elements["detail-content"].addEventListener("change", (event) => {
   document.getElementById(choice.id)?.focus();
 });
 
+elements["edit-person"].addEventListener("input", (event) => {
+  if (!archiveFields.includes(event.target.name)) return;
+  showEditError(event.target.name);
+  renderEditMissingFields();
+});
+
 elements["edit-person"].addEventListener("submit", (event) => {
   event.preventDefault();
-  const values = Object.fromEntries(new FormData(event.target));
-  for (const field of ["name", "number", "job"]) values[field] = values[field].trim();
-  const person = selectedEmployee();
+  const values = editValues();
+  const person = editSession.employee;
+  for (const field of archiveFields) showEditError(field);
+  if (!values.name) {
+    showEditError("name", "请输入姓名。");
+    return;
+  }
+  if (!departmentById.has(values.department)) {
+    showEditError("department", "请选择部门。");
+    return;
+  }
   const duplicate = values.number && employees.some((employee) =>
     employee.id !== person.id && employee.number.toLowerCase() === values.number.toLowerCase()
   );
-  if (!values.name || duplicate) {
-    const error = elements["edit-error"];
-    error.textContent = duplicate ? "该人员编号已被使用。" : "请输入姓名。";
-    error.hidden = false;
+  if (duplicate) {
+    showEditError("number", "该人员编号已被使用。");
+    return;
+  }
+  if (archiveFields.every((field) => person[field] === values[field])) {
+    elements["edit-dialog"].close();
     return;
   }
   Object.assign(person, values, { review: "pending" });
+  renderView();
   elements["edit-dialog"].close();
-  renderEmployees();
-  renderEmployeeDetail();
   notify("预览档案已更新");
+});
+
+elements["edit-dialog"].addEventListener("close", () => {
+  const { employee, trigger } = editSession;
+  editSession = null;
+  const replacement = trigger.id === "open-edit"
+    ? document.getElementById("open-edit")
+    : document.querySelector('[data-person="' + employee.id + '"] .person-open');
+  const target = trigger.isConnected ? trigger : replacement || elements["employee-search"];
+  target.focus({ preventScroll: true });
 });
 
 document.addEventListener("keydown", (event) => {
@@ -565,4 +672,5 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("hashchange", () =>
   changeView(location.hash === "#departments" ? "departments" : "employees")
 );
+populateDepartmentPicker();
 renderView();

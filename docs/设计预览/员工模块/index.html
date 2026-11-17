@@ -155,14 +155,72 @@
     </footer>
   </dialog>
 
-  <dialog id="edit-dialog" class="dialog" aria-labelledby="edit-title">
-    <form id="edit-person">
-      <h2 id="edit-title">编辑档案</h2>
-      <label>姓名<input name="name" required maxlength="24"></label>
-      <label>人员编号<input name="number" maxlength="24"></label>
-      <label>岗位<input name="job" maxlength="40"></label>
-      <p class="form-error" id="edit-error" hidden></p>
-      <footer class="dialog-actions">
+  <dialog id="edit-dialog" class="dialog supplement-dialog" aria-labelledby="edit-title">
+    <form id="edit-person" class="supplement-form" novalidate>
+      <header class="dialog-heading supplement-heading">
+        <h2 id="edit-title">补充信息</h2>
+        <button type="button" class="icon-button" id="close-edit" aria-label="关闭补充信息">
+          <span class="icon" aria-hidden="true">close</span>
+        </button>
+      </header>
+      <div class="supplement-body">
+        <aside class="panel supplement-profile" aria-labelledby="edit-profile-name">
+          <div class="supplement-cover" aria-hidden="true"></div>
+          <div class="supplement-identity">
+            <span class="person-avatar" id="edit-profile-avatar" aria-hidden="true"></span>
+            <div class="supplement-person">
+              <h3 id="edit-profile-name"></h3>
+              <p id="edit-profile-position"></p>
+              <div id="edit-profile-review"></div>
+            </div>
+          </div>
+          <div class="supplement-missing" aria-live="polite">
+            <span id="edit-missing-label"></span>
+            <strong id="edit-missing-fields"></strong>
+          </div>
+        </aside>
+        <div class="supplement-sections">
+          <section class="panel supplement-section" aria-labelledby="edit-fields-title">
+            <h3 id="edit-fields-title">工作资料</h3>
+            <div class="supplement-fields">
+              <div class="supplement-field">
+                <label for="edit-name">姓名</label>
+                <div>
+                  <input id="edit-name" name="name" required maxlength="24" aria-describedby="edit-name-error">
+                  <p class="form-error" id="edit-name-error" role="alert" hidden></p>
+                </div>
+              </div>
+              <div class="supplement-field">
+                <label for="edit-number">人员编号</label>
+                <div>
+                  <input id="edit-number" name="number" maxlength="24" placeholder="填写正式人员编号"
+                         aria-describedby="edit-number-error">
+                  <p class="form-error" id="edit-number-error" role="alert" hidden></p>
+                </div>
+              </div>
+              <div class="supplement-field">
+                <label for="edit-department">部门</label>
+                <div>
+                  <select id="edit-department" name="department" required aria-describedby="edit-department-error"></select>
+                  <p class="form-error" id="edit-department-error" role="alert" hidden></p>
+                </div>
+              </div>
+              <div class="supplement-field">
+                <label for="edit-job">岗位</label>
+                <input id="edit-job" name="job" maxlength="40" placeholder="填写岗位名称">
+              </div>
+            </div>
+          </section>
+          <section class="panel supplement-section" aria-labelledby="edit-source-title">
+            <h3 id="edit-source-title">来源信息</h3>
+            <dl class="supplement-source">
+              <div><dt>档案来源</dt><dd>组织架构图</dd></div>
+              <div><dt>来源编号</dt><dd id="edit-source-number"></dd></div>
+            </dl>
+          </section>
+        </div>
+      </div>
+      <footer class="supplement-actions">
         <button type="button" class="button" id="cancel-edit">取消</button>
         <button type="submit" class="button button-primary">保存档案</button>
       </footer>
