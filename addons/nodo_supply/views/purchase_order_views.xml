@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="purchase_collaboration_list" model="ir.ui.view">
+        <field name="name">purchase.order.list.nodo.collaboration</field>
+        <field name="model">purchase.order</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <list string="采购单" delete="0" duplicate="0">
+                <field name="name" string="单号"/>
+                <field name="partner_id" string="供应商"/>
+                <field name="date_planned" string="预计到货"/>
+                <field name="nodo_technical_user_id" optional="show"/>
+                <field name="nodo_reviewed_at" optional="show"/>
+                <field name="state" string="状态"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="amount_total" string="总金额" widget="monetary"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="purchase_collaboration_form" model="ir.ui.view">
+        <field name="name">purchase.order.form.nodo.collaboration</field>
+        <field name="model">purchase.order</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <form string="采购单" delete="0" duplicate="0">
+                <header>
+                    <button name="action_nodo_review_specs" string="确认规格已核对" type="object"
+                            invisible="not nodo_can_review_specs or nodo_reviewed_at" class="oe_highlight"/>
+                    <button name="button_confirm" string="确认采购单" type="object"
+                            invisible="not nodo_can_confirm_purchase or state == 'to approve'" class="oe_highlight"/>
+                    <button name="button_approve" string="确认采购单" type="object"
+                            invisible="not nodo_can_confirm_purchase or state != 'to approve'" class="oe_highlight"/>
+                    <button name="action_nodo_share_to_chat" string="发到聊天" type="object" invisible="not id"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,purchase"/>
+                </header>
+                <sheet>
+                    <field name="nodo_can_edit_draft" invisible="1"/>
+                    <field name="nodo_can_assign_technical" invisible="1"/>
+                    <field name="nodo_can_review_specs" invisible="1"/>
+                    <field name="nodo_can_confirm_purchase" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="采购信息">
+                            <field name="partner_id" string="供应商" readonly="not nodo_can_edit_draft"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="partner_ref" string="供应商参考号" readonly="not nodo_can_edit_draft"/>
+                            <field name="date_order" string="下单日期" readonly="not nodo_can_edit_draft"/>
+                            <field name="date_planned" string="预计到货" readonly="not nodo_can_edit_draft"/>
+                            <field name="currency_id" string="币种" readonly="not nodo_can_edit_draft"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                        <group string="技术核对">
+                            <field name="nodo_technical_user_id" readonly="not nodo_can_assign_technical"
+                                   domain="[('share', '=', False), ('company_ids', 'in', [company_id])]"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="nodo_reviewed_by_id" options="{'no_open': True}"/>
+                            <field name="nodo_reviewed_at"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="采购明细" name="lines">
+                            <field name="order_line" readonly="not nodo_can_edit_draft">
+                                <list editable="bottom">
+                                    <field name="product_id" string="物料" options="{'no_create': True, 'no_open': True}"
+                                           domain="[('purchase_ok', '=', True)]"/>
+                                    <field name="name" string="规格描述"/>
+                                    <field name="product_qty" string="数量"/>
+                                    <field name="uom_id" string="单位" options="{'no_create': True}"/>
+                                    <field name="date_planned" string="交期"/>
+                                    <field name="price_unit" string="单价"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer">
+                                <field name="amount_total" string="总金额" widget="monetary" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_purchase_collaboration" model="ir.actions.act_window">
+        <field name="name">采购单</field>
+        <field name="res_model">purchase.order</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <record id="action_purchase_collaboration_list" model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="purchase_collaboration_list"/>
+        <field name="act_window_id" ref="action_purchase_collaboration"/>
+    </record>
+    <record id="action_purchase_collaboration_form" model="ir.actions.act_window.view">
+        <field name="sequence">2</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="purchase_collaboration_form"/>
+        <field name="act_window_id" ref="action_purchase_collaboration"/>
+    </record>
+    <menuitem id="menu_supply_root" name="采购协作" sequence="36" groups="base.group_user"/>
+    <menuitem id="menu_purchase_collaboration" name="采购单" parent="menu_supply_root"
+              action="action_purchase_collaboration" sequence="1"/>
+</odoo>

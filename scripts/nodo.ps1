@@ -15,6 +15,7 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   install <模块>  在 nodo_dev 中安装模块
   update <模块>   在 nodo_dev 中升级模块
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
+  seed-supply-pilot  准备采购协作验收账号和采购资料
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
   shell           进入 nodo_dev 的 odoo shell
 #>
@@ -160,6 +161,27 @@ switch ($Command) {
             $created | ForEach-Object { Write-Host ('已创建：' + ($_ -split ' ')[2]) }
             Write-Host '密码已写入 config/dev-accounts.local.md'
         }
+    }
+    'seed-supply-pilot' {
+        Assert-Initialized
+        if (-not (Test-Path -LiteralPath $AccountsFile)) { throw '找不到 config/dev-accounts.local.md，请先运行 init-db' }
+        $pilotRoles = @('assistant', 'engineer', 'buyer', 'manager')
+        $pilotPasswords = @{}
+        foreach ($role in $pilotRoles) {
+            $pilotPasswords["NODO_SUPPLY_$($role.ToUpperInvariant())_PASSWORD"] = 'Nodo-' + (New-Secret 12)
+        }
+        $out = Invoke-OdooShellScript 'seed_supply_pilot.py' $pilotPasswords
+        foreach ($line in $out) {
+            if ($line -like 'NODO_SUPPLY_USER_CREATED *') {
+                $parts = $line -split ' ', 4
+                $passwordKey = "NODO_SUPPLY_$($parts[1].ToUpperInvariant())_PASSWORD"
+                $row = "| 采购协作：$($parts[3]) | $DevDb | $($parts[2]) | $($pilotPasswords[$passwordKey]) |"
+                [IO.File]::AppendAllText($AccountsFile, "$row`n", $Utf8NoBom)
+                Write-Host ('已创建：' + $parts[2])
+            }
+            else { Write-Host $line }
+        }
+        Write-Host '采购协作账号存放在 config/dev-accounts.local.md'
     }
     'update' {
         Assert-ModuleName $Module

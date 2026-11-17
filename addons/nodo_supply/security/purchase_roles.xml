@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="privilege_purchase_role" model="res.groups.privilege">
+        <field name="name">采购岗位</field>
+        <field name="category_id" ref="nodo_base.module_category_nodo_roles"/>
+        <field name="sequence">51</field>
+        <field name="placeholder">否</field>
+    </record>
+    <record id="group_purchase_assistant" model="res.groups">
+        <field name="name">采购助理</field>
+        <field name="privilege_id" ref="privilege_purchase_role"/>
+        <field name="sequence">10</field>
+        <field name="implied_ids" eval="[Command.link(ref('nodo_base.group_role_purchase'))]"/>
+    </record>
+    <record id="group_purchase_buyer" model="res.groups">
+        <field name="name">采购</field>
+        <field name="privilege_id" ref="privilege_purchase_role"/>
+        <field name="sequence">20</field>
+        <field name="implied_ids" eval="[Command.link(ref('nodo_base.group_role_purchase'))]"/>
+    </record>
+    <record id="group_purchase_manager" model="res.groups">
+        <field name="name">采购经理</field>
+        <field name="privilege_id" ref="privilege_purchase_role"/>
+        <field name="sequence">30</field>
+        <field name="implied_ids" eval="[Command.link(ref('nodo_base.group_role_purchase'))]"/>
+    </record>
+</odoo>

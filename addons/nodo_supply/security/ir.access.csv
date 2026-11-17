@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+purchase_order_staff,Purchase collaboration orders,purchase.order,base.group_user,cru,
+purchase_order_line_staff,Purchase collaboration lines,purchase.order.line,base.group_user,crud,
+permission_change_admin,Employee permission changes,nodo.user.permission.change,base.group_system,r,
+permission_change_company,Employee permission changes by company,nodo.user.permission.change,,crud,"[('company_id', 'in', company_ids)]"
