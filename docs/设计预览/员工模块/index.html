@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>员工目录 · NODO</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="directory.js"></script>
+</head>
+<body>
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <a class="wordmark" href="#employees" aria-label="NODO 员工目录">
+        <img src="../../../addons/nodo_base/static/img/nodo-wordmark-white.svg" alt="NODO">
+      </a>
+      <nav class="app-navigation" aria-label="员工模块">
+        <button type="button" data-view="employees" aria-current="page">员工目录</button>
+        <button type="button" data-view="departments">部门</button>
+      </nav>
+      <p class="account-identity"><span class="account-avatar" aria-hidden="true">管</span>系统管理员</p>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <header class="page-heading">
+      <div>
+        <h1 id="page-title">员工目录</h1>
+        <p id="directory-total"></p>
+      </div>
+      <button type="button" class="button button-primary" id="open-import">
+        <span class="icon" aria-hidden="true">upload</span>导入人员
+      </button>
+    </header>
+
+    <button class="button mobile-departments" type="button" id="toggle-departments"
+            aria-expanded="false" aria-controls="department-panel">
+      <span class="icon" aria-hidden="true">account_tree</span>选择部门
+    </button>
+
+    <div class="workspace-grid" id="workspace-grid">
+      <aside class="panel department-panel" id="department-panel" aria-labelledby="department-title">
+        <div class="department-panel-heading">
+          <h2 id="department-title">部门</h2>
+          <button type="button" class="icon-button" id="collapse-branches" aria-label="收起部门"
+                  aria-expanded="true" aria-controls="department-tree" title="收起部门">
+            <span class="icon" aria-hidden="true">expand_more</span>
+          </button>
+        </div>
+        <nav id="department-tree" class="department-tree" aria-label="部门层级"></nav>
+      </aside>
+
+      <section class="panel directory-panel" id="directory-panel" aria-labelledby="scope-title">
+        <div class="directory-header">
+          <div class="directory-title">
+            <h2 id="scope-title">全部员工</h2>
+            <span id="scope-count" class="scope-count"></span>
+          </div>
+          <div class="directory-controls">
+            <div class="search-box">
+              <span class="icon" aria-hidden="true">search</span>
+              <input id="employee-search" type="search" placeholder="搜索姓名、人员编号或岗位" autocomplete="off"
+                     aria-label="搜索姓名、人员编号或岗位">
+            </div>
+            <div id="quick-filters" class="quick-filters" aria-label="档案筛选"></div>
+          </div>
+        </div>
+        <div class="table-scroll" role="region" aria-label="员工列表" tabindex="0">
+          <table id="employee-table">
+            <colgroup>
+              <col class="col-person">
+              <col class="col-department">
+              <col class="col-position">
+              <col class="col-review">
+              <col class="col-account">
+              <col class="col-open">
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">姓名／人员编号</th>
+                <th scope="col">部门</th>
+                <th scope="col">岗位</th>
+                <th scope="col">档案状态</th>
+                <th scope="col" colspan="2">账号状态</th>
+              </tr>
+            </thead>
+            <tbody id="employee-rows"></tbody>
+          </table>
+        </div>
+        <footer class="table-footer">
+          <p id="result-summary" aria-live="polite"></p>
+          <nav class="pagination" aria-label="员工列表分页">
+            <label for="page-size">每页
+              <select id="page-size" aria-label="每页条数">
+                <option value="10">10 条</option>
+                <option value="20">20 条</option>
+                <option value="50">50 条</option>
+              </select>
+            </label>
+            <span class="page-counter" id="page-counter"></span>
+            <button class="icon-button page-button" type="button" id="previous-page" aria-label="上一页">
+              <span class="icon" aria-hidden="true">chevron_left</span>
+            </button>
+            <button class="icon-button page-button" type="button" id="next-page" aria-label="下一页">
+              <span class="icon" aria-hidden="true">chevron_right</span>
+            </button>
+          </nav>
+        </footer>
+      </section>
+
+      <section class="panel department-detail" id="department-detail" aria-labelledby="department-detail-title" hidden></section>
+
+      <button type="button" class="drawer-backdrop" id="drawer-backdrop" aria-label="关闭员工详情" hidden></button>
+      <aside class="panel employee-detail" id="employee-detail" aria-labelledby="employee-detail-title" hidden>
+        <div class="employee-detail-heading">
+          <h2 id="employee-detail-title">员工详情</h2>
+          <button type="button" id="close-employee" class="icon-button" aria-label="关闭员工详情" title="关闭">
+            <span class="icon" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <div id="profile-heading" class="profile-heading"></div>
+        <div class="detail-tabs" role="tablist" aria-label="员工详情">
+          <button type="button" id="tab-profile" data-detail-tab="profile" role="tab"
+                  aria-selected="true" aria-controls="detail-content">档案</button>
+          <button type="button" id="tab-account" data-detail-tab="account" role="tab"
+                  aria-selected="false" aria-controls="detail-content" tabindex="-1">账号</button>
+          <button type="button" id="tab-permissions" data-detail-tab="permissions" role="tab"
+                  aria-selected="false" aria-controls="detail-content" tabindex="-1">个人权限</button>
+        </div>
+        <div id="detail-content" class="detail-content" role="tabpanel" aria-labelledby="tab-profile" tabindex="0"></div>
+        <footer id="detail-actions" class="detail-actions" hidden></footer>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="import-dialog" class="dialog" aria-labelledby="import-title">
+    <div class="dialog-heading">
+      <h2 id="import-title">导入人员</h2>
+      <form method="dialog">
+        <button type="submit" class="icon-button" aria-label="关闭导入说明">
+          <span class="icon" aria-hidden="true">close</span>
+        </button>
+      </form>
+    </div>
+    <p>用人员确认表核对工号、姓名、部门路径与岗位。在 NODO 的人员导入入口先预检，再确认归档。</p>
+    <ol class="import-steps">
+      <li>选择目标公司并上传人员确认表</li>
+      <li>查看新增、更新、跳过和冲突</li>
+      <li>核对无误后导入档案</li>
+    </ol>
+    <footer class="dialog-actions">
+      <form method="dialog"><button type="submit" class="button">关闭</button></form>
+      <a class="button button-primary" href="http://127.0.0.1:8079/web/login?db=nodo_staff_pilot&amp;redirect=%2Fodoo%2Faction-base.action_res_users"
+         target="_blank" rel="noopener">打开 NODO 设置</a>
+    </footer>
+  </dialog>
+
+  <dialog id="edit-dialog" class="dialog" aria-labelledby="edit-title">
+    <form id="edit-person">
+      <h2 id="edit-title">编辑档案</h2>
+      <label>姓名<input name="name" required maxlength="24"></label>
+      <label>人员编号<input name="number" maxlength="24"></label>
+      <label>岗位<input name="job" maxlength="40"></label>
+      <p class="form-error" id="edit-error" hidden></p>
+      <footer class="dialog-actions">
+        <button type="button" class="button" id="cancel-edit">取消</button>
+        <button type="submit" class="button button-primary">保存档案</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+</body>
+</html>
