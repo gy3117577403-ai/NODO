@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+staff_import_admin,Staff import by administrator,nodo.staff.import,base.group_system,cru,
+staff_import_company,Staff import company scope,nodo.staff.import,,crud,"[('company_id', 'in', company_ids)]"
+staff_import_batch_admin,Staff import results,nodo.staff.import.batch,base.group_system,r,
+staff_import_batch_company,Staff import results company scope,nodo.staff.import.batch,,crud,"[('company_id', 'in', company_ids)]"

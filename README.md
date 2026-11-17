@@ -32,6 +32,8 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，�
 
 采购协作试点运行 `install nodo_supply` 和 `seed-supply-pilot`，操作步骤见 [采购协作权限验收](docs/验收/采购协作权限验收.md)。
 
+在开发库验证人员档案流程时运行 `install nodo_staff_import` 并使用虚构名单。人员确认表和试点导入步骤见 [人员档案接入](docs/手册/管理员/人员档案接入.md)。
+
 员工入门、采购与技术协作、管理员权限配置和开发交接见 [NODO 使用与维护手册](docs/手册/README.md)。
 
 - 地址 http://127.0.0.1:8079 ，只绑定本机
@@ -63,7 +65,8 @@ NODO/
 │  ├─ nodo_base/        品牌、主题、八类角色、讨论与通用单据卡片（必装）
 │  ├─ nodo_base_sale/   报价和销售订单卡片、发到聊天（安装基础和销售后自动安装）
 │  ├─ nodo_base_purchase/ 采购询价单和采购单卡片、发到聊天（安装基础和采购后自动安装）
-│  └─ nodo_supply/     采购岗位、员工个人权限和采购单协作
+│  ├─ nodo_supply/     采购岗位、员工个人权限和采购单协作
+│  └─ nodo_staff_import/ 员工档案预检、导入和批次记录
 ├─ scripts/
 │  ├─ nodo.ps1          开发环境命令
 │  └─ odoo/             在 odoo shell 中执行的初始化和核对脚本

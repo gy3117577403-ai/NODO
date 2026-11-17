@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="staff_import_form" model="ir.ui.view">
+        <field name="name">nodo.staff.import.form</field>
+        <field name="model">nodo.staff.import</field>
+        <field name="arch" type="xml">
+            <form string="人员导入">
+                <field name="state" invisible="1"/>
+                <field name="has_changes" invisible="1"/>
+                <group>
+                    <field name="company_id" readonly="state == 'done'" options="{'no_create': True, 'no_open': True}"/>
+                    <field name="roster_filename" invisible="1"/>
+                    <field name="roster_file" filename="roster_filename" invisible="state == 'done'"
+                           options="{'accepted_file_extensions': '.xlsx,.csv'}"/>
+                </group>
+                <div class="text-muted" invisible="state == 'done'">
+                    选择确认表后先预检。系统按目标公司和人员编号匹配档案，导入汇总中的「新增」和「更新」。
+                    待复核记录和冲突记录保留在结果里，供你核对。
+                </div>
+                <separator string="预检结果" invisible="state != 'preview'"/>
+                <separator string="已导入" invisible="state != 'done'"/>
+                <field name="summary" nolabel="1" invisible="state == 'draft'"/>
+                <field name="details" nolabel="1" invisible="state == 'draft'"/>
+                <footer>
+                    <button name="action_preview" type="object" string="预检" class="btn-secondary"
+                            invisible="state == 'done'"/>
+                    <button name="action_import" type="object" string="导入档案" class="oe_highlight"
+                            invisible="state != 'preview' or not has_changes"/>
+                    <button string="关闭" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="staff_import_action" model="ir.actions.act_window">
+        <field name="name">人员导入</field>
+        <field name="res_model">nodo.staff.import</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="staff_import_form"/>
+        <field name="target">new</field>
+    </record>
+    <record id="staff_import_batch_list" model="ir.ui.view">
+        <field name="name">nodo.staff.import.batch.list</field>
+        <field name="model">nodo.staff.import.batch</field>
+        <field name="arch" type="xml">
+            <list string="人员导入记录" create="0" edit="0" delete="0" open_form_view="0">
+                <field name="create_date" string="导入时间"/>
+                <field name="create_uid" string="操作人"/>
+                <field name="company_id"/>
+                <field name="roster_filename"/>
+                <field name="created_count"/>
+                <field name="updated_count"/>
+                <field name="skipped_count"/>
+                <field name="conflict_count"/>
+            </list>
+        </field>
+    </record>
+    <record id="staff_import_batch_action" model="ir.actions.act_window">
+        <field name="name">人员导入记录</field>
+        <field name="res_model">nodo.staff.import.batch</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="staff_import_batch_list"/>
+    </record>
+    <menuitem id="menu_staff_import" name="人员导入" parent="base.menu_users"
+              action="staff_import_action" groups="base.group_system" sequence="7"/>
+    <menuitem id="menu_staff_import_batch" name="人员导入记录" parent="base.menu_users"
+              action="staff_import_batch_action" groups="base.group_system" sequence="8"/>
+
+    <record id="staff_number_employee_form" model="ir.ui.view">
+        <field name="name">hr.employee.form.nodo.personnel.number</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@id='o_work_information']//field[@name='department_id']" position="before">
+                <field name="nodo_personnel_number" groups="base.group_system"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
