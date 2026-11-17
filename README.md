@@ -34,6 +34,8 @@ powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 stop      # 停止，�
 
 在开发库验证人员档案流程时运行 `install nodo_staff_import` 并使用虚构名单。人员确认表和试点导入步骤见 [人员档案接入](docs/手册/管理员/人员档案接入.md)。
 
+独立人员试点库用 `init-staff-pilot` 创建，再用 `preview-staff-pilot` 和 `import-staff-pilot` 处理已授权的架构图快照。试点与开发共用本机地址，按数据库名称登录。后续页面方向见 [人员与部门界面方案](docs/人员与部门界面方案.md)。
+
 员工入门、采购与技术协作、管理员权限配置和开发交接见 [NODO 使用与维护手册](docs/手册/README.md)。
 
 - 地址 http://127.0.0.1:8079 ，只绑定本机

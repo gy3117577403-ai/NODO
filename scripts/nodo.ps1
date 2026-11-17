@@ -16,6 +16,9 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   update <模块>   在 nodo_dev 中升级模块
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   seed-supply-pilot  准备采购协作验收账号和采购资料
+  init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
+  preview-staff-pilot <HTML>  核对架构图导入结果，回滚本次写入
+  import-staff-pilot <HTML>  将架构图档案写入人员试点库
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
   shell           进入 nodo_dev 的 odoo shell
 #>
@@ -32,6 +35,8 @@ $ConfFile = Join-Path $Root 'config\odoo.conf'
 $ConfTemplate = Join-Path $Root 'config\odoo.conf.example'
 $AccountsFile = Join-Path $Root 'config\dev-accounts.local.md'
 $DevDb = 'nodo_dev'
+$StaffPilotDb = 'nodo_staff_pilot'
+$StaffPilotAccountsFile = Join-Path $Root 'config\staff-pilot-accounts.local.md'
 $OdooConf = '/etc/odoo/odoo.conf'
 $StandardApps = @('contacts', 'crm', 'sale_management', 'purchase', 'stock', 'mrp', 'mail')
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -66,17 +71,37 @@ function Assert-ModuleName([string]$Name) {
     if (-not $Name -or $Name -notmatch '^[a-z][a-z0-9_]*$') { throw "请提供模块技术名称，例如 nodo_base（收到：'$Name'）" }
 }
 
-function Invoke-OdooShellScript([string]$ScriptName, [hashtable]$EnvVars = @{}) {
+function Invoke-OdooRun([string[]]$OdooArgs, [hashtable]$EnvVars = @{}, [string[]]$ContainerArgs = @()) {
     $envArgs = @()
     foreach ($k in $EnvVars.Keys) { $envArgs += @('-e', $k) }
     $old = @{}
     try {
         foreach ($k in $EnvVars.Keys) { $old[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $EnvVars[$k]) }
-        Invoke-Compose run --rm --no-deps @envArgs odoo sh -c "odoo shell -c $OdooConf -d $DevDb --log-level=warn < /mnt/nodo-scripts/$ScriptName"
+        Invoke-Compose run --rm --no-deps @envArgs @ContainerArgs odoo @OdooArgs
     }
     finally {
         foreach ($k in $EnvVars.Keys) { [Environment]::SetEnvironmentVariable($k, $old[$k]) }
     }
+}
+
+function Invoke-OdooShellScript(
+    [string]$ScriptName, [hashtable]$EnvVars = @{}, [string]$Database = $DevDb, [string[]]$ContainerArgs = @()
+) {
+    Invoke-OdooRun -EnvVars $EnvVars -ContainerArgs $ContainerArgs -OdooArgs @(
+        'sh', '-c', "odoo shell -c $OdooConf -d $Database --log-level=warn < /mnt/nodo-scripts/$ScriptName"
+    )
+}
+
+function Invoke-StaffPilotRoster([string]$Path, [bool]$Commit) {
+    Assert-Initialized
+    if (-not $Path) { throw '请提供组织架构图 HTML 文件的路径' }
+    $sourceFile = Get-Item -LiteralPath $Path
+    if ($sourceFile.PSIsContainer -or $sourceFile.Extension -ne '.html') { throw '请选择架构图 HTML 文件' }
+    if (-not (Test-DbExists $StaffPilotDb)) { throw '请先运行 init-staff-pilot 准备独立试点库' }
+    $commitMode = if ($Commit) { '1' } else { '0' }
+    Invoke-OdooShellScript 'import_staff_pilot.py' @{ NODO_STAFF_PILOT_COMMIT = $commitMode } $StaffPilotDb @(
+        '--volume', "$($sourceFile.FullName):/mnt/nodo-roster.html:ro"
+    )
 }
 
 switch ($Command) {
@@ -183,6 +208,29 @@ switch ($Command) {
         }
         Write-Host '采购协作账号存放在 config/dev-accounts.local.md'
     }
+    'init-staff-pilot' {
+        Assert-Initialized
+        if ((Test-DbExists $StaffPilotDb) -or (Test-Path -LiteralPath $StaffPilotAccountsFile)) {
+            throw '人员试点库或本地凭据文件已存在，请先核对已有状态'
+        }
+        $staffPilotPassword = 'Nodo-' + (New-Secret 18)
+        $initCommand = 'odoo db -c {0} init {1} --language zh_CN --country CN --username admin@nodo.test --password "$NODO_ADMIN_PASSWORD"' -f $OdooConf, $StaffPilotDb
+        Invoke-OdooRun @('sh', '-c', $initCommand) @{ NODO_ADMIN_PASSWORD = $staffPilotPassword }
+        $staffPilotAccounts = @"
+# NODO 人员试点库账号
+
+| 用途 | 数据库 | 账号 | 密码 |
+|---|---|---|---|
+| 管理员 | $StaffPilotDb | admin@nodo.test | $staffPilotPassword |
+
+"@
+        [IO.File]::WriteAllText($StaffPilotAccountsFile, $staffPilotAccounts, $Utf8NoBom)
+        Invoke-OdooShellScript 'setup_dev_db.py' @{ NODO_ADMIN_PASSWORD = $staffPilotPassword } $StaffPilotDb
+        Invoke-Compose run --rm --no-deps odoo odoo module install -c $OdooConf -d $StaffPilotDb nodo_staff_import nodo_supply
+        Write-Host '人员试点库已就绪，凭据写入 config/staff-pilot-accounts.local.md'
+    }
+    'preview-staff-pilot' { Invoke-StaffPilotRoster $Module $false }
+    'import-staff-pilot' { Invoke-StaffPilotRoster $Module $true }
     'update' {
         Assert-ModuleName $Module
         Assert-Initialized
@@ -212,6 +260,6 @@ switch ($Command) {
     }
     'shell' { Assert-Initialized; Invoke-Compose exec odoo odoo shell -c $OdooConf -d $DevDb }
     default {
-        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 20
+        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 23
     }
 }
