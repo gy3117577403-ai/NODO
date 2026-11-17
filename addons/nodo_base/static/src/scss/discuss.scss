@@ -36,7 +36,47 @@ body .o-mail-Message {
     }
 }
 
-// 左侧窄栏：选中项浅绿底、深绿图标；未读数用主色
+// 气泡也是小块玻璃：顶部亮线
+.o-mail-Message-bubble {
+    box-shadow: inset 0 1px 0 $nodo-glass-rim, 0 1px 2px $nodo-glass-contact;
+}
+
+// 讨论主界面：会话列表是最薄的分栏面板，对话区是中间档
+.o-mail-Discuss {
+    .o-mail-MessagingMenu {
+        background-color: $nodo-panel !important;
+        border-radius: 14px !important;
+        @include nodo-pane;
+    }
+    .o-mail-DiscussContent {
+        background-color: $nodo-card;
+        border-radius: 14px;
+        @include nodo-pane;
+    }
+}
+
+// 会话列表的悬停和选中：唯一状态（中性玻璃片，不用彩色）
+.o-mail-MessagingMenu-tabContent {
+    .o-mail-NotificationItem {
+        border-color: transparent !important;
+
+        &:hover, &.o-active {
+            @include nodo-state;
+        }
+    }
+}
+
+// 输入框：清玻璃，聚焦时一条细线
+.o-mail-Composer-inputContainer {
+    border-color: transparent !important;
+    @include nodo-field;
+
+    &:focus-within {
+        box-shadow: inset 0 1px 0 #FFFFFF, 0 0 0 1px rgba(31, 79, 70, 0.5);
+    }
+}
+
+// 左侧窄栏：选中项用唯一状态，图标深绿；未读数用主色
 .o-mail-MessagingMenu-tab {
     color: $nodo-text-muted;
 
@@ -44,7 +84,7 @@ body .o-mail-Message {
         color: $nodo-primary;
 
         .o-mail-MessagingMenu-tabIcon {
-            background-color: $nodo-accent-soft !important;
+            @include nodo-state;
             color: $nodo-primary !important;
         }
     }
@@ -86,16 +126,21 @@ body .o-mail-Message {
     padding: 8px 10px;
     text-align: left;
     background-color: #FFFFFF;
-    border: 1px solid $nodo-border;
-    border-left: 3px solid $nodo-primary;
-    border-radius: 8px;
+    border: 0;
+    border-radius: 10px;
     color: $nodo-text;
     cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow:
+        inset 0 1px 0 #FFFFFF,
+        0 0 0 1px $nodo-state-edge,
+        0 6px 16px -10px $nodo-glass-shade;
+    transition: box-shadow 0.15s;
 
     &:hover, &:focus-visible {
-        border-color: $nodo-primary;
-        box-shadow: 0 2px 8px rgba(31, 79, 70, 0.10);
+        box-shadow:
+            inset 0 1px 0 #FFFFFF,
+            0 0 0 1px rgba(31, 79, 70, 0.35),
+            0 8px 20px -10px $nodo-glass-shade;
         outline: none;
     }
 }

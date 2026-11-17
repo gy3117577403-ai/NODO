@@ -13,6 +13,80 @@ $nodo-success-text: #047857;
 $nodo-warning-text: #B54708;
 $nodo-danger-text: #B42318;
 
+// ---------------------------------------------------------------------------
+// 材质：实心玻璃（不透明版）。借鉴 Solid Glass（MIT，见 NOTICE.md）的规则：
+// 质感在边缘（顶部亮线 + 发丝线 + 底部阴影），表面不加渐变；深度靠厚度；
+// 悬停、选中、展开只用一种状态样式。不使用背景模糊，老电脑也流畅。
+// ---------------------------------------------------------------------------
+$nodo-page: #E7ECEA;           // 页面底色
+$nodo-panel: $nodo-background; // 最薄：分栏面板（会话列表等）
+$nodo-card: #FFFFFF;           // 中间：表单、列表、看板卡片、对话区
+$nodo-popover: #FFFFFF;        // 最厚：下拉菜单、弹出框、对话框（靠更重的阴影区分）
+
+$nodo-glass-rim: rgba(255, 255, 255, 0.9);
+$nodo-glass-inner: rgba(255, 255, 255, 0.35);
+$nodo-glass-edge: rgba(40, 70, 62, 0.10);
+$nodo-glass-contact: rgba(20, 45, 40, 0.06);
+$nodo-glass-shade: rgba(20, 60, 52, 0.28);
+$nodo-glass-lift: rgba(20, 60, 52, 0.14);
+$nodo-popover-edge: rgba(40, 70, 62, 0.22);
+$nodo-popover-under: rgba(40, 70, 62, 0.16);
+$nodo-state-bg: rgba(40, 70, 62, 0.08);
+$nodo-state-rim: rgba(255, 255, 255, 0.85);
+$nodo-state-edge: rgba(40, 70, 62, 0.12);
+$nodo-field-edge: rgba(40, 70, 62, 0.16);
+
+@mixin nodo-pane {
+    border: 0;
+    box-shadow:
+        inset 0 1px 0 $nodo-glass-rim,
+        inset 0 0 0 1px $nodo-glass-inner,
+        0 0 0 1px $nodo-glass-edge,
+        0 1px 2px $nodo-glass-contact,
+        0 12px 32px -14px $nodo-glass-shade;
+}
+@mixin nodo-popover {
+    border: 0;
+    box-shadow:
+        inset 0 1px 0 $nodo-glass-rim,
+        inset 0 -1px 0 $nodo-popover-under,
+        0 0 0 1px $nodo-popover-edge,
+        0 24px 60px -18px $nodo-glass-shade,
+        0 6px 16px -6px $nodo-glass-lift;
+}
+// 小件：卡片、气泡、次要按钮
+@mixin nodo-control {
+    box-shadow:
+        inset 0 1px 0 $nodo-glass-rim,
+        0 0 0 1px $nodo-glass-edge,
+        0 1px 2px $nodo-glass-contact;
+}
+// 唯一状态：悬停、选中、展开
+@mixin nodo-state {
+    background-color: $nodo-state-bg !important;
+    box-shadow: inset 0 1px 0 $nodo-state-rim, 0 0 0 1px $nodo-state-edge;
+}
+// 输入框：可以打字的一块清玻璃
+@mixin nodo-field {
+    background-color: #FFFFFF;
+    box-shadow: inset 0 1px 0 #FFFFFF, 0 0 0 1px $nodo-field-edge;
+}
+// 主按钮：深绿实心块，上沿亮线、下沿暗线
+@mixin nodo-primary-finish {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+        0 1px 2px rgba(20, 60, 52, 0.25);
+}
+// 页面底：冷灰底上三处极淡的品牌色光斑
+@mixin nodo-page-background {
+    background:
+        radial-gradient(60rem 40rem at 10% 0%, rgba(52, 211, 153, 0.10), transparent 60%),
+        radial-gradient(52rem 36rem at 95% 100%, rgba(31, 79, 70, 0.10), transparent 62%),
+        $nodo-page;
+    background-attachment: fixed;
+}
+
 $o-community-color: $nodo-primary;
 $o-enterprise-color: $nodo-primary; // 新手引导气泡等少数组件使用
 $o-brand-odoo: $nodo-primary;

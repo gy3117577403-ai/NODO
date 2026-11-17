@@ -1,0 +1,112 @@
+// 后台材质：实心玻璃（不透明版）。变量和写法见 primary_variables.scss，规则见 DESIGN.md「材质」。
+
+// 页面底
+body.o_web_client {
+    @include nodo-page-background;
+}
+
+// 原本铺满浅底色的容器改为透明，让页面底透出来
+.o_control_panel,
+.o_form_sheet_bg,
+.o_form_statusbar,
+.o-mail-ChatterContainer,
+.o-mail-Chatter,
+.o_kanban_renderer,
+.o_kanban_renderer .o_kanban_group,
+.o-mail-Discuss {
+    background-color: transparent !important;
+}
+.o_kanban_renderer {
+    border-color: transparent !important;
+}
+.o_control_panel .breadcrumb {
+    background-color: transparent !important;
+}
+// 讨论区顶部吸顶栏需要实底挡住滚动内容，用页面底色
+.o-mail-Chatter-top {
+    background-color: $nodo-page !important;
+}
+
+// 中间档：列表页（只给顶层列表，表单里的明细行和对话框里的列表不再套一层卡片）、表单纸张、看板卡片
+.o_action_manager .o_list_view > .o_content > .o_list_renderer {
+    margin: 0 12px 12px;
+    background-color: $nodo-card;
+    border-radius: 14px;
+    @include nodo-pane;
+
+    .o_list_table thead th,
+    .o_list_table tfoot td {
+        background-color: $nodo-card;
+    }
+}
+.o_form_sheet {
+    background-color: $nodo-card !important;
+    border-radius: 14px !important;
+    @include nodo-pane;
+}
+.o_kanban_record.o_card_record,
+.o_kanban_view .o_kanban_record:not(.o_kanban_ghost) {
+    border: 0 !important;
+    border-radius: 12px !important;
+    background-color: $nodo-card;
+    @include nodo-control;
+
+    &:hover {
+        box-shadow:
+            inset 0 1px 0 $nodo-glass-rim,
+            0 0 0 1px $nodo-state-edge,
+            0 8px 20px -10px $nodo-glass-shade;
+    }
+}
+
+// 最厚：下拉菜单、弹出框、对话框
+.o-dropdown--menu,
+.dropdown-menu,
+.popover,
+.modal-content {
+    background-color: $nodo-popover;
+    border-radius: 12px;
+    @include nodo-popover;
+}
+.modal-content {
+    border-radius: 14px;
+}
+// 菜单里的悬停和选中：唯一状态
+.o-dropdown--menu .dropdown-item,
+.dropdown-menu .dropdown-item {
+    border-radius: 8px;
+
+    &:hover, &:focus, &.focus, &.active, &.selected {
+        @include nodo-state;
+        color: $nodo-text;
+    }
+}
+.o-dropdown--menu,
+.dropdown-menu {
+    padding: 6px;
+}
+
+// 按钮
+.btn-primary {
+    @include nodo-primary-finish;
+}
+.btn-secondary {
+    background-color: #FFFFFF;
+    border-color: transparent;
+    @include nodo-control;
+
+    &:hover, &:focus-visible {
+        background-color: #FFFFFF;
+        border-color: transparent;
+        box-shadow: inset 0 1px 0 $nodo-glass-rim, 0 0 0 1px $nodo-state-edge, 0 2px 6px -3px $nodo-glass-shade;
+    }
+}
+
+// 搜索框：清玻璃
+.o_searchview.form-control {
+    border-color: transparent !important;
+    @include nodo-field;
+}
+.o_cp_searchview:focus-within .o_searchview.form-control {
+    box-shadow: inset 0 1px 0 #FFFFFF, 0 0 0 1px rgba(31, 79, 70, 0.5);
+}

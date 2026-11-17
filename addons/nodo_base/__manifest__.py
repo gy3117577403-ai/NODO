@@ -28,6 +28,7 @@ NODO 基础模块（必装）：品牌、界面主题、八类角色组。
         'web.assets_backend': [
             'nodo_base/static/src/js/*.js',
             'nodo_base/static/src/xml/*.xml',
+            'nodo_base/static/src/scss/material.scss',
             'nodo_base/static/src/scss/discuss.scss',
         ],
     },

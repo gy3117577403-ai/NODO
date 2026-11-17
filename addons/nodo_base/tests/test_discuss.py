@@ -74,5 +74,6 @@ class TestNodoDiscuss(TransactionCase):
             'nodo_base/static/src/xml/discuss.xml',
             'nodo_base/static/src/xml/record_cards.xml',
             'nodo_base/static/src/scss/discuss.scss',
+            'nodo_base/static/src/scss/material.scss',
         ):
             self.assertTrue(any(p.endswith(suffix) for p in paths), suffix)
