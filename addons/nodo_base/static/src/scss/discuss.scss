@@ -110,6 +110,20 @@ body .o-mail-Message {
     }
 }
 
+// 找人对话框和聊天里的角色文字
+.o_nodo_chat_role_filters .btn {
+    color: $nodo-text-muted;
+
+    &:hover, &[aria-pressed="true"] {
+        @include nodo-state;
+        color: $nodo-text;
+    }
+}
+
+.o_nodo_chat_role_text {
+    color: $nodo-text-muted;
+}
+
 // 对话里的单据卡片
 .o_nodo_record_cards {
     display: flex;

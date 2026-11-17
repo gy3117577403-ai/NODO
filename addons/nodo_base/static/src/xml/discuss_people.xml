@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="discuss.ChannelInvitation.main" t-inherit-mode="extension">
+        <xpath expr="//div[input[@id='o-discuss-ChannelInvitation-search']]" position="before">
+            <div t-if="this.nodoUsesChatDirectory and this.nodoDirectory.roleOptions.length"
+                 class="o_nodo_chat_role_filters d-flex flex-wrap gap-1 mb-2" role="group" aria-label="按角色筛选">
+                <button t-foreach="this.nodoDirectory.roleOptions" t-as="role" t-key="role.key"
+                        class="btn btn-sm border-0 text-nowrap" type="button"
+                        t-att-aria-pressed="role.key === this.nodoDirectory.role ? 'true' : 'false'"
+                        t-on-click="() => this.selectNodoRole(role.key)" t-out="role.label"/>
+            </div>
+        </xpath>
+        <xpath expr="//input[@id='o-discuss-ChannelInvitation-search']" position="attributes">
+            <attribute name="t-att-class">{ 'pe-5': !this.nodoUsesChatDirectory and this.props.channel?.allow_invite_by_email }</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o-discuss-ChannelInvitation-iconContainer')]" position="attributes">
+            <attribute name="t-if">!this.nodoUsesChatDirectory and this.props.channel?.allow_invite_by_email</attribute>
+        </xpath>
+        <xpath expr="//p[t[@t-if='this.props.channel']]" position="before">
+            <p t-if="this.nodoUsesChatDirectory and !this.state.hasPendingRequest and !this.selectablePartners.length"
+               class="mx-1 my-0 smaller o_nodo_chat_role_text" role="status">没有找到符合条件的同事。</p>
+        </xpath>
+        <xpath expr="//p[t[@t-if='this.props.channel']]" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesChatDirectory" separator=" and "/>
+        </xpath>
+        <xpath expr="//div[@t-out='this.showingResultNarrowText']" position="attributes">
+            <attribute name="t-out">this.nodoUsesChatDirectory ? '还有更多同事，可缩小搜索范围。' : this.showingResultNarrowText</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.ChannelInvitation-selectableItem" t-inherit-mode="extension">
+        <xpath expr="//div[@name='selectablePartnerDetail']/span" position="before">
+            <span t-if="this.nodoUsesChatDirectory" t-out="selectablePartner.nodoChatRoleLabel"
+                  class="text-truncate text-start smaller fw-normal lh-1 o_nodo_chat_role_text"/>
+        </xpath>
+        <xpath expr="//div[@name='selectablePartnerDetail']/span[@t-out='selectablePartner.email']" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesChatDirectory" separator=" and "/>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_base.ChatPersonMetadata">
+        <span t-if="nodoPerson?.nodoChatRoleLabel" class="o_nodo_chat_person d-inline-flex align-items-baseline gap-1 min-w-0 ms-2 smaller o_nodo_chat_role_text">
+            <span class="text-truncate" t-out="nodoPerson.nodoChatRoleLabel" t-att-title="nodoPerson.nodoChatRoleLabel"/>
+            <span t-if="nodoPerson.nodoChatPresenceLabel" class="text-nowrap flex-shrink-0">
+                <span aria-hidden="true">· </span><t t-out="nodoPerson.nodoChatPresenceLabel"/>
+            </span>
+        </span>
+    </t>
+
+    <t t-inherit="mail.DiscussContent" t-inherit-mode="extension">
+        <xpath expr="//AutoresizeInput[@onValidate.bind='this.renameThread']" position="after">
+            <t t-if="this.thread.channel?.channel_type === 'chat'" t-call="nodo_base.ChatPersonMetadata"
+               t-call-context="{ nodoPerson: this.thread.channel.correspondent?.partner_id }"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.ChatWindow.headerContent" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o-mail-ChatWindow-displayName')]" position="after">
+            <t t-if="this.channel.channel_type === 'chat'" t-call="nodo_base.ChatPersonMetadata"
+               t-call-context="{ nodoPerson: this.channel.correspondent?.partner_id }"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.ChannelMember" t-inherit-mode="extension">
+        <xpath expr="//span[@t-if='this.member().isInvitationPending']" position="before">
+            <t t-set="nodoRoleLabel" t-value="this.member().partner_id?.nodoChatRoleLabel"/>
+            <span t-if="this.member().channel_id.channel_type === 'group' and nodoRoleLabel"
+                  class="o_nodo_chat_member_role ms-2 text-truncate smaller o_nodo_chat_role_text"
+                  t-out="nodoRoleLabel" t-att-title="nodoRoleLabel"/>
+        </xpath>
+    </t>
+</templates>
