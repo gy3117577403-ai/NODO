@@ -5,3 +5,4 @@ from . import test_discuss
 from . import test_discuss_channels
 from . import test_discuss_record
 from . import test_discuss_messages
+from . import test_discuss_notifications

@@ -65,6 +65,45 @@ class DiscussChannel(models.Model):
         # mail.thread.unlinks its messages as part of deleting the parent channel.
         return super(DiscussChannel, self.with_context(_nodo_discuss_change=DISCUSS_INTERNAL_CHANGE)).unlink()
 
+    def _notify_thread_by_web_push(self, message, recipients_data, **kwargs):
+        recipients = [recipient for recipient in recipients_data if recipient['notif'] == 'web_push']
+        if not recipients:
+            return
+        partner_ids = [recipient['id'] for recipient in recipients]
+        # Native push routing includes mentions even when a channel is muted.
+        # Filter only the push delivery so unread and inbox updates still run.
+        muted = set(self.env['discuss.channel.member'].sudo().search_fetch([
+            ('channel_id', '=', self.id),
+            ('partner_id', 'in', partner_ids),
+            ('mute_until_dt', '>', fields.Datetime.now()),
+        ], ['partner_id']).partner_id.ids)
+        settings = self.env['res.users.settings'].sudo().search([
+            ('user_id.partner_id', 'in', partner_ids),
+            ('user_id.active', '=', True),
+            ('user_id.share', '=', False),
+        ])
+        settings_by_partner = {item.user_id.partner_id.id: item for item in settings}
+        by_silence = {False: [], True: []}
+        for recipient in recipients:
+            partner_id = recipient['id']
+            preferences = settings_by_partner.get(partner_id)
+            if partner_id not in muted and (not preferences or preferences.nodo_desktop_notifications):
+                by_silence[bool(preferences and not preferences.nodo_message_sound)].append(recipient)
+        for silent, targets in by_silence.items():
+            if targets:
+                channel = self.with_context(nodo_push_silent=silent)
+                super(DiscussChannel, channel)._notify_thread_by_web_push(message, targets, **kwargs)
+
+    def _notify_by_web_push_prepare_payload(self, message, force_record_name=False):
+        payload = super()._notify_by_web_push_prepare_payload(message, force_record_name=force_record_name)
+        author = message.author_id or message.author_guest_id
+        payload['title'] = (self.name if self.channel_type == 'channel' else author.name) or '新消息'
+        options = payload['options']
+        options['body'] = ' '.join(options['body'].split())[:180] or '你收到了一条新消息。'
+        options['icon'] = '/nodo_base/static/img/nodo-icon-192.png'
+        options['silent'] = bool(self.env.context.get('nodo_push_silent'))
+        return payload
+
     @api.model
     def _nodo_recall_seconds(self):
         return max(0, self.env['ir.config_parameter'].sudo().get_int('nodo.discuss.recall_seconds', 120))

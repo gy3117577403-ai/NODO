@@ -48,12 +48,15 @@
     <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
         <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']" position="attributes">
             <attribute name="className">'o_nodo_push_request o-my-0_5'</attribute>
+            <attribute name="onClick">this.onNodoEnableNotifications</attribute>
         </xpath>
-        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']/t[@t-set-slot='body']" position="replace">
-            <t t-set-slot="body">开启桌面通知，及时收到新消息</t>
+        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']//a[hasclass('btn-info')]" position="replace">
+            <button t-if="this.nodoCanRequestPermission" type="button" class="btn btn-primary btn-sm rounded-pill px-2 py-0" t-on-click.stop="this.onNodoEnableNotifications">开启</button>
         </xpath>
-        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']//a[hasclass('btn-info')]" position="attributes">
-            <attribute name="class">btn btn-primary btn-sm rounded-pill px-2 py-0</attribute>
+        <xpath expr="//NotificationItem[@t-if='this.showPushPermissionRequest']//span[@data-icon='close_small']" position="replace">
+            <button type="button" class="btn btn-sm p-0 text-reset" title="关闭通知提示" aria-label="关闭通知提示" t-on-click.stop="this.onNodoDismissNotificationHint">
+                <i class="oi" data-icon="close_small"/>
+            </button>
         </xpath>
     </t>
 

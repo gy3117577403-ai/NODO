@@ -19,6 +19,7 @@ NODO 基础模块（必装）：品牌、界面主题、八类角色组。
         'views/mail_templates.xml',
         'views/apps_menu.xml',
         'views/discuss_channel_views.xml',
+        'views/res_users_views.xml',
     ],
     'assets': {
         'web._assets_primary_variables': [

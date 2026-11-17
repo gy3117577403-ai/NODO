@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_preferences_discuss" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.nodo.discuss</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="mail.view_users_form_simple_modif_mail"/>
+        <field name="arch" type="xml">
+            <field name="notification_type" position="after">
+                <field name="nodo_desktop_notifications" widget="boolean_toggle" groups="base.group_user"/>
+                <field name="nodo_message_sound" widget="boolean_toggle" groups="base.group_user"/>
+                <div class="text-muted" colspan="2" groups="base.group_user">
+                    桌面通知需要浏览器授权。请在地址栏的站点设置中将「通知」设为「允许」。内网请使用 HTTPS 地址。
+                </div>
+            </field>
+        </field>
+    </record>
+</odoo>

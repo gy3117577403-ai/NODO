@@ -229,6 +229,14 @@ body .o-mail-Message {
     }
 }
 
+// 聊天提醒沿用原生通知，单独定位到右下角。
+.o_notification_manager .o_nodo_chat_notification {
+    position: fixed !important;
+    inset: auto $o-notification-margin 0 auto;
+    width: 24rem;
+    max-width: calc(100vw - #{2 * $o-notification-margin});
+}
+
 // 开启桌面通知的提示
 .o_nodo_push_request {
     background-color: $nodo-accent-soft !important;

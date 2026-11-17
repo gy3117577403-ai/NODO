@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.DiscussNotificationSettings" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o-mail-DiscussNotificationSettings')]/div/h5" position="replace">
+            <h5>频道通知</h5>
+        </xpath>
+        <xpath expr="//span[hasclass('text-muted')]" position="replace">
+            <span class="mb-1 text-muted small">应用到使用默认设置的频道。</span>
+        </xpath>
+        <xpath expr="//label/h5" position="replace">
+            <h5>新消息提示音</h5>
+        </xpath>
+        <xpath expr="//input[@t-on-change='this.onChangeMessageSound']" position="attributes">
+            <attribute name="t-att-checked">this.nodoMessageSound</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.NotificationSettings" t-inherit-mode="extension">
+        <xpath expr="//ActionPanel" position="attributes">
+            <attribute name="title.translate">通知设置</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.NotificationSettings.content" t-inherit-mode="extension">
+        <xpath expr="//button[@t-ref='this.muteButtonRef']/span" position="replace">
+            <span class="text-wrap text-start text-break">会话免打扰</span>
+        </xpath>
+        <xpath expr="//button[contains(@t-on-click, 'setCustomNotifications(false')]/div/span[1]" position="replace">
+            <span class="fs-6 text-wrap text-start text-break">使用默认设置</span>
+        </xpath>
+        <xpath expr="//t[@t-else]/span[hasclass('text-muted')]" position="replace">
+            <span t-if="!this.env[this.DROPDOWN_NESTING]" class="p-2 pb-0 d-flex smaller fw-bold text-muted">会话免打扰</span>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.NotificationSettings.unMuteSttings" t-inherit-mode="extension">
+        <xpath expr="//button/div/span[1]" position="replace">
+            <span class="fs-6 fw-bold text-wrap text-start text-break">关闭免打扰</span>
+        </xpath>
+    </t>
+</templates>
