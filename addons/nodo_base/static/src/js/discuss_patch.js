@@ -15,7 +15,7 @@ import { extractRecordRefs, insertRecordReference, NodoRecordCards, useRecordCar
 // ---------------------------------------------------------------------------
 // 窄栏：不显示「会议」；音视频通话在内网环境验证可用前不开放
 // ---------------------------------------------------------------------------
-const HIDDEN_TAB_IDS = new Set(["meeting"]);
+const HIDDEN_TAB_IDS = new Set(["meeting", "bookmark"]);
 patch(MessagingMenuTab.prototype, {
     get canBeShown() {
         if (HIDDEN_TAB_IDS.has(this.id)) {

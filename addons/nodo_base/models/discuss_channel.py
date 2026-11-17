@@ -1,7 +1,9 @@
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.addons.mail.tools.discuss import Store
 from odoo.exceptions import AccessError
+from odoo.tools import is_html_empty
 
+from .mail_message import DISCUSS_INTERNAL_CHANGE
 from .res_partner import nodo_text_avatar_svg
 
 
@@ -59,6 +61,19 @@ class DiscussChannel(models.Model):
                 })
         return result
 
+    def unlink(self):
+        # mail.thread.unlinks its messages as part of deleting the parent channel.
+        return super(DiscussChannel, self.with_context(_nodo_discuss_change=DISCUSS_INTERNAL_CHANGE)).unlink()
+
+    @api.model
+    def _nodo_recall_seconds(self):
+        return max(0, self.env['ir.config_parameter'].sudo().get_int('nodo.discuss.recall_seconds', 120))
+
+    @api.model
+    def _nodo_file_limit_mb(self):
+        value = self.env['ir.config_parameter'].sudo().get_int('nodo.discuss.file_limit_mb', 50)
+        return value if value > 0 else 50
+
     def _nodo_channels_disallowing_posts(self, user):
         if not self or user.id == SUPERUSER_ID:
             return self.browse()
@@ -78,8 +93,22 @@ class DiscussChannel(models.Model):
         self._nodo_check_channel_post_access()
         return super().message_post(message_type=message_type, partner_ids=partner_ids, **kwargs)
 
+    def _message_update_content(self, message, /, *, body, attachment_ids=None, **kwargs):
+        if self.env.context.get('_nodo_discuss_change') is not DISCUSS_INTERNAL_CHANGE:
+            if body is not None and is_html_empty(body) and (
+                attachment_ids == [] or (attachment_ids is None and not message.sudo().attachment_ids)
+            ):
+                return message._nodo_remove_discuss_message()
+            message._nodo_check_edit()
+        return super()._message_update_content(message, body=body, attachment_ids=attachment_ids, **kwargs)
+
+    def _store_message_update_extra_fields(self, res: Store.FieldList):
+        super()._store_message_update_extra_fields(res)
+        res.from_method('_store_nodo_message_policy_fields')
+
     def _store_channel_fields(self, res):
         super()._store_channel_fields(res)
+        res.attr('nodo_file_limit_mb', lambda channel: channel._nodo_file_limit_mb())
         res.attr('nodo_restrict_posting', predicate=lambda channel: channel.channel_type == 'channel')
         if viewer := res.target_user():
             res.attr(

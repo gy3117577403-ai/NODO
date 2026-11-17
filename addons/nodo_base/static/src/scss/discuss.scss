@@ -196,6 +196,39 @@ body .o-mail-Message {
     display: none;
 }
 
+.o_nodo_message_removed,
+.o_nodo_message_seen {
+    color: $nodo-text-muted;
+    font-size: 0.75rem;
+}
+
+.o-mail-AttachmentContainer.o-isUploading:has(.o_nodo_uploading_overlay) {
+    opacity: 1 !important;
+
+    .o-mail-AttachmentCard,
+    .o-mail-AttachmentImage {
+        opacity: 0.25;
+    }
+}
+
+.o_nodo_uploading_overlay {
+    z-index: 3;
+    pointer-events: none;
+}
+
+.o_nodo_attachment_progress {
+    @include nodo-state;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.375rem;
+    color: $nodo-text;
+
+    progress {
+        width: 4rem;
+        height: 0.45rem;
+        accent-color: $nodo-primary;
+    }
+}
+
 // 开启桌面通知的提示
 .o_nodo_push_request {
     background-color: $nodo-accent-soft !important;

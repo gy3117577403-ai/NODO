@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.Message" t-inherit-mode="extension">
+        <xpath expr="//MessageContextMenu" position="attributes">
+            <attribute name="t-if">!this.message.nodo_removal</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o-mail-Message-core')]" position="before">
+            <div t-if="this.message.nodo_removal" class="o_nodo_message_removed px-2 py-1 text-center">
+                <t t-out="this.message.bodyEl?.textContent"/>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('o-mail-Message-core')]" position="attributes">
+            <attribute name="t-if">!this.message.nodo_removal</attribute>
+        </xpath>
+        <xpath expr="//t[@name='after-reactions']" position="before">
+            <div t-if="this.nodoShowSeen" class="o_nodo_message_seen pe-1 pt-1 text-end" aria-live="polite"
+                t-out="this.message.hasSomeoneSeen ? '已读' : '未读'"/>
+        </xpath>
+        <xpath expr="//Poll" position="attributes">
+            <attribute name="t-elif" add="this.message.thread?.model !== 'discuss.channel'" separator=" and "/>
+        </xpath>
+        <xpath expr="//PollResult" position="attributes">
+            <attribute name="t-if" add="this.message.thread?.model !== 'discuss.channel'" separator=" and "/>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.Message.sidebarBookmark" t-inherit-mode="extension">
+        <xpath expr="//small" position="attributes">
+            <attribute name="t-if">this.message.thread?.model !== 'discuss.channel'</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.Composer.suggestionPartner" t-inherit-mode="extension">
+        <xpath expr="//t[@t-set='title' and @t-if='partner.email']" position="attributes">
+            <attribute name="t-if" add="option.thread?.model !== 'discuss.channel'" separator=" and "/>
+        </xpath>
+        <xpath expr="//span[@t-if='partner.email']" position="attributes">
+            <attribute name="t-if" add="option.thread?.model !== 'discuss.channel'" separator=" and "/>
+        </xpath>
+        <xpath expr="//strong[hasclass('o-mail-Composer-suggestionPartner-name')]" position="after">
+            <span t-if="option.thread?.model === 'discuss.channel' and partner.nodoChatRoleLabel"
+                class="text-truncate align-self-center smaller o_nodo_chat_role_text"
+                t-out="partner.nodoChatRoleLabel"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="mail.AttachmentList" t-inherit-mode="extension">
+        <xpath expr="//div[@t-if='attachment.uploading']" position="attributes">
+            <attribute name="t-att-title">typeof attachment.nodo_upload_percent === 'number' ? '正在上传' : undefined</attribute>
+            <attribute name="t-att-class">{ 'o_nodo_uploading_overlay': typeof attachment.nodo_upload_percent === 'number' }</attribute>
+        </xpath>
+        <xpath expr="//div[@t-if='attachment.uploading']/i" position="attributes">
+            <attribute name="t-if">typeof attachment.nodo_upload_percent !== 'number'</attribute>
+        </xpath>
+        <xpath expr="//div[@t-if='attachment.uploading']/i" position="after">
+            <div t-else="" class="o_nodo_attachment_progress small pe-none d-flex flex-column align-items-center gap-1">
+                <progress t-att-value="attachment.nodo_upload_percent" max="100" aria-label="上传进度"/>
+                <span t-out="'上传中 ' + attachment.nodo_upload_percent + '%'"/>
+            </div>
+        </xpath>
+        <xpath expr="//button[hasclass('o-mail-Attachment-unlink')]" position="attributes">
+            <attribute name="t-att-title">typeof attachment.nodo_upload_percent === 'number' ? '取消上传' : '移除'</attribute>
+            <attribute name="t-att-aria-label">typeof attachment.nodo_upload_percent === 'number' ? '取消上传' : '移除'</attribute>
+        </xpath>
+    </t>
+</templates>
