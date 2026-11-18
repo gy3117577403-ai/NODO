@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="staff_employee_detail_form" model="ir.ui.view">
+        <field name="name">hr.employee.form.nodo.staff.detail</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="35"/>
+        <field name="arch" type="xml">
+            <xpath expr="/form" position="attributes">
+                <attribute name="js_class">nodo_staff_employee_form</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']" position="attributes">
+                <attribute name="class">o_nodo_profile_header</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/div[hasclass('o_employee_avatar')]/field[@name='image_1920']"
+                   position="attributes">
+                <attribute name="options">{'size': [68, 68], 'zoom': True, 'preview_image': 'avatar_128', 'img_class': 'object-fit-cover'}</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group/h1" position="attributes">
+                <attribute name="class">o_nodo_profile_name</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group/h1/field[@name='name']" position="attributes">
+                <attribute name="placeholder">员工姓名</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']" position="inside">
+                <div class="o_nodo_profile_identity">
+                    <div class="o_nodo_profile_metadata" invisible="not id">
+                        <field name="active" invisible="1"/>
+                        <span class="badge rounded-pill o_nodo_profile_archived" invisible="active">已归档</span>
+                        <div class="o_nodo_profile_number" groups="base.group_system">
+                            <span>人员编号</span>
+                            <field name="nodo_personnel_number" readonly="1" invisible="not nodo_personnel_number"/>
+                            <span invisible="nodo_personnel_number">未填写</span>
+                        </div>
+                        <field name="nodo_review_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                               decoration-warning="nodo_review_state == 'pending'"
+                               decoration-success="nodo_review_state == 'complete'"
+                               decoration-muted="nodo_review_state == 'unknown'"/>
+                        <field name="nodo_account_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                               decoration-success="nodo_account_state == 'active'"
+                               decoration-muted="nodo_account_state == 'none'"
+                               decoration-danger="nodo_account_state == 'disabled'"/>
+                    </div>
+                </div>
+                <div class="o_nodo_profile_actions" invisible="not id">
+                    <div class="o_nodo_profile_version" groups="hr.group_hr_user">
+                        <span class="o_nodo_profile_label">档案版本</span>
+                    </div>
+                </div>
+            </xpath>
+            <xpath expr="//div[hasclass('o_nodo_profile_metadata')]" position="before">
+                <xpath expr="//div[@name='employee_photo_and_info']/group/h1" position="move"/>
+            </xpath>
+            <xpath expr="//div[hasclass('o_nodo_profile_version')]" position="before">
+                <xpath expr="//div[@name='employee_photo_and_info']//widget[@name='nodo_employee_supplement']" position="move"/>
+            </xpath>
+            <xpath expr="//div[hasclass('o_nodo_profile_version')]" position="inside">
+                <xpath expr="/form/header/field[@name='version_id']" position="move"/>
+                <xpath expr="/form/header/field[@name='version_revision']" position="move"/>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_email']" position="attributes">
+                <attribute name="placeholder">未填写</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_phone']" position="attributes">
+                <attribute name="placeholder">未填写</attribute>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='mobile_phone']" position="attributes">
+                <attribute name="placeholder">未填写</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/notebook/page[1]" position="before">
+                <page name="nodo_employee_profile" string="档案" class="o_nodo_profile_page">
+                    <section class="o_nodo_profile_section" aria-label="任职信息">
+                        <h2>任职信息</h2>
+                        <div class="o_nodo_profile_fields">
+                            <div>
+                                <span class="o_nodo_profile_label">部门</span>
+                                <field name="department_id" readonly="1" invisible="not department_id"
+                                       options="{'no_open': True}"/>
+                                <span class="o_nodo_profile_empty" invisible="department_id">未设置</span>
+                            </div>
+                            <div>
+                                <span class="o_nodo_profile_label">岗位</span>
+                                <field name="job_title" readonly="1" invisible="not job_title"/>
+                                <span class="o_nodo_profile_empty" invisible="job_title">未设置</span>
+                            </div>
+                            <div>
+                                <span class="o_nodo_profile_label">直属上级</span>
+                                <field name="parent_id" readonly="1" invisible="not parent_id"
+                                       options="{'no_open': True}"/>
+                                <span class="o_nodo_profile_empty" invisible="parent_id">未设置</span>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="o_nodo_profile_section" aria-label="工作联系方式">
+                        <h2>工作联系方式</h2>
+                        <div class="o_nodo_profile_fields o_nodo_profile_contact">
+                            <div name="work_email">
+                                <label for="work_email" string="工作邮箱" class="o_nodo_profile_label"/>
+                            </div>
+                            <div name="work_phone">
+                                <label for="work_phone" string="办公电话" class="o_nodo_profile_label"/>
+                            </div>
+                            <div name="mobile_phone">
+                                <label for="mobile_phone" string="办公手机" class="o_nodo_profile_label"/>
+                            </div>
+                        </div>
+                    </section>
+                </page>
+            </xpath>
+            <xpath expr="//page[@name='nodo_employee_profile']//div[@name='work_email']" position="inside">
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_email']" position="move"/>
+            </xpath>
+            <xpath expr="//page[@name='nodo_employee_profile']//div[@name='work_phone']" position="inside">
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_phone_sanitized']" position="move"/>
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_phone_formatted']" position="move"/>
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='work_phone']" position="move"/>
+            </xpath>
+            <xpath expr="//page[@name='nodo_employee_profile']//div[@name='mobile_phone']" position="inside">
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='mobile_phone_sanitized']" position="move"/>
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='mobile_phone_formatted']" position="move"/>
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='mobile_phone']" position="move"/>
+            </xpath>
+            <xpath expr="//page[@name='work_information']//group[@name='work']" position="inside">
+                <xpath expr="//div[@name='employee_photo_and_info']/group/div/field[@name='category_ids']" position="move"/>
+            </xpath>
+            <xpath expr="//div[@name='employee_photo_and_info']/group" position="replace"/>
+            <xpath expr="/form/sheet/widget[@name='web_ribbon']" position="replace"/>
+            <xpath expr="//page[@name='work_information']//group[@name='work']/field[@name='category_ids']" position="attributes">
+                <attribute name="placeholder">选择员工标签</attribute>
+                <attribute name="string">员工标签</attribute>
+            </xpath>
+            <xpath expr="//page[@name='work_information']//div[@id='o_work_information']" position="inside">
+                <xpath expr="/form/sheet/field[@name='employee_properties']" position="move"/>
+            </xpath>
+            <xpath expr="//page[@name='resume']" position="attributes">
+                <attribute name="string">履历</attribute>
+            </xpath>
+            <xpath expr="//page[@name='hr_settings']//group[@name='user']" position="attributes">
+                <attribute name="string">登录账号</attribute>
+            </xpath>
+            <xpath expr="//page[@name='hr_settings']//group[@name='user']/label[@for='user_id']" position="attributes">
+                <attribute name="string">关联用户</attribute>
+            </xpath>
+            <xpath expr="//page[@name='hr_settings']//button[@name='action_nodo_open_member_account']" position="attributes">
+                <attribute name="class">btn btn-primary text-nowrap</attribute>
+            </xpath>
+            <xpath expr="//page[@name='payroll_information']" position="attributes">
+                <attribute name="string">用工与工时</attribute>
+            </xpath>
+            <xpath expr="/form/sheet/notebook" position="inside">
+                <xpath expr="//page[@name='payroll_information']" position="move"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="hr.act_hr_employee_form_view" model="ir.actions.act_window.view">
+        <field name="view_id" ref="staff_employee_detail_form"/>
+    </record>
+</odoo>

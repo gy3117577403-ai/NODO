@@ -188,31 +188,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .o_nodo_staff_status .badge {
-            padding: 4px 9px;
-            font-weight: 500;
-
-            &.text-bg-300 {
-                background-color: $nodo-panel !important;
-                color: $nodo-text-muted !important;
-            }
-
-            &.text-bg-warning {
-                background-color: mix($nodo-warning-text, $nodo-card, 9%) !important;
-                color: $nodo-warning-text !important;
-            }
-
-            &.text-bg-success {
-                background-color: mix($nodo-success-text, $nodo-card, 8%) !important;
-                color: $nodo-success-text !important;
-            }
-
-            &.text-bg-danger {
-                background-color: mix($nodo-danger-text, $nodo-card, 9%) !important;
-                color: $nodo-danger-text !important;
-            }
-        }
-
         &.o_nodo_staff_recent > .o_data_cell {
             background-color: $nodo-accent-soft;
         }
@@ -220,6 +195,31 @@
         &.o_nodo_staff_recent > td:first-child {
             box-shadow: inset 3px 0 $nodo-accent;
         }
+    }
+}
+
+.o_nodo_staff_status .badge {
+    padding: 4px 9px;
+    font-weight: 500;
+
+    &.text-bg-300 {
+        background-color: $nodo-panel !important;
+        color: $nodo-text-muted !important;
+    }
+
+    &.text-bg-warning {
+        background-color: mix($nodo-warning-text, $nodo-card, 9%) !important;
+        color: $nodo-warning-text !important;
+    }
+
+    &.text-bg-success {
+        background-color: mix($nodo-success-text, $nodo-card, 8%) !important;
+        color: $nodo-success-text !important;
+    }
+
+    &.text-bg-danger {
+        background-color: mix($nodo-danger-text, $nodo-card, 9%) !important;
+        color: $nodo-danger-text !important;
     }
 }
 

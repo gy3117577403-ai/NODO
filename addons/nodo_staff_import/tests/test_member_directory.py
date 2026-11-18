@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, new_test_user, tagged
 
@@ -92,6 +94,32 @@ class TestMemberDirectory(TransactionCase):
         self.assertEqual(member.nodo_account_state, 'active')
         with self.assertRaisesRegex(ValidationError, '已关联账号'):
             member.action_nodo_open_member_account()
+
+    def test_detail_starts_with_the_profile_and_respects_hr_permissions(self):
+        view = self.env.ref('nodo_staff_import.staff_employee_detail_form')
+        action = self.env.ref('hr.open_view_employee_list_my')
+        self.assertIn((view.id, 'form'), [tuple(item) for item in action.views])
+        for user in (self.admin, self.officer):
+            with self.subTest(user=user.login):
+                arch = etree.fromstring(self.employee.with_user(user).get_view(view_id=view.id)['arch'])
+                overview = arch.find('.//notebook/page')
+                self.assertEqual(overview.get('name'), 'nodo_employee_profile')
+                self.assertIsNotNone(overview.find('.//field[@name="work_email"]'))
+                self.assertIsNone(overview.find('.//field[@name="wage"]'))
+                self.assertIsNotNone(arch.find('.//span[@invisible="active"]'))
+                self.assertIsNone(arch.find('.//button[@name="action_send_invitation"]'))
+                self.assertEqual(
+                    arch.find('.//page[@name="hr_settings"]//button[@name="action_nodo_open_member_account"]') is not None,
+                    user == self.admin,
+                )
+                self.assertEqual(
+                    arch.find('.//widget[@name="nodo_employee_supplement"]') is not None,
+                    user == self.admin,
+                )
+                self.assertEqual(
+                    arch.find('.//field[@name="nodo_review_state"]') is not None,
+                    user == self.admin,
+                )
 
     def test_employee_invitation_actions_are_disabled(self):
         member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])

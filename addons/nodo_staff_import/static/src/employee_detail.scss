@@ -1,0 +1,346 @@
+@media screen {
+    .o_form_view_container:has(> .o_content > .o_nodo_staff_detail) {
+        --nodo-staff-gutter: clamp(16px, 3.4vw, 44px);
+
+        > .o_content {
+            background-color: $nodo-background;
+        }
+
+        > .o_control_panel {
+            padding-inline: 0 !important;
+            background-color: $nodo-card !important;
+
+            .o_control_panel_main {
+                width: 100%;
+                max-width: 84rem;
+                margin-inline: auto;
+                padding-inline: var(--nodo-staff-gutter);
+            }
+
+            @media (min-width: 992px) {
+                .o_control_panel_actions {
+                    justify-content: flex-end !important;
+                    margin-inline-start: auto;
+                }
+
+                .o_control_panel_navigation {
+                    flex-grow: 0 !important;
+                }
+            }
+        }
+    }
+
+    .o_nodo_staff_detail {
+        --nodo-profile-padding: clamp(16px, 2vw, 26px);
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        align-content: start;
+        gap: 18px;
+        width: 100%;
+        max-width: 84rem;
+        height: auto !important;
+        margin-inline: auto;
+        padding: 22px var(--nodo-staff-gutter, 16px) 32px;
+
+        @media (min-width: 1100px) {
+            grid-template-columns: minmax(0, 1fr) minmax(334px, 28%);
+        }
+
+        > .o_form_sheet_bg {
+            --formView-sheetBg-padding-x: 0px;
+            --formView-sheetBg-padding-top: 0px;
+            min-width: 0;
+            max-width: none;
+            margin: 0;
+
+            > .o_form_statusbar:not(:has(button, .o_field_widget)) {
+                display: none !important;
+            }
+        }
+
+        .o_form_sheet,
+        > .o-mail-Form-chatter {
+            border: 1px solid $nodo-border !important;
+            border-radius: 15px !important;
+            box-shadow: 0 5px 18px -12px $nodo-glass-shade;
+        }
+
+        .o_form_sheet {
+            margin: 0;
+            padding: 0;
+        }
+
+        .o_nodo_profile_header {
+            display: flex;
+            align-items: center;
+            gap: 17px;
+            padding: var(--nodo-profile-padding);
+
+            .o_employee_avatar {
+                flex: none;
+
+                .o_field_image {
+                    margin: 0;
+                }
+
+                img {
+                    border-radius: 15px;
+                }
+            }
+        }
+
+        .o_nodo_profile_identity {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .o_nodo_profile_name {
+            margin: 0 0 4px;
+            color: $nodo-text;
+            font-size: clamp(23px, 2.3vw, 30px);
+            font-weight: 650;
+            line-height: 1.25;
+
+            .o_input {
+                font-weight: inherit;
+            }
+        }
+
+        .o_nodo_profile_metadata,
+        .o_nodo_profile_number,
+        .o_nodo_profile_version {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px 8px;
+
+            .o_field_widget {
+                margin: 0;
+            }
+        }
+
+        .o_nodo_profile_number {
+            margin-inline-end: 4px;
+            color: $nodo-text-muted;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+
+            .o_field_widget {
+                color: $nodo-text;
+                font-weight: 600;
+            }
+        }
+
+        .o_nodo_profile_archived {
+            padding: 4px 9px;
+            background-color: mix($nodo-danger-text, $nodo-card, 9%);
+            color: $nodo-danger-text;
+            font-weight: 500;
+        }
+
+        .o_nodo_profile_actions {
+            display: flex;
+            flex: 0 0 auto;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            max-width: 46%;
+
+            .btn {
+                border-radius: 8px;
+            }
+
+            [data-staff-supplement] {
+                border-color: mix($nodo-primary, $nodo-accent-soft, 14%);
+                background-color: $nodo-accent-soft;
+                color: $nodo-primary;
+                font-weight: 600;
+
+                &:hover {
+                    background-color: mix($nodo-primary, $nodo-accent-soft, 8%);
+                }
+            }
+        }
+
+        .o_nodo_profile_version {
+            justify-content: flex-end;
+            min-width: 0;
+
+            .o_field_versions_timeline {
+                display: flex;
+                gap: 4px;
+                max-width: 100%;
+            }
+
+            .btn {
+                min-height: 27px;
+                padding-block: 2px;
+                font-size: 12px;
+            }
+        }
+
+        .o_form_sheet > .o_notebook {
+            --Notebook-margin-x: 0px;
+            --Notebook-padding-x: 0px;
+            margin-top: 0;
+
+            > .o_notebook_headers {
+                padding-inline: var(--nodo-profile-padding);
+                overflow-x: auto;
+                border-bottom: 1px solid $nodo-border;
+
+                .nav-tabs {
+                    gap: 8px;
+                    border: 0;
+                }
+
+                .nav-link {
+                    margin: 0;
+                    padding: 9px 11px;
+                    border: 0;
+                    border-bottom: 2px solid transparent;
+                    border-radius: 0;
+                    background: transparent;
+                    color: $nodo-text-muted;
+                    white-space: nowrap;
+                }
+
+                .nav-link.active {
+                    border-bottom-color: $nodo-primary;
+                    color: $nodo-primary;
+                    font-weight: 650;
+                }
+            }
+
+            > .o_notebook_content {
+                min-width: 0;
+                padding: var(--nodo-profile-padding);
+
+                > .tab-pane {
+                    padding-block: 0;
+                }
+            }
+        }
+
+        .o_nodo_profile_section {
+            h2 {
+                margin: 0 0 14px;
+                color: $nodo-text;
+                font-size: 15px;
+                font-weight: 650;
+            }
+
+            + .o_nodo_profile_section {
+                margin-top: 22px;
+                padding-top: 20px;
+                border-top: 1px solid $nodo-border;
+            }
+        }
+
+        .o_nodo_profile_fields {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr));
+            gap: 12px 16px;
+
+            > div {
+                min-width: 0;
+            }
+
+            .o_field_widget {
+                margin: 0;
+                overflow-wrap: anywhere;
+            }
+
+            .o_nodo_profile_label {
+                display: block;
+                margin: 0 0 5px;
+            }
+        }
+
+        .o_nodo_profile_label,
+        .o_nodo_profile_empty {
+            color: $nodo-text-muted;
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        .o_nodo_profile_contact {
+            .o_field_widget {
+                width: 100%;
+            }
+
+            .o_input {
+                padding: 6px 8px;
+                border: 1px solid $nodo-border;
+                border-radius: 6px;
+                background-color: $nodo-panel;
+
+                &:focus {
+                    border-color: $nodo-primary;
+                    background-color: $nodo-card;
+                }
+
+                &::placeholder {
+                    color: $nodo-text-muted;
+                }
+            }
+        }
+
+        > .o-mail-Form-chatter {
+            flex-direction: column;
+            width: 100% !important;
+            min-width: 0;
+            max-width: none;
+            margin: 0 !important;
+            padding: 0;
+            background-color: $nodo-card !important;
+
+            .o_nodo_staff_activity_title {
+                margin: 0;
+                padding: 17px 15px 9px;
+                color: $nodo-text;
+                font-size: 15px;
+                font-weight: 650;
+            }
+
+            .o-mail-Chatter-top {
+                padding: 4px 15px 0;
+                background: $nodo-card !important;
+            }
+
+            .o-mail-Chatter-topbar {
+                align-items: center;
+                margin: 0;
+                padding: 0 0 8px;
+
+                .btn {
+                    border-radius: 7px;
+                    font-size: 12px;
+                }
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .o_nodo_profile_header {
+                flex-wrap: wrap;
+            }
+
+            .o_nodo_profile_identity {
+                flex-basis: calc(100% - 85px);
+            }
+
+            .o_nodo_profile_actions {
+                flex: 1 1 100%;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
+                max-width: 100%;
+            }
+
+            .o_nodo_profile_fields {
+                grid-template-columns: 1fr;
+            }
+        }
+    }
+}

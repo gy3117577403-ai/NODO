@@ -10,6 +10,7 @@
         'security/ir.access.csv',
         'views/staff_import_views.xml',
         'views/staff_member_views.xml',
+        'views/staff_detail_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -20,6 +21,8 @@
             'nodo_staff_import/static/src/member_directory.js',
             'nodo_staff_import/static/src/member_directory.xml',
             'nodo_staff_import/static/src/member_directory.scss',
+            'nodo_staff_import/static/src/employee_detail.js',
+            'nodo_staff_import/static/src/employee_detail.scss',
         ],
     },
     'installable': True,
