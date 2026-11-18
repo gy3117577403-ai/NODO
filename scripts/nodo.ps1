@@ -17,6 +17,8 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
+  check-staff-pilot 核对试点库的人员来源、档案关系和界面版本
+  update-staff-pilot 在人员试点库升级员工模块
   preview-staff-pilot <HTML>  核对架构图导入结果，回滚本次写入
   import-staff-pilot <HTML>  将架构图档案写入人员试点库
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
@@ -90,6 +92,23 @@ function Invoke-OdooShellScript(
     Invoke-OdooRun -EnvVars $EnvVars -ContainerArgs $ContainerArgs -OdooArgs @(
         'sh', '-c', "odoo shell -c $OdooConf -d $Database --log-level=warn < /mnt/nodo-scripts/$ScriptName"
     )
+}
+
+function Assert-StaffPilotExists {
+    Assert-Initialized
+    if (-not (Test-DbExists $StaffPilotDb)) { throw '请先运行 init-staff-pilot 准备独立试点库' }
+}
+
+function Invoke-ModuleUpgrade([string]$Database, [string]$Name) {
+    Assert-ModuleName $Name
+    Assert-Initialized
+    Invoke-Compose stop odoo
+    try {
+        Invoke-Compose run --rm --no-deps odoo odoo module upgrade -c $OdooConf -d $Database $Name
+    }
+    finally {
+        Invoke-Compose up -d --wait --wait-timeout 120 odoo
+    }
 }
 
 function Invoke-StaffPilotRoster([string]$Path, [bool]$Commit) {
@@ -229,14 +248,18 @@ switch ($Command) {
         Invoke-Compose run --rm --no-deps odoo odoo module install -c $OdooConf -d $StaffPilotDb nodo_staff_import nodo_supply
         Write-Host '人员试点库已就绪，凭据写入 config/staff-pilot-accounts.local.md'
     }
+    'check-staff-pilot' {
+        Assert-StaffPilotExists
+        Invoke-OdooShellScript 'check_staff_pilot.py' @{} $StaffPilotDb
+    }
+    'update-staff-pilot' {
+        Assert-StaffPilotExists
+        Invoke-ModuleUpgrade $StaffPilotDb 'nodo_staff_import'
+    }
     'preview-staff-pilot' { Invoke-StaffPilotRoster $Module $false }
     'import-staff-pilot' { Invoke-StaffPilotRoster $Module $true }
     'update' {
-        Assert-ModuleName $Module
-        Assert-Initialized
-        Invoke-Compose stop odoo
-        Invoke-Compose run --rm --no-deps odoo odoo module upgrade -c $OdooConf -d $DevDb $Module
-        Invoke-Compose up -d --wait --wait-timeout 120 odoo
+        Invoke-ModuleUpgrade $DevDb $Module
     }
     'test' {
         Assert-ModuleName $Module
@@ -260,6 +283,6 @@ switch ($Command) {
     }
     'shell' { Assert-Initialized; Invoke-Compose exec odoo odoo shell -c $OdooConf -d $DevDb }
     default {
-        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 23
+        Get-Content -LiteralPath $PSCommandPath -Encoding UTF8 | Select-Object -Skip 1 -First 25
     }
 }
