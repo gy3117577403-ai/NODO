@@ -26,7 +26,7 @@ registry.category("fields").add("nodo_member_identity", {
     fieldDependencies: [{ name: "job_title", type: "char" }],
 });
 
-function departmentNameStyle(color) {
+export function departmentNameStyle(color) {
     if (!Number.isInteger(color)) return;
     const hue = color === 0 ? 149 : (206 + (color - 1) * 137.508) % 360;
     return `--nodo-department-hue: ${hue.toFixed(2)}`;
@@ -61,10 +61,10 @@ registry.category("fields").add("nodo_staff_department", {
     extractProps: ({ options }) => ({ compact: Boolean(options.compact) }),
 });
 
-export function memberCountLabel(model) {
+export function directoryCountLabel(model, unit) {
     if (!model.isReady() || model.useSampleModel || model.root.isGrouped) return "";
     const { count, hasLimitedCount } = model.root;
-    return `${count}${hasLimitedCount ? "+" : ""} 位成员`;
+    return `${count}${hasLimitedCount ? "+" : ""} ${unit}`;
 }
 
 class MemberDialog extends Component {
@@ -216,7 +216,7 @@ class StaffDirectoryController extends EmployeeListController {
     }
 
     get memberCountLabel() {
-        return memberCountLabel(this.model);
+        return directoryCountLabel(this.model, "位成员");
     }
 
     async createRecord(options) {

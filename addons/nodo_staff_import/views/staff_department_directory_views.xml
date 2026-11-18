@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="staff_department_directory_kanban" model="ir.ui.view">
+        <field name="name">hr.department.kanban.nodo.directory</field>
+        <field name="model">hr.department</field>
+        <field name="inherit_id" ref="hr.hr_department_view_kanban"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="attributes">
+                <attribute name="js_class">nodo_department_directory</attribute>
+                <attribute name="default_order">nodo_directory_path, id</attribute>
+                <attribute name="sample">0</attribute>
+                <attribute name="records_draggable">0</attribute>
+                <attribute name="highlight_color"/>
+            </xpath>
+            <xpath expr="//kanban/field[@name='active']" position="after">
+                <field name="nodo_has_subdepartments"/>
+            </xpath>
+            <xpath expr="//t[@t-name='menu']//a[@name='action_employee_from_department']" position="attributes">
+                <attribute name="name">action_nodo_view_department_staff</attribute>
+            </xpath>
+            <xpath expr="//t[@t-name='menu']//field[@widget='kanban_color_picker']/.." position="replace"/>
+            <xpath expr="//templates/t[@t-name='card']" position="replace">
+                <t t-name="card">
+                    <div class="o_nodo_department_card">
+                        <a type="open" class="o_nodo_department_card_link">
+                            <field name="name" widget="nodo_department_identity"/>
+                        </a>
+                        <div groups="base.group_multi_company" class="o_nodo_department_company">
+                            <field name="company_id"/>
+                        </div>
+                        <div t-if="record.manager_id.raw_value" class="o_nodo_department_manager">
+                            <span>负责人</span>
+                            <field name="manager_id" widget="many2one_avatar_employee" readonly="1"
+                                   options="{'display_avatar_name': True, 'no_open': True}"/>
+                        </div>
+                        <div class="o_nodo_department_counts">
+                            <t t-if="record.nodo_has_subdepartments.raw_value">
+                                <span>直属 <strong><field name="nodo_direct_staff_count"/></strong> 人</span>
+                                <span>含下级 <strong><field name="nodo_branch_staff_count"/></strong> 人</span>
+                            </t>
+                            <span t-else="">员工 <strong><field name="nodo_branch_staff_count"/></strong> 人</span>
+                        </div>
+                        <div class="o_nodo_department_actions" t-if="!selection_mode">
+                            <button name="action_nodo_view_department_staff" type="object" class="btn btn-secondary btn-sm">
+                                查看员工
+                            </button>
+                            <button t-if="record.nodo_has_subdepartments.raw_value"
+                                    name="action_nodo_view_department_staff" type="object"
+                                    context="{'nodo_department_direct': True}" class="btn btn-link btn-sm">
+                                仅直属
+                            </button>
+                        </div>
+                    </div>
+                </t>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="staff_department_directory_search" model="ir.ui.view">
+        <field name="name">hr.department.search.nodo.directory</field>
+        <field name="model">hr.department</field>
+        <field name="inherit_id" ref="hr.view_department_filter"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[@name='name']" position="attributes">
+                <attribute name="string">部门名称或路径</attribute>
+                <attribute name="filter_domain">[('nodo_directory_path', 'ilike', self)]</attribute>
+            </xpath>
+            <xpath expr="//search" position="inside">
+                <searchpanel view_types="kanban">
+                    <field name="nodo_directory_branch_id" string="部门筛选" icon="account_tree" expand="1" depth="1" limit="0"/>
+                </searchpanel>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr.hr_department_kanban_view_kanban_action" model="ir.actions.act_window.view">
+        <field name="view_id" ref="staff_department_directory_kanban"/>
+    </record>
+
+    <record id="hr.hr_department_kanban_action" model="ir.actions.act_window">
+        <field name="search_view_id" ref="staff_department_directory_search"/>
+        <field name="help" type="html">
+            <p>未找到部门</p>
+            <p>可以更换关键词或清除筛选条件。</p>
+        </field>
+    </record>
+</odoo>

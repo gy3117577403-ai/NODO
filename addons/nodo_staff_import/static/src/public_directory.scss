@@ -1,4 +1,4 @@
-.o_nodo_public_directory {
+:is(.o_nodo_public_directory, .o_nodo_department_directory) {
     .o_nodo_roster_card {
         max-height: none;
 
@@ -58,6 +58,42 @@
         }
     }
 
+    @media (min-width: 768px) {
+        .o_nodo_staff_workspace {
+            overflow: auto;
+
+            > .o_search_panel,
+            > .o_search_panel_sidebar {
+                position: sticky;
+                top: 0;
+            }
+        }
+
+        .o_nodo_roster_card .o_control_panel {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .o_nodo_staff_workspace {
+            gap: 10px;
+
+            > .o_search_panel {
+                max-width: 100%;
+                padding: 0 6px !important;
+
+                > div:first-child {
+                    flex-wrap: wrap;
+                    border-top: 0 !important;
+                }
+            }
+        }
+    }
+}
+
+.o_nodo_public_directory {
     .o_nodo_public_member {
         display: flex;
         align-items: center;
@@ -94,40 +130,6 @@
             margin-top: 2px;
             font-size: 11px;
             line-height: 1.4;
-        }
-    }
-
-    @media (min-width: 768px) {
-        .o_nodo_staff_workspace {
-            overflow: auto;
-
-            > .o_search_panel,
-            > .o_search_panel_sidebar {
-                position: sticky;
-                top: 0;
-            }
-        }
-
-        .o_nodo_roster_card .o_control_panel {
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-    }
-
-    @media (max-width: 767.98px) {
-        .o_nodo_staff_workspace {
-            gap: 10px;
-
-            > .o_search_panel {
-                max-width: 100%;
-                padding: 0 6px !important;
-
-                > div:first-child {
-                    flex-wrap: wrap;
-                    border-top: 0 !important;
-                }
-            }
         }
     }
 }

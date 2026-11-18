@@ -2,9 +2,9 @@ import { registry } from "@web/core/registry";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { kanbanView } from "@web/views/kanban/kanban_view";
-import { memberCountLabel, StaffDirectoryControlPanel, StaffDirectoryLayout } from "./member_directory";
+import { directoryCountLabel, StaffDirectoryControlPanel, StaffDirectoryLayout } from "./member_directory";
 
-class PublicDirectoryControlPanel extends StaffDirectoryControlPanel {
+export class DirectoryBoardControlPanel extends StaffDirectoryControlPanel {
     get showDirectoryPager() {
         return this.pagerProps?.total > 0;
     }
@@ -12,7 +12,7 @@ class PublicDirectoryControlPanel extends StaffDirectoryControlPanel {
 
 class PublicDirectoryLayout extends StaffDirectoryLayout {
     static rosterLabel = "员工目录";
-    static ControlPanel = PublicDirectoryControlPanel;
+    static ControlPanel = DirectoryBoardControlPanel;
 }
 
 class PublicDirectorySearchBar extends SearchBar {
@@ -32,7 +32,7 @@ class PublicDirectoryController extends KanbanController {
     }
 
     get memberCountLabel() {
-        return memberCountLabel(this.model);
+        return directoryCountLabel(this.model, "位成员");
     }
 }
 

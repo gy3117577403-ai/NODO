@@ -12,6 +12,7 @@
         'views/staff_member_views.xml',
         'views/staff_detail_views.xml',
         'views/staff_public_directory_views.xml',
+        'views/staff_department_directory_views.xml',
         'views/linked_account_views.xml',
     ],
     'assets': {
@@ -27,6 +28,9 @@
             'nodo_staff_import/static/src/public_directory.js',
             'nodo_staff_import/static/src/public_directory.xml',
             'nodo_staff_import/static/src/public_directory.scss',
+            'nodo_staff_import/static/src/department_directory.js',
+            'nodo_staff_import/static/src/department_directory.xml',
+            'nodo_staff_import/static/src/department_directory.scss',
             'nodo_staff_import/static/src/employee_detail.js',
             'nodo_staff_import/static/src/employee_detail.xml',
             'nodo_staff_import/static/src/employee_detail.scss',
