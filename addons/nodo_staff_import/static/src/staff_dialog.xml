@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.StaffDialogFrame">
+        <dialog t-attf-class="nodo-staff-dialog {{dialogClass}}" t-ref="this.dialogRef"
+                t-att-aria-labelledby="titleId" t-on-cancel="this.cancel">
+            <form class="staff-form" novalidate="novalidate" t-att-aria-busy="this.saving() ? 'true' : 'false'"
+                  t-on-submit="this.submit">
+                <header class="staff-header">
+                    <h2 t-att-id="titleId" t-out="title"/>
+                    <button type="button" class="staff-close" t-att-aria-label="'关闭' + title"
+                            t-att-disabled="this.saving()" t-on-click="this.cancel"><span aria-hidden="true"/></button>
+                </header>
+                <div class="staff-body"><t t-out="0"/></div>
+                <footer class="staff-footer staff-end-actions">
+                    <button type="button" class="staff-button" t-att-disabled="this.saving()"
+                            t-on-click="this.cancel">取消</button>
+                    <button type="submit" class="staff-button staff-primary" t-att-disabled="this.saving()"
+                            t-out="this.saving() ? '保存中…' : submitLabel"/>
+                </footer>
+            </form>
+        </dialog>
+    </t>
+</templates>

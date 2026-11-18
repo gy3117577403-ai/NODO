@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.MemberAccountDialog">
+        <t t-call="nodo_staff_import.StaffDialogFrame" dialogClass="'nodo-account-dialog'"
+           titleId="'nodo-account-title'" title="'开通账号'" submitLabel="'开通账号'">
+            <div class="staff-summary">
+                <div class="staff-avatar">
+                    <img alt="" t-att-src="'/web/image/hr.employee/' + this.props.employee.id + '/avatar_128'"/>
+                </div>
+                <div class="staff-identity">
+                    <strong class="staff-account-name" t-out="this.props.employee.name"/>
+                    <div class="staff-source" t-if="this.props.employee.number or this.props.employee.department">
+                        <span t-if="this.props.employee.number" class="staff-code" t-out="this.props.employee.number"/>
+                        <span t-if="this.props.employee.department" class="staff-code" t-out="this.props.employee.department"/>
+                    </div>
+                </div>
+                <span class="staff-review">未开通</span>
+            </div>
+            <fieldset class="staff-fields" t-att-disabled="this.saving()">
+                <div>
+                    <label for="nodo-account-login">登录名 <span class="staff-required" aria-hidden="true">*</span></label>
+                    <input id="nodo-account-login" name="login" required="required" autofocus="autofocus"
+                           placeholder="输入登录名" autocomplete="off" autocapitalize="none" spellcheck="false"
+                           t-att-value="this.login()" t-on-input="this.changeLogin"
+                           t-att-aria-describedby="this.problem()?.field ? 'nodo-account-error nodo-account-hint' : 'nodo-account-hint'"
+                           t-att-aria-invalid="this.problem()?.field ? 'true' : undefined"/>
+                    <p t-if="this.problem()?.field" id="nodo-account-error" class="staff-error"
+                       role="alert" t-out="this.problem().message"/>
+                    <p id="nodo-account-hint" class="staff-account-hint">开通后，在关联用户中设置密码和业务角色。</p>
+                </div>
+            </fieldset>
+            <p t-if="this.problem() and !this.problem().field" class="staff-error staff-save-error"
+               role="alert" tabindex="-1" t-out="this.problem().message"/>
+        </t>
+    </t>
+</templates>

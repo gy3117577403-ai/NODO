@@ -242,24 +242,13 @@
 
 .nodo-member-dialog {
     .staff-member-fields {
-        border: 0;
-        padding: 0;
         margin-top: 4px;
-    }
-
-    .staff-required {
-        color: var(--nodo-error);
-        margin-inline-start: 2px;
     }
 
     .staff-member-fields select:disabled {
         background: var(--nodo-panel);
         color: var(--nodo-muted);
         cursor: default;
-    }
-
-    .staff-member-footer {
-        justify-content: flex-end;
     }
 
     .staff-member-link {

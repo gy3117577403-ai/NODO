@@ -1,7 +1,9 @@
 import re
 
+from psycopg2.errors import UniqueViolation
+
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, LockError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.tools import SQL
 from odoo.tools.sql import escape_like_value
@@ -175,25 +177,56 @@ class HrEmployee(models.Model):
         })
         return {'id': employee.id, 'name': employee.name}
 
-    def action_nodo_open_member_account(self):
+    def _nodo_check_open_member_account(self, *, lock=False):
         self.ensure_one()
         if not self.env.user.has_group('base.group_system'):
             raise AccessError('只有系统管理员可以开通员工账号。')
         self.check_access('write')
         self.env['res.users'].check_access('create')
+        if lock:
+            try:
+                self.lock_for_update(allow_referencing=True)
+            except LockError as error:
+                raise ValidationError('该员工的账号正在开通，请稍后重试。') from error
+            self.invalidate_recordset(['user_id'])
         if self.user_id:
             raise ValidationError('该员工已关联账号，请打开已有账号查看。')
+
+    def action_nodo_open_member_account(self):
+        self._nodo_check_open_member_account()
         return {
-            'type': 'ir.actions.act_window', 'name': '开通账号', 'res_model': 'res.users',
-            'views': [(self.env.ref('base.view_users_form').id, 'form')], 'target': 'new',
-            'context': {
-                'default_create_employee_id': self.id, 'default_name': self.name,
-                'default_partner_id': self.work_contact_id.id,
-                'default_company_id': self.company_id.id,
-                'default_company_ids': [Command.set(self.company_id.ids)],
-                'no_reset_password': True,
+            'type': 'ir.actions.client', 'tag': 'nodo_staff_open_account', 'name': '开通账号',
+            'params': {
+                'id': self.id, 'name': self.name,
+                'number': self.nodo_personnel_number or '',
+                'department': self.department_id.complete_name or '',
             },
         }
+
+    def nodo_create_member_account(self, login):
+        self._nodo_check_open_member_account(lock=True)
+        if not isinstance(login, str) or not login.strip():
+            raise field_error('login', '请填写登录名')
+
+        company = self.company_id
+        context = {key: value for key, value in self.env.context.items() if not key.startswith('default_')}
+        users = self.env['res.users'].with_context(context, no_reset_password=True).with_company(company)
+        try:
+            with self.env.cr.savepoint():
+                user = users.create({
+                    'name': self.name,
+                    'login': login.strip(),
+                    'create_employee_id': self.id,
+                    'partner_id': self.work_contact_id.id or False,
+                    'company_id': company.id,
+                    'company_ids': [Command.set(company.ids)],
+                    'group_ids': [Command.set([self.env.ref('base.group_user').id])],
+                })
+        except UniqueViolation as error:
+            if error.diag.constraint_name == 'res_users_login_key':
+                raise field_error('login', '此登录名已被使用') from error
+            raise
+        return {'id': user.id}
 
     def action_send_invitation(self):
         raise UserError('请在员工详情的「设置」中开通或管理账号。')
