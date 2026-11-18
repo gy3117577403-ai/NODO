@@ -46,7 +46,7 @@ class TestStaffImport(TransactionCase):
 
     def test_supplement_uses_employee_fields_and_preserves_review(self):
         department = self.env['hr.department'].create({'name': '装配组'})
-        tag = self.env['hr.employee.category'].create({'name': '待复核'})
+        tag = self.employee._nodo_pending_review_tag()
         job = self.env['hr.job'].create({'name': '装配员', 'department_id': department.id})
         person = self.employee.create({
             'name': '周岚', 'department_id': department.id, 'category_ids': [Command.link(tag.id)],

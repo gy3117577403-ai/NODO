@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.StaffDirectory" t-inherit="web.ListView" t-inherit-mode="primary">
+        <xpath expr="//t[@t-set-slot='control-panel-navigation-additional']" position="inside">
+            <div t-if="this.nodoCanAddMember and !this.hasSelectedRecords and !this.editedRecord"
+                 class="o_nodo_staff_actions d-inline-flex gap-2">
+                <button type="button" class="btn btn-secondary text-nowrap" t-on-click="this.importMembers"
+                        t-att-disabled="this.offlinePlugin.isOffline()">导入人员</button>
+                <button type="button" class="btn btn-primary o_nodo_add_member text-nowrap"
+                        t-on-click="this.openMemberDialog"
+                        t-att-disabled="this.openingMember() or this.offlinePlugin.isOffline()">
+                    <i class="oi" data-icon="add" aria-hidden="true"/> 添加成员
+                </button>
+            </div>
+        </xpath>
+    </t>
+    <t t-name="nodo_staff_import.StaffDirectory.Buttons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <xpath expr="//button[hasclass('o_list_button_add')]" position="attributes">
+            <attribute name="t-if" add="!this.nodoCanAddMember" separator=" and "/>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_staff_import.StaffMemberIdentity">
+        <div class="o_nodo_staff_identity">
+            <span class="o_nodo_staff_name" t-out="this.props.record.data[this.props.name]"/>
+            <span t-if="this.props.record.data.nodo_personnel_number" class="o_nodo_staff_number"
+                  t-out="this.props.record.data.nodo_personnel_number"/>
+        </div>
+    </t>
+
+    <t t-name="nodo_staff_import.MemberDialog">
+        <dialog class="nodo-staff-dialog nodo-member-dialog" t-ref="this.dialogRef"
+                aria-labelledby="nodo-member-title" t-on-cancel="this.cancel">
+            <form class="staff-form" novalidate="novalidate" t-att-aria-busy="this.saving() ? 'true' : 'false'"
+                  t-on-submit="this.submit">
+                <header class="staff-header">
+                    <h2 id="nodo-member-title">添加成员</h2>
+                    <button type="button" class="staff-close" aria-label="关闭添加成员"
+                            t-att-disabled="this.saving()" t-on-click="this.cancel"><span aria-hidden="true"/></button>
+                </header>
+                <div class="staff-body">
+                    <fieldset class="staff-fields staff-member-fields" t-att-disabled="this.saving()">
+                        <div>
+                            <label for="nodo-member-name">姓名 <span class="staff-required" aria-hidden="true">*</span></label>
+                            <input id="nodo-member-name" name="name" required="required" autofocus="autofocus"
+                                   placeholder="输入员工姓名" autocomplete="off" t-att-value="this.draft().name"
+                                   t-on-input="this.changeField" aria-describedby="nodo-member-name-error"
+                                   t-att-aria-invalid="this.problem()?.field === 'name' ? 'true' : undefined"/>
+                            <p id="nodo-member-name-error" class="staff-error" role="alert"
+                               t-if="this.problem()?.field === 'name'" t-out="this.problem().message"/>
+                        </div>
+                        <div>
+                            <label for="nodo-member-department">部门 <span class="staff-required" aria-hidden="true">*</span></label>
+                            <select id="nodo-member-department" name="department" required="required"
+                                    t-on-change="this.changeField" aria-describedby="nodo-member-department-error"
+                                    t-att-aria-invalid="this.problem()?.field === 'department' ? 'true' : undefined">
+                                <option value="" t-att-selected="!this.draft().department">请选择部门</option>
+                                <option t-foreach="this.props.options.departments" t-as="item" t-key="item.id"
+                                        t-att-value="item.id" t-att-selected="item.id === this.draft().department"
+                                        t-out="item.complete_name"/>
+                            </select>
+                            <p id="nodo-member-department-error" class="staff-error" role="alert"
+                               t-if="this.problem()?.field === 'department'" t-out="this.problem().message"/>
+                        </div>
+                        <div>
+                            <label for="nodo-member-number">人员编号</label>
+                            <input id="nodo-member-number" name="number" placeholder="可稍后填写"
+                                   autocomplete="off" t-att-value="this.draft().number"
+                                   t-on-input="this.changeField" aria-describedby="nodo-member-number-error"
+                                   t-att-aria-invalid="this.problem()?.field === 'number' ? 'true' : undefined"/>
+                            <div id="nodo-member-number-error" class="staff-error" role="alert"
+                                 t-if="this.problem()?.field === 'number'">
+                                <span t-out="this.problem().message"/>
+                                <button t-if="this.problem().employeeId" type="button" class="staff-member-link"
+                                        t-on-click="this.viewExisting">查看已有档案</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="nodo-member-job">岗位</label>
+                            <select id="nodo-member-job" name="job" t-on-change="this.changeField"
+                                    t-att-disabled="!this.jobs.length" aria-describedby="nodo-member-job-error"
+                                    t-att-aria-invalid="this.problem()?.field === 'job' ? 'true' : undefined">
+                                <option value="" t-att-selected="!this.draft().job">
+                                    <t t-if="!this.draft().department">请先选择部门</t>
+                                    <t t-elif="!this.jobs.length">该部门暂无岗位</t>
+                                    <t t-else="">可稍后选择</t>
+                                </option>
+                                <option t-foreach="this.jobs" t-as="job" t-key="job.id"
+                                        t-att-value="job.id" t-att-selected="job.id === this.draft().job"
+                                        t-out="job.name"/>
+                            </select>
+                            <p id="nodo-member-job-error" class="staff-error" role="alert"
+                               t-if="this.problem()?.field === 'job'" t-out="this.problem().message"/>
+                        </div>
+                    </fieldset>
+                    <div t-if="this.matches().length" class="staff-member-matches" role="status" tabindex="-1">
+                        <strong>已有同名档案</strong>
+                        <ul>
+                            <li t-foreach="this.matches()" t-as="match" t-key="match.id">
+                                <t t-out="match.department"/> · <t t-out="match.number"/>
+                            </li>
+                        </ul>
+                        <p>核对为不同员工后，可以继续添加。</p>
+                    </div>
+                    <p t-if="this.problem() and !this.problem().field" class="staff-error staff-save-error"
+                       role="alert" tabindex="-1" t-out="this.problem().message"/>
+                </div>
+                <footer class="staff-footer staff-member-footer">
+                    <button type="button" class="staff-button" t-att-disabled="this.saving()"
+                            t-on-click="this.cancel">取消</button>
+                    <button type="submit" class="staff-button staff-primary" t-att-disabled="this.saving()">
+                        <t t-if="this.saving()">保存中…</t>
+                        <t t-elif="this.matches().length">添加同名成员</t>
+                        <t t-else="">添加成员</t>
+                    </button>
+                </footer>
+            </form>
+        </dialog>
+    </t>
+</templates>

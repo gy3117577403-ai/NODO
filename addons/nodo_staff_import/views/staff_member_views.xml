@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <function model="hr.employee" name="_nodo_pending_review_tag"/>
+
+    <record id="staff_member_directory_list" model="ir.ui.view">
+        <field name="name">hr.employee.list.nodo.staff.directory</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_tree"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="30"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <attribute name="js_class">nodo_staff_directory</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='avatar_128']" position="attributes">
+                <attribute name="options">{'size': [32, 32], 'img_class': 'rounded-circle'}</attribute>
+                <attribute name="width">42</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='name']" position="attributes">
+                <attribute name="widget">nodo_member_identity</attribute>
+                <attribute name="string">姓名</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='name']" position="after">
+                <field name="nodo_personnel_number" groups="base.group_system" column_invisible="1"/>
+            </xpath>
+            <xpath expr="//list/field[@name='work_phone']" position="attributes">
+                <attribute name="optional">hide</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='parent_id']" position="attributes">
+                <attribute name="optional">hide</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='job_title']" position="attributes">
+                <attribute name="string">岗位</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='job_title']" position="after">
+                <field name="nodo_review_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_staff_status"
+                       decoration-warning="nodo_review_state == 'pending'"
+                       decoration-success="nodo_review_state == 'complete'"
+                       decoration-muted="nodo_review_state == 'unknown'"/>
+                <field name="nodo_account_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_staff_status"
+                       decoration-success="nodo_account_state == 'active'"
+                       decoration-muted="nodo_account_state == 'none'"
+                       decoration-danger="nodo_account_state == 'disabled'"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="hr.act_hr_employee_tree_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="5"/>
+        <field name="view_id" ref="staff_member_directory_list"/>
+    </record>
+    <record id="staff_member_directory_search" model="ir.ui.view">
+        <field name="name">hr.employee.search.nodo.staff.directory</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[@name='name']" position="after">
+                <field name="nodo_personnel_number" groups="base.group_system"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="staff_member_account_form" model="ir.ui.view">
+        <field name="name">hr.employee.form.nodo.member.account</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='action_send_invitation']" position="replace"/>
+            <xpath expr="//header/field[@widget='employee_user_status']" position="replace"/>
+            <xpath expr="//page[@name='hr_settings']//field[@name='user_id'][@groups='base.group_erp_manager']"
+                   position="attributes">
+                <attribute name="options">{'no_create': True}</attribute>
+            </xpath>
+            <xpath expr="//page[@name='hr_settings']//group[@name='user']//div[field[@name='user_id']]" position="inside">
+                <button name="action_nodo_open_member_account" type="object" string="开通账号"
+                        groups="base.group_system" invisible="not id or user_id" class="btn btn-secondary"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

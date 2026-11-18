@@ -1,0 +1,131 @@
+.o_nodo_staff_directory {
+    .o_nodo_staff_actions {
+        align-items: center;
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .o_nodo_add_member .oi {
+            margin-inline-end: 3px;
+        }
+    }
+
+    .o_list_table .o_data_row {
+        > .o_data_cell {
+            border-bottom-color: mix($nodo-border, $nodo-card, 72%);
+        }
+
+        .o_nodo_staff_identity {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            line-height: 1.35;
+        }
+
+        .o_nodo_staff_name {
+            color: $nodo-text;
+            font-weight: 600;
+        }
+
+        .o_nodo_staff_number {
+            color: $nodo-text-muted;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .o_nodo_staff_status .badge {
+            padding: 4px 9px;
+            font-weight: 500;
+
+            &.text-bg-300 {
+                background-color: $nodo-panel !important;
+                color: $nodo-text-muted !important;
+            }
+
+            &.text-bg-warning {
+                background-color: mix($nodo-warning-text, $nodo-card, 9%) !important;
+                color: $nodo-warning-text !important;
+            }
+
+            &.text-bg-success {
+                background-color: mix($nodo-success-text, $nodo-card, 8%) !important;
+                color: $nodo-success-text !important;
+            }
+
+            &.text-bg-danger {
+                background-color: mix($nodo-danger-text, $nodo-card, 9%) !important;
+                color: $nodo-danger-text !important;
+            }
+        }
+
+        &.o_nodo_staff_recent > .o_data_cell {
+            background-color: $nodo-accent-soft;
+        }
+
+        &.o_nodo_staff_recent > td:first-child {
+            box-shadow: inset 3px 0 $nodo-accent;
+        }
+    }
+}
+
+.nodo-member-dialog {
+    .staff-member-fields {
+        border: 0;
+        padding: 0;
+        margin-top: 4px;
+    }
+
+    .staff-required {
+        color: var(--nodo-error);
+        margin-inline-start: 2px;
+    }
+
+    .staff-member-fields select:disabled {
+        background: var(--nodo-panel);
+        color: var(--nodo-muted);
+        cursor: default;
+    }
+
+    .staff-member-footer {
+        justify-content: flex-end;
+    }
+
+    .staff-member-link {
+        margin-inline-start: 8px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: var(--nodo-primary);
+        text-decoration: underline;
+    }
+
+    .staff-member-matches {
+        margin-top: 16px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--nodo-warning-tint);
+        color: var(--nodo-warning);
+
+        ul {
+            margin: 4px 0;
+            padding-inline-start: 1.25em;
+        }
+
+        p {
+            margin: 0;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .o_nodo_staff_directory .o_data_row.o_nodo_staff_recent > .o_data_cell {
+        animation: nodo-member-saved 200ms ease-out;
+    }
+}
+
+@keyframes nodo-member-saved {
+    from { background-color: transparent; }
+    to { background-color: $nodo-accent-soft; }
+}
