@@ -24,6 +24,7 @@
             'nodo_staff_import/static/src/member_directory.xml',
             'nodo_staff_import/static/src/member_directory.scss',
             'nodo_staff_import/static/src/employee_detail.js',
+            'nodo_staff_import/static/src/employee_detail.xml',
             'nodo_staff_import/static/src/employee_detail.scss',
             'nodo_staff_import/static/src/member_account.js',
             'nodo_staff_import/static/src/member_account.xml',

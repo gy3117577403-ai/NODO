@@ -84,6 +84,62 @@ class TestMemberDirectory(TransactionCase):
         with self.assertRaises(AccessError):
             member.with_user(self.officer).nodo_create_member_account('member-officer@nodo.test')
 
+    def test_hr_officer_can_fill_change_and_clear_job_without_affecting_account(self):
+        member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
+        self.assertFalse(member.job_id)
+        self.assertFalse(member.nodo_personnel_number)
+        member.nodo_create_member_account('member-job-edit@nodo.test')
+        user = member.user_id
+        role = self.env.ref('nodo_base.group_role_engineering')
+        member.nodo_save_linked_roles(user.id, [], role.ids)
+        account_fields = ['active', 'login', 'group_ids', 'all_group_ids', 'company_ids']
+        original_account = user.read(account_fields)
+        other_job = self.env['hr.job'].with_user(self.officer).create({
+            'name': '工艺协调', 'company_id': self.company.id, 'department_id': self.department.id,
+        })
+
+        public_employee = self.env['hr.employee.public'].browse(member.id).with_user(user)
+        for job in (self.job, other_job, self.env['hr.job']):
+            with self.subTest(job=job.name):
+                member.with_user(self.officer).write({'job_id': job.id})
+                self.assertEqual(member.job_id, job)
+                self.assertEqual(member.job_title, job.name)
+                member.version_id.flush_recordset(['job_title'])
+                public_employee.invalidate_recordset(['job_title'])
+                self.assertEqual(public_employee.job_title, job.name)
+                self.assertEqual(member.user_id, user)
+                self.assertEqual(user.read(account_fields), original_account)
+                self.assertEqual(member.nodo_review_state, 'pending')
+                self.assertFalse(member.nodo_personnel_number)
+
+        with self.assertRaises(AccessError):
+            member.with_user(user).write({'job_id': self.job.id})
+        self.assertFalse(member.job_id)
+
+    def test_hr_job_change_checks_department_company_and_job_status(self):
+        member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
+        wrong_department = self.env['hr.department'].create({'name': '料件组', 'company_id': self.company.id})
+        outside_company = self.env['res.company'].create({'name': '岫岭工坊'})
+        wrong_department_job, archived_job, outside_job = self.env['hr.job'].create([
+            {'name': '领料员', 'department_id': wrong_department.id},
+            {'name': '班组协调', 'department_id': self.department.id, 'active': False},
+            {'name': '装配协调', 'company_id': outside_company.id},
+        ])
+        officer = member.with_user(self.officer)
+        for job in (wrong_department_job, archived_job, outside_job):
+            with self.subTest(job=job.id), self.assertRaises((AccessError, ValidationError)), self.env.cr.savepoint():
+                officer.write({'job_id': job.id})
+        self.assertFalse(member.job_id)
+        outside_employee = self.employee.with_company(outside_company).create({'name': '梁漪'})
+        with self.assertRaises(AccessError):
+            outside_employee.with_context(allowed_company_ids=self.company.ids).with_user(self.officer).write({'job_id': False})
+
+    def test_unassigned_custom_title_survives_unrelated_employee_save(self):
+        member = self.employee.create({'name': '陈玥', 'job_title': '装配联络'})
+        member.with_user(self.officer).write({'job_id': False, 'work_phone': '12345'})
+        self.assertFalse(member.job_id)
+        self.assertEqual(member.job_title, '装配联络')
+
     def test_employee_detail_opens_the_separate_account_form(self):
         member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
         action = member.action_nodo_open_member_account()
@@ -202,6 +258,8 @@ class TestMemberDirectory(TransactionCase):
                 self.assertIsNone(overview.find('.//field[@name="wage"]'))
                 self.assertIsNotNone(arch.find('.//span[@invisible="active"]'))
                 self.assertIsNone(arch.find('.//button[@name="action_send_invitation"]'))
+                job_field = arch.find('.//page[@name="work_information"]//field[@name="job_id"]')
+                self.assertEqual(job_field.get('widget'), 'nodo_staff_job')
                 self.assertEqual(
                     arch.find('.//page[@name="hr_settings"]//button[@name="action_nodo_open_member_account"]') is not None,
                     user == self.admin,

@@ -130,6 +130,20 @@
                 <attribute name="placeholder">选择员工标签</attribute>
                 <attribute name="string">员工标签</attribute>
             </xpath>
+            <xpath expr="//page[@name='work_information']//group[@name='work']/field[@name='company_id']" position="after">
+                <field name="company_id" groups="!base.group_multi_company" invisible="1"/>
+            </xpath>
+            <xpath expr="//page[@name='work_information']//group[@name='work']/field[@name='job_id']" position="attributes">
+                <attribute name="string">岗位</attribute>
+                <attribute name="widget">nodo_staff_job</attribute>
+                <attribute name="placeholder">搜索或选择岗位</attribute>
+                <attribute name="domain">[('company_id', '=', company_id), ('department_id', '=', department_id), ('active', '=', True)]</attribute>
+                <attribute name="context">{'default_company_id': company_id, 'default_department_id': department_id, 'default_no_of_recruitment': 0, 'default_is_favorite': False}</attribute>
+                <attribute name="options">{'no_quick_create': True}</attribute>
+            </xpath>
+            <xpath expr="//page[@name='work_information']//group[@name='work']/field[@name='job_title']" position="attributes">
+                <attribute name="string">显示职衔</attribute>
+            </xpath>
             <xpath expr="//page[@name='work_information']//div[@id='o_work_information']" position="inside">
                 <xpath expr="/form/sheet/field[@name='employee_properties']" position="move"/>
             </xpath>

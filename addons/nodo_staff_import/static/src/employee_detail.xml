@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.StaffJobField">
+        <div class="d-flex align-items-center gap-2">
+            <div class="flex-grow-1"><Many2One t-props="this.m2oProps"/></div>
+            <button t-if="!this.props.readonly &amp;&amp; (this.props.record.data[this.props.name] || this.props.record.data.job_title)"
+                    type="button" class="btn btn-link p-0 flex-shrink-0" aria-label="清空岗位"
+                    t-on-click.stop="this.clearJob">清空</button>
+        </div>
+    </t>
+</templates>

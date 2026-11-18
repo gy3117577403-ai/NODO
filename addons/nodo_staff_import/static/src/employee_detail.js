@@ -2,7 +2,18 @@ import "@hr/views/form_view";
 import "@mail/chatter/web/form_compiler";
 import { registry } from "@web/core/registry";
 import { createElement } from "@web/core/utils/xml";
+import { buildM2OFieldDescription, Many2OneField } from "@web/views/fields/many2one/many2one_field";
 import { FormCompiler } from "@web/views/form/form_compiler";
+
+class StaffJobField extends Many2OneField {
+    static template = "nodo_staff_import.StaffJobField";
+
+    clearJob() {
+        return this.props.record.update({ [this.props.name]: false, job_title: false });
+    }
+}
+
+registry.category("fields").add("nodo_staff_job", buildM2OFieldDescription(StaffJobField));
 
 class StaffDetailCompiler extends FormCompiler {
     compileForm(node, params) {
