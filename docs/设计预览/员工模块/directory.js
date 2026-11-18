@@ -101,7 +101,6 @@ function createEmployeeSamples() {
 const employees = createEmployeeSamples();
 const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
 let noticeTimer;
-let editSession;
 
 function escapeText(value) {
   const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -446,59 +445,33 @@ function notify(message) {
   noticeTimer = setTimeout(() => { notice.hidden = true; }, 2800);
 }
 
-function populateDepartmentPicker() {
-  const picker = elements["edit-department"];
-  for (const root of childrenOf("all")) {
-    const options = document.createElement("optgroup");
-    options.label = root.name;
-    for (const department of departments) {
-      if (departmentTrail(department.id)[0].id === root.id) {
-        options.append(new Option(departmentPath(department.id), department.id));
-      }
-    }
-    picker.append(options);
-  }
-}
-
-function editValues() {
-  const formData = new FormData(elements["edit-person"]);
-  return Object.fromEntries(archiveFields.map((field) => [field, String(formData.get(field) ?? "").trim()]));
-}
-
-function showEditError(field, message = "") {
-  const control = elements["edit-" + field];
-  const error = elements["edit-" + field + "-error"];
-  if (!error) return;
-  error.textContent = message;
-  error.hidden = !message;
-  if (message) {
-    control.setAttribute("aria-invalid", "true");
-    control.focus({ preventScroll: false });
-  } else {
-    control.removeAttribute("aria-invalid");
-  }
-}
-
-function updateEditProgress() {
-  const count = missingArchiveFields(editValues()).length;
-  const progress = elements["edit-progress"];
-  const message = count ? "待补 " + count + " 项" : "";
-  if (progress.textContent !== message) progress.textContent = message;
-}
-
 function openEditDialog(employee, trigger, field) {
-  editSession = { employee, trigger };
-  for (const name of archiveFields) {
-    elements["edit-" + name].value = employee[name];
-    showEditError(name);
-  }
-  elements["edit-review"].textContent = reviewLabels[employee.review];
-  elements["edit-review"].dataset.state = employee.review;
-  elements["edit-source-number"].textContent = employee.sourceNumber;
-  updateEditProgress();
-  elements["edit-dialog"].showModal();
-  elements["edit-dialog"].querySelector(".supplement-body").scrollTop = 0;
-  elements["edit-" + (field || missingArchiveFields(employee)[0] || "name")].focus();
+  const popup = document.createElement("nodo-staff-supplement");
+  document.body.append(popup);
+  popup.open({
+    person: { ...employee, reviewLabel: reviewLabels[employee.review], canEditName: true },
+    departments: departments.map((item) => ({ id: item.id, label: departmentPath(item.id) })),
+    field,
+    onSave(changes) {
+      if (changes.number && employees.some((other) =>
+        other.id !== employee.id && other.number.toLowerCase() === changes.number.toLowerCase()
+      )) {
+        throw Object.assign(new Error("此编号已被使用"), { field: "number" });
+      }
+      Object.assign(employee, changes, { review: "pending" });
+    },
+    onClose(saved) {
+      popup.remove();
+      if (saved) {
+        renderView();
+        notify("预览档案已更新");
+      }
+      const replacement = trigger.id === "open-edit"
+        ? document.getElementById("open-edit")
+        : document.querySelector('[data-person="' + employee.id + '"] .person-open');
+      (trigger.isConnected ? trigger : replacement || elements["employee-search"]).focus({ preventScroll: true });
+    },
+  });
 }
 
 elements["employee-search"].addEventListener("input", (event) => {
@@ -558,8 +531,6 @@ const actions = {
   },
   "open-import": () => elements["import-dialog"].showModal(),
   "open-edit": (button) => openEditDialog(selectedEmployee(), button),
-  "close-edit": () => elements["edit-dialog"].close(),
-  "cancel-edit": () => elements["edit-dialog"].close(),
   "close-employee": closeDetails,
   "drawer-backdrop": closeDetails,
   "show-department-people": () => changeView("employees"),
@@ -601,56 +572,11 @@ elements["detail-content"].addEventListener("change", (event) => {
   document.getElementById(choice.id)?.focus();
 });
 
-elements["edit-person"].addEventListener("input", (event) => {
-  if (!archiveFields.includes(event.target.name)) return;
-  showEditError(event.target.name);
-  updateEditProgress();
-});
-
-elements["edit-person"].addEventListener("submit", (event) => {
-  event.preventDefault();
-  const values = editValues();
-  const person = editSession.employee;
-  for (const field of archiveFields) showEditError(field);
-  if (!values.name) {
-    showEditError("name", "请填写姓名");
-    return;
-  }
-  if (!departmentById.has(values.department)) {
-    showEditError("department", "请选择部门");
-    return;
-  }
-  const duplicate = values.number && employees.some((employee) =>
-    employee.id !== person.id && employee.number.toLowerCase() === values.number.toLowerCase()
-  );
-  if (duplicate) {
-    showEditError("number", "此编号已被使用");
-    return;
-  }
-  if (archiveFields.every((field) => person[field] === values[field])) {
-    elements["edit-dialog"].close();
-    return;
-  }
-  Object.assign(person, values, { review: "pending" });
-  renderView();
-  elements["edit-dialog"].close();
-  notify("预览档案已更新");
-});
-
-elements["edit-dialog"].addEventListener("close", () => {
-  const { employee, trigger } = editSession;
-  editSession = null;
-  const replacement = trigger.id === "open-edit"
-    ? document.getElementById("open-edit")
-    : document.querySelector('[data-person="' + employee.id + '"] .person-open');
-  const target = trigger.isConnected ? trigger : replacement || elements["employee-search"];
-  target.focus({ preventScroll: true });
-});
 
 document.addEventListener("keydown", (event) => {
   if (
     event.key === "Escape" && selectedEmployee()
-    && !elements["edit-dialog"].open && !elements["import-dialog"].open
+    && !document.querySelector("nodo-staff-supplement dialog[open]") && !elements["import-dialog"].open
   ) {
     closeDetails();
     return;
@@ -669,11 +595,10 @@ function renderLocation() {
   state.view = location.hash === "#departments" ? "departments" : "employees";
   state.employeeId = null;
   renderView();
-  if (location.hash === "#supplement" && !elements["edit-dialog"].open) {
+  if (location.hash === "#supplement" && !document.querySelector("nodo-staff-supplement dialog[open]")) {
     elements["employee-rows"].querySelector("[data-supplement-field]")?.click();
   }
 }
 
 window.addEventListener("hashchange", renderLocation);
-populateDepartmentPicker();
 renderLocation();

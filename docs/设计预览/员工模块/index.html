@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="light">
   <title>员工目录 · NODO</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../../../addons/nodo_staff_import/static/src/supplement.css">
+  <script defer src="../../../addons/nodo_staff_import/static/src/supplement_form.js"></script>
   <script defer src="directory.js"></script>
 </head>
 <body>
@@ -155,57 +157,6 @@
     </footer>
   </dialog>
 
-  <dialog id="edit-dialog" class="dialog supplement-dialog" aria-labelledby="edit-title">
-    <form id="edit-person" class="supplement-form" novalidate>
-      <header class="dialog-heading supplement-heading">
-        <h2 id="edit-title">补充信息</h2>
-        <button type="button" class="icon-button" id="close-edit" aria-label="关闭补充信息">
-          <span class="supplement-close-icon" aria-hidden="true"></span>
-        </button>
-      </header>
-      <div class="supplement-body">
-        <div class="supplement-profile">
-          <span class="supplement-portrait" aria-hidden="true"></span>
-          <span class="supplement-review" id="edit-review"></span>
-          <div class="supplement-name">
-            <label for="edit-name">姓名</label>
-            <div class="supplement-name-control">
-              <input id="edit-name" name="name" required maxlength="24" autocomplete="off" aria-describedby="edit-name-error">
-              <span class="supplement-pencil" aria-hidden="true"></span>
-            </div>
-            <p class="form-error" id="edit-name-error" role="alert" hidden></p>
-          </div>
-          <dl class="supplement-source">
-            <dt>架构图编号</dt>
-            <dd id="edit-source-number"></dd>
-          </dl>
-        </div>
-        <div class="supplement-fields">
-          <div>
-            <label for="edit-number">人员编号</label>
-            <input id="edit-number" name="number" maxlength="24" autocomplete="off" spellcheck="false" aria-describedby="edit-number-error">
-            <p class="form-error" id="edit-number-error" role="alert" hidden></p>
-          </div>
-          <div>
-            <label for="edit-department">部门</label>
-            <div class="supplement-select">
-              <select id="edit-department" name="department" required aria-describedby="edit-department-error"></select>
-            </div>
-            <p class="form-error" id="edit-department-error" role="alert" hidden></p>
-          </div>
-          <div>
-            <label for="edit-job">岗位</label>
-            <input id="edit-job" name="job" maxlength="40" autocomplete="off">
-          </div>
-        </div>
-      </div>
-      <footer class="supplement-actions">
-        <span id="edit-progress" role="status" aria-atomic="true"></span>
-        <button type="button" class="button" id="cancel-edit">取消</button>
-        <button type="submit" class="button button-primary">保存</button>
-      </footer>
-    </form>
-  </dialog>
 
   <div class="notice" id="notice" role="status" hidden></div>
 </body>

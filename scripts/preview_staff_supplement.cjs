@@ -7,6 +7,7 @@ const { chromium } = require("playwright");
 
 const preview = path.resolve(__dirname, "../docs/设计预览/员工模块");
 const read = (name) => fs.readFileSync(path.resolve(preview, name), "utf8");
+const component = "../../../addons/nodo_staff_import/static/src/";
 
 // Render the actual preview with its own local assets in an offline, empty browser context.
 function inlineAsset(relativePath, mime) {
@@ -20,6 +21,8 @@ function offlineMarkup() {
   );
   return read("index.html")
     .replace('<link rel="stylesheet" href="styles.css">', () => "<style>" + css + "</style>")
+    .replace('<link rel="stylesheet" href="' + component + 'supplement.css">', () => "<style>" + read(component + "supplement.css") + "</style>")
+    .replace('<script defer src="' + component + 'supplement_form.js"></script>', "")
     .replace('<script defer src="directory.js"></script>', "")
     .replace(/src="([^"]+nodo-wordmark-white\.svg)"/, (_, logo) =>
       'src="' + inlineAsset(logo, "image/svg+xml") + '"'
@@ -38,15 +41,16 @@ async function checkPreview() {
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
     await page.goto("about:blank#supplement");
     await page.setContent(offlineMarkup());
+    await page.addScriptTag({ content: read(component + "supplement_form.js") });
     await page.addScriptTag({ content: read("directory.js") });
     await page.evaluate(() => document.fonts.ready);
 
-    const dialog = page.getByRole("dialog", { name: "补充信息" });
+    const dialog = page.getByRole("dialog", { name: "补充员工信息" });
     const field = (label) => dialog.getByLabel(label, { exact: true });
     const save = dialog.getByRole("button", { name: "保存", exact: true });
     const progress = dialog.getByRole("status");
     const record = page.locator("#employee-rows tr").filter({ hasText: "柏星禾" });
-    const source = dialog.locator("#edit-source-number");
+    const source = dialog.locator(".staff-code");
     const expectFocus = (control) => control.and(page.locator(":focus")).waitFor({ state: "attached", timeout: 3000 });
 
     assert(await dialog.isVisible());
@@ -94,14 +98,14 @@ async function checkPreview() {
     assert.equal(await field("人员编号").getAttribute("aria-invalid"), "true");
     assert(await dialog.getByText("此编号已被使用", { exact: true }).isVisible());
     assert.equal(await field("岗位").inputValue(), "来料质检");
-    assert.equal(await progress.textContent(), "");
+    assert.equal(await progress.textContent(), "资料待核对");
     console.log("PASS 编号查重忽略大小写、字段旁报错和保留已填内容");
 
     await page.setViewportSize({ width: 390, height: 740 });
     const mobile = await dialog.screenshot({ animations: "disabled", caret: "hide" });
     await page.setViewportSize({ width: 320, height: 380 });
     const fits = await dialog.evaluate((node) => {
-      const body = node.querySelector(".supplement-body");
+      const body = node.querySelector(".staff-body");
       body.scrollTop = body.scrollHeight;
       const footer = node.querySelector("footer").getBoundingClientRect();
       return body.scrollTop > 0 && body.scrollWidth === body.clientWidth &&

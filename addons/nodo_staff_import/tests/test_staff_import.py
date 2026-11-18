@@ -1,7 +1,7 @@
 import csv
 import io
 
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, new_test_user, tagged
 from odoo.tools import BinaryBytes
@@ -43,6 +43,76 @@ class TestStaffImport(TransactionCase):
         return self.employee.with_context(active_test=False).search([
             ('company_id', '=', (company or self.company).id), ('nodo_personnel_number', '=', number),
         ])
+
+    def test_supplement_uses_employee_fields_and_preserves_review(self):
+        department = self.env['hr.department'].create({'name': '装配组'})
+        tag = self.env['hr.employee.category'].create({'name': '待复核'})
+        job = self.env['hr.job'].create({'name': '装配员', 'department_id': department.id})
+        person = self.employee.create({
+            'name': '周岚', 'department_id': department.id, 'category_ids': [Command.link(tag.id)],
+            'additional_note': '架构图来源编号 ORG-0032\n其他备注',
+        })
+        profile = person.nodo_supplement
+        self.assertEqual(profile['sourceNumber'], 'ORG-0032')
+        self.assertEqual(profile['review'], 'pending')
+        person.write({'nodo_supplement': {
+            'changes': {'number': '0007', 'job': '装配员'}, 'original': {'number': '', 'job': '', 'department': department.id},
+        }})
+        self.assertEqual(person.nodo_personnel_number, '0007')
+        self.assertEqual(person.job_id, job)
+        self.assertEqual(person.category_ids, tag)
+        self.assertEqual(person.nodo_supplement['review'], 'pending')
+        self.assertEqual(person.nodo_supplement['sourceNumber'], 'ORG-0032')
+
+    def test_supplement_partial_save_and_job_in_selected_department(self):
+        department = self.env['hr.department'].create({'name': '计划组'})
+        person = self.employee.create({'name': '程蘅'})
+        self.assertEqual(person.nodo_supplement['review'], 'unknown')
+        person.write({'nodo_supplement': {
+            'changes': {'department': department.id}, 'original': {'department': False},
+        }})
+        self.assertFalse(person.job_id)
+        self.assertFalse(person.nodo_personnel_number)
+        with self.assertRaisesRegex(ValidationError, '部门已变更'), self.env.cr.savepoint():
+            person.write({'nodo_supplement': {
+                'changes': {'job': '排产协调'}, 'original': {'job': '', 'department': False},
+            }})
+        person.write({'nodo_supplement': {
+            'changes': {'job': '排产协调'}, 'original': {'job': '', 'department': department.id},
+        }})
+        self.assertEqual(person.job_id.department_id, department)
+        self.assertEqual(person.job_id.company_id, person.company_id)
+        self.assertEqual(person.nodo_supplement['job'], '排产协调')
+        self.assertEqual(person.nodo_supplement['review'], 'unknown')
+
+    def test_supplement_rejects_duplicate_stale_and_out_of_company_values(self):
+        department = self.env['hr.department'].create({'name': '协作组'})
+        self.employee.create({'name': '林筱', 'nodo_personnel_number': 'A_01', 'department_id': department.id})
+        person = self.employee.create({'name': '周岚', 'department_id': department.id})
+        with self.assertRaisesRegex(ValidationError, '编号已被使用'), self.env.cr.savepoint():
+            person.write({'nodo_supplement': {
+                'changes': {'number': 'a_01', 'name': '临时改名'}, 'original': {'number': '', 'name': '周岚'},
+            }})
+        self.assertEqual(person.name, '周岚')
+        person.write({'nodo_supplement': {'changes': {'number': 'A%01'}, 'original': {'number': ''}}})
+        with self.assertRaisesRegex(ValidationError, '已被修改'), self.env.cr.savepoint():
+            person.write({'nodo_supplement': {'changes': {'number': '0008'}, 'original': {'number': ''}}})
+        outside = self.env['res.company'].create({'name': '山岚工坊'})
+        branch = self.env['hr.department'].create({'name': '车间', 'company_id': outside.id})
+        with self.assertRaisesRegex(ValidationError, '可用的部门'), self.env.cr.savepoint():
+            person.write({'nodo_supplement': {
+                'changes': {'department': branch.id}, 'original': {'department': department.id},
+            }})
+        self.assertEqual(person.department_id, department)
+        self.assertEqual(person.nodo_personnel_number, 'A%01')
+
+    def test_supplement_respects_existing_employee_access(self):
+        person = self.employee.create({'name': '周岚'}).with_user(self.internal_user)
+        with self.assertRaises(AccessError):
+            person.read(['nodo_supplement'])
+        with self.assertRaises(AccessError), self.env.cr.savepoint():
+            person.write({'nodo_supplement': {'changes': {'name': '任宁'}, 'original': {'name': '周岚'}}})
+        self.assertEqual(person.sudo().name, '周岚')
 
     def test_preview_and_import_department_hierarchy(self):
         rows = [

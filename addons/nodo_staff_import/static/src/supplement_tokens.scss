@@ -1,0 +1,18 @@
+.nodo-staff-dialog {
+    --nodo-text: #{$nodo-text};
+    --nodo-muted: #{$nodo-text-muted};
+    --nodo-primary: #{$nodo-primary};
+    --nodo-hover: #{$nodo-primary-hover};
+    --nodo-panel: #{$nodo-panel};
+    --nodo-surface: #{$nodo-card};
+    --nodo-line: #{$nodo-border};
+    --nodo-control-line: #{mix($nodo-text-muted, $nodo-card, 38%)};
+    --nodo-paper: #{$nodo-page};
+    --nodo-selected: #{$nodo-accent-soft};
+    --nodo-warning: #{$nodo-warning-text};
+    --nodo-warning-tint: #{mix($nodo-warning-text, $nodo-card, 9%)};
+    --nodo-success: #{$nodo-success-text};
+    --nodo-success-tint: #{mix($nodo-success-text, $nodo-card, 8%)};
+    --nodo-error: #{$nodo-danger-text};
+    --nodo-popover-shadow: 0 18px 48px -12px #{$nodo-glass-shade}, 0 3px 10px #{$nodo-glass-contact};
+}

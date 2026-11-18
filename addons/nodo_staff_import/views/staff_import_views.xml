@@ -70,6 +70,9 @@
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//div[@name='employee_photo_and_info']//h1[field[@name='name']]" position="inside">
+                <widget name="nodo_employee_supplement" groups="base.group_system" invisible="not id"/>
+            </xpath>
             <xpath expr="//div[@id='o_work_information']//field[@name='department_id']" position="before">
                 <field name="nodo_personnel_number" groups="base.group_system"/>
             </xpath>
