@@ -48,7 +48,7 @@ const archiveFieldLabels = { name: "姓名", number: "人员编号", department:
 const archiveFields = Object.keys(archiveFieldLabels);
 const elements = Object.fromEntries(Array.from(document.querySelectorAll("[id]"), (node) => [node.id, node]));
 const state = {
-  view: location.hash === "#departments" ? "departments" : "employees",
+  view: "employees",
   department: "all",
   expanded: new Set(["office", "production"]),
   filters: new Set(),
@@ -479,13 +479,11 @@ function showEditError(field, message = "") {
   }
 }
 
-function renderEditMissingFields() {
-  const missing = missingArchiveFields(editValues());
-  const label = elements["edit-missing-label"];
-  const description = elements["edit-missing-fields"];
-  label.parentElement.dataset.incomplete = Boolean(missing.length);
-  label.textContent = missing.length ? "待补资料" : "资料完整度";
-  description.textContent = missing.length ? missing.map((field) => archiveFieldLabels[field]).join("、") : "资料已齐";
+function updateEditProgress() {
+  const count = missingArchiveFields(editValues()).length;
+  const progress = elements["edit-progress"];
+  const message = count ? "待补 " + count + " 项" : "";
+  if (progress.textContent !== message) progress.textContent = message;
 }
 
 function openEditDialog(employee, trigger, field) {
@@ -494,14 +492,12 @@ function openEditDialog(employee, trigger, field) {
     elements["edit-" + name].value = employee[name];
     showEditError(name);
   }
-  elements["edit-profile-avatar"].textContent = employee.name[0];
-  elements["edit-profile-name"].textContent = employee.name;
-  elements["edit-profile-position"].textContent = departmentName(employee.department) + " · " + (employee.job || "岗位待填写");
-  elements["edit-profile-review"].innerHTML = reviewTag(employee);
+  elements["edit-review"].textContent = reviewLabels[employee.review];
+  elements["edit-review"].dataset.state = employee.review;
   elements["edit-source-number"].textContent = employee.sourceNumber;
-  elements["edit-dialog"].querySelector(".supplement-body").scrollTop = 0;
-  renderEditMissingFields();
+  updateEditProgress();
   elements["edit-dialog"].showModal();
+  elements["edit-dialog"].querySelector(".supplement-body").scrollTop = 0;
   elements["edit-" + (field || missingArchiveFields(employee)[0] || "name")].focus();
 }
 
@@ -608,7 +604,7 @@ elements["detail-content"].addEventListener("change", (event) => {
 elements["edit-person"].addEventListener("input", (event) => {
   if (!archiveFields.includes(event.target.name)) return;
   showEditError(event.target.name);
-  renderEditMissingFields();
+  updateEditProgress();
 });
 
 elements["edit-person"].addEventListener("submit", (event) => {
@@ -617,18 +613,18 @@ elements["edit-person"].addEventListener("submit", (event) => {
   const person = editSession.employee;
   for (const field of archiveFields) showEditError(field);
   if (!values.name) {
-    showEditError("name", "请输入姓名。");
+    showEditError("name", "请填写姓名");
     return;
   }
   if (!departmentById.has(values.department)) {
-    showEditError("department", "请选择部门。");
+    showEditError("department", "请选择部门");
     return;
   }
   const duplicate = values.number && employees.some((employee) =>
     employee.id !== person.id && employee.number.toLowerCase() === values.number.toLowerCase()
   );
   if (duplicate) {
-    showEditError("number", "该人员编号已被使用。");
+    showEditError("number", "此编号已被使用");
     return;
   }
   if (archiveFields.every((field) => person[field] === values[field])) {
@@ -669,8 +665,15 @@ document.addEventListener("keydown", (event) => {
   elements["tab-" + state.detailTab].focus();
 });
 
-window.addEventListener("hashchange", () =>
-  changeView(location.hash === "#departments" ? "departments" : "employees")
-);
+function renderLocation() {
+  state.view = location.hash === "#departments" ? "departments" : "employees";
+  state.employeeId = null;
+  renderView();
+  if (location.hash === "#supplement" && !elements["edit-dialog"].open) {
+    elements["employee-rows"].querySelector("[data-supplement-field]")?.click();
+  }
+}
+
+window.addEventListener("hashchange", renderLocation);
 populateDepartmentPicker();
-renderView();
+renderLocation();
