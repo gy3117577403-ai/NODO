@@ -26,29 +26,28 @@ registry.category("fields").add("nodo_member_identity", {
     fieldDependencies: [{ name: "job_title", type: "char" }],
 });
 
-const departmentLevels = ["", "一级", "二级", "三级", "四级", "五级", "六级", "七级", "八级", "九级", "十级"];
-
-function departmentLevelLabel(level) {
-    return departmentLevels[level] ?? `${level}级`;
+function departmentNameStyle(color) {
+    if (!Number.isInteger(color)) return;
+    const hue = color === 0 ? 149 : (206 + (color - 1) * 137.508) % 360;
+    return `--nodo-department-hue: ${hue.toFixed(2)}`;
 }
 
 class StaffDepartment extends Component {
     static template = "nodo_staff_import.StaffDepartment";
     props = useProps(standardFieldProps);
 
-    get level() {
-        return this.props.record.data.nodo_department_level;
-    }
+    departmentNameStyle = departmentNameStyle;
 
-    get levelLabel() {
-        return departmentLevelLabel(this.level);
+    get departments() {
+        const segments = this.props.record.data.nodo_department_segments;
+        return Array.isArray(segments) ? segments : [];
     }
 }
 
 registry.category("fields").add("nodo_staff_department", {
     component: StaffDepartment,
     supportedTypes: ["char"],
-    fieldDependencies: [{ name: "nodo_department_level", type: "integer" }],
+    fieldDependencies: [{ name: "nodo_department_segments", type: "json" }],
 });
 
 class MemberDialog extends Component {
@@ -156,15 +155,7 @@ class StaffDirectoryControlPanel extends ControlPanel {
 class StaffDirectorySearchPanel extends SearchPanel {
     static subTemplates = { ...SearchPanel.subTemplates, category: "nodo_staff_import.DepartmentCategory" };
 
-    departmentLevel(section, valueId) {
-        return section.fieldName === "department_id" && valueId
-            ? this.getAncestorValueIds(section, valueId).length + 1
-            : 0;
-    }
-
-    departmentLevelLabel(level) {
-        return departmentLevelLabel(level);
-    }
+    departmentNameStyle = departmentNameStyle;
 }
 
 class StaffDirectoryLayout extends Layout {

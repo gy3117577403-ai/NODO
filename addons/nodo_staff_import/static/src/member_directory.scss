@@ -61,10 +61,6 @@
                 --list-group-active-color: #{$nodo-primary};
             }
 
-            .o_nodo_department_level {
-                margin-inline-end: 5px;
-            }
-
             .o_search_panel_label_title {
                 white-space: normal;
                 overflow-wrap: anywhere;
@@ -227,35 +223,36 @@
     }
 }
 
-.o_nodo_staff_directory .o_nodo_department_level {
-    flex: 0 0 auto;
-    padding: 2px 5px;
-    border-radius: 4px;
-    background-color: #EDF0F4;
-    color: #485768;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.25;
-    white-space: nowrap;
-
-    @each $level, $face, $ink in ((1, #DFF1E9, #285A47), (2, #E3EDFC, #254F85), (3, #EFE7FA, #62438D), (4, #FBEDD9, #7E4E10), (5, #DBF1F3, #0F6269)) {
-        &[data-level="#{$level}"] {
-            background-color: $face;
-            color: $ink;
-        }
+.o_nodo_staff_directory {
+    .o_nodo_department_name {
+        min-width: 0;
+        max-width: 100%;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background-color: hsl(var(--nodo-department-hue), 52%, 91%);
+        color: hsl(var(--nodo-department-hue), 58%, 26%);
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
-}
-
-.o_nodo_staff_department {
-    display: flex;
-    align-items: flex-start;
-    gap: 7px;
 
     .o_nodo_staff_department_path {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 3px 4px;
         min-width: 0;
-        white-space: normal;
-        word-break: keep-all;
-        overflow-wrap: anywhere;
+    }
+
+    .o_nodo_department_segment {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .o_nodo_department_separator {
+        color: $nodo-text-muted;
     }
 }
 

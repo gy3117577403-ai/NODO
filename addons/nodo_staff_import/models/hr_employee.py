@@ -24,7 +24,7 @@ class HrEmployee(models.Model):
     _inherit = 'hr.employee'
 
     nodo_department_path = fields.Char(string='部门', related='department_id.nodo_directory_path')
-    nodo_department_level = fields.Integer(compute='_compute_nodo_department_level')
+    nodo_department_segments = fields.Json(compute='_compute_nodo_department_segments')
 
     nodo_personnel_number = fields.Char(
         string='人员编号', copy=False, index='btree_not_null', groups='base.group_system',
@@ -51,10 +51,24 @@ class HrEmployee(models.Model):
         string='账号状态', compute='_compute_nodo_account_state', groups='base.group_system',
     )
 
-    @api.depends('department_id.parent_path')
-    def _compute_nodo_department_level(self):
+    @api.depends('department_id.parent_path', 'department_id.nodo_directory_path')
+    @api.depends_context('uid', 'company')
+    def _compute_nodo_department_segments(self):
+        nodes = self.env['hr.department']._nodo_directory_nodes() if self.department_id else {}
         for employee in self:
-            employee.nodo_department_level = (employee.department_id.parent_path or '').count('/')
+            path = (employee.department_id.parent_path or '').split('/')
+            segments = [nodes.get(int(identifier)) for identifier in path if identifier]
+            employee.nodo_department_segments = segments if all(segments) else []
+
+    @api.model
+    def search_panel_select_range(self, field_name, **kwargs):
+        result = super().search_panel_select_range(field_name, **kwargs)
+        if field_name == 'department_id' and result.get('values'):
+            nodes = self.env['hr.department']._nodo_directory_nodes()
+            for value in result['values']:
+                if value['id'] in nodes:
+                    value['nodo_color'] = nodes[value['id']]['color']
+        return result
 
     def _nodo_review_badge(self, pending):
         self.ensure_one()

@@ -77,17 +77,24 @@
     </t>
 
     <t t-name="nodo_staff_import.StaffDepartment">
-        <div t-if="this.level" class="o_nodo_staff_department">
-            <span class="o_nodo_department_level" t-att-data-level="this.level" t-out="this.levelLabel"/>
-            <div class="o_nodo_staff_department_path" t-out="this.props.record.data[this.props.name]"/>
+        <div t-if="this.departments.length" class="o_nodo_staff_department_path">
+            <div t-foreach="this.departments" t-as="department" t-key="department.id" class="o_nodo_department_segment">
+                <span t-if="!department_first" class="o_nodo_department_separator">/</span>
+                <div class="o_nodo_department_name" t-att-data-department-id="department.id"
+                     t-att-style="this.departmentNameStyle(department.color)" t-out="department.name"/>
+            </div>
         </div>
+        <div t-else="" class="o_nodo_staff_department_path" t-out="this.props.record.data[this.props.name]"/>
     </t>
 
     <t t-name="nodo_staff_import.DepartmentCategory" t-inherit="web.SearchPanel.Category" t-inherit-mode="primary">
         <xpath expr="//span[hasclass('o_search_panel_label_title')]" position="before">
-            <t t-set="level" t-value="this.departmentLevel(section, valueId)"/>
-            <span t-if="level" class="o_nodo_department_level" t-att-data-level="level"
-                  t-out="this.departmentLevelLabel(level)"/>
+            <t t-set="departmentStyle" t-value="this.departmentNameStyle(value.nodo_color)"/>
+        </xpath>
+        <xpath expr="//span[hasclass('o_search_panel_label_title')]" position="attributes">
+            <attribute name="t-att-class">{'fw-bold': value.bold, 'o_nodo_department_name': departmentStyle}</attribute>
+            <attribute name="t-att-data-department-id">departmentStyle ? valueId : false</attribute>
+            <attribute name="t-att-style">departmentStyle</attribute>
         </xpath>
     </t>
 

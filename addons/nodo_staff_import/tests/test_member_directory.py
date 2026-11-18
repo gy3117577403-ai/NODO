@@ -63,15 +63,39 @@ class TestMemberDirectory(TransactionCase):
         self.assertEqual(directory.search(domain, order=order, limit=1), east_person)
         self.assertEqual(directory.search(domain, order=order, limit=1, offset=1), west_person)
         self.assertEqual(directory.search(domain, order='nodo_department_path desc', limit=1), west_person)
-        self.assertEqual(east_person.nodo_department_level, 2)
+        self.assertEqual([segment['id'] for segment in east_person.nodo_department_segments], [east.id, east_group.id])
         self.assertEqual(east_person.nodo_department_path, 'A 工程部 / 配线组')
 
         east.name = 'ZZ 工程部'
         self.assertEqual(directory.search(domain, order=order, limit=1), west_person)
         self.assertEqual(east_person.nodo_department_path, 'ZZ 工程部 / 配线组')
         east_group.parent_id = west_group
-        self.assertEqual(east_person.nodo_department_level, 3)
+        self.assertEqual([segment['id'] for segment in east_person.nodo_department_segments], [west.id, west_group.id, east_group.id])
         self.assertEqual(east_person.nodo_department_path, 'Z 工程部 / 配线组 / 配线组')
+
+    def test_department_colors_match_tree_and_path_with_and_without_filtering(self):
+        departments = self.env['hr.department']
+        office = departments.create({'name': '总经办', 'company_id': self.company.id})
+        engineering, quality = departments.create([
+            {'name': '工程部', 'parent_id': office.id, 'company_id': self.company.id},
+            {'name': '质量部', 'parent_id': office.id, 'company_id': self.company.id},
+        ])
+        engineer, inspector = self.employee.with_user(self.officer).create([
+            {'name': '程遥', 'department_id': engineering.id},
+            {'name': '林沅', 'department_id': quality.id},
+        ])
+        office_segment, engineering_segment = engineer.nodo_department_segments
+        _, quality_segment = inspector.nodo_department_segments
+        self.assertEqual(office_segment, {'id': office.id, 'name': office.name, 'color': 0})
+        self.assertNotEqual(engineering_segment['color'], quality_segment['color'])
+
+        directory = self.employee.with_user(self.officer)
+        for people in (engineer | inspector, engineer):
+            values = directory.search_panel_select_range('department_id', search_domain=[('id', 'in', people.ids)])['values']
+            tree = {value['id']: value['nodo_color'] for value in values}
+            self.assertEqual(tree[office.id], office_segment['color'])
+            self.assertEqual(tree[engineering.id], engineering_segment['color'])
+
 
     def test_duplicate_number_blocks_save_and_same_name_can_be_confirmed(self):
         first = self.directory.nodo_add_member({**self.values, 'number': 'A_07'})
