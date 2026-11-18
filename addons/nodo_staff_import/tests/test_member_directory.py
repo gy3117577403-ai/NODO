@@ -130,6 +130,65 @@ class TestMemberDirectory(TransactionCase):
                 self.assertFalse(member.user_id)
                 self.assertEqual(member.nodo_account_state, 'none')
 
+    def test_linked_account_entry_requires_the_correct_employee_and_user(self):
+        member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
+        member.nodo_create_member_account('linked-account@nodo.test')
+        user = member.user_id.with_user(self.admin)
+        action = user.with_context(nodo_linked_employee_id=member.id).get_record_default_action()
+        self.assertEqual(action['res_model'], 'hr.employee')
+        self.assertEqual(action['path'], 'employee-account')
+        self.assertEqual(action['res_id'], member.id)
+        self.assertEqual(user.get_record_default_action()['res_model'], 'res.users')
+        self.assertEqual(member.action_nodo_open_linked_user_settings(user.id)['res_model'], 'res.users')
+        self.assertEqual(member.nodo_linked_account_info()['userId'], user.id)
+        with self.assertRaisesRegex(ValidationError, '关联用户已变化'):
+            self.admin.with_user(self.admin).with_context(nodo_linked_employee_id=member.id).get_record_default_action()
+        with self.assertRaisesRegex(ValidationError, '关联用户已变化'):
+            member.action_nodo_linked_password(self.admin.id)
+        officer = member.with_user(self.officer)
+        with self.assertRaises(AccessError):
+            officer.nodo_linked_account_info()
+        with self.assertRaises(AccessError):
+            officer.nodo_save_linked_roles(user.id, [], [])
+        with self.assertRaises(AccessError):
+            officer.action_nodo_linked_password(user.id)
+
+    def test_linked_role_changes_preserve_other_groups_and_reject_stale_edits(self):
+        member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
+        member.nodo_create_member_account('linked-roles@nodo.test')
+        user = member.user_id
+        extra = self.env.ref('base.group_allow_export')
+        user.write({'group_ids': [Command.link(extra.id)]})
+        sales = self.env.ref('nodo_base.group_role_sales')
+        engineering = self.env.ref('nodo_base.group_role_engineering')
+        roles = member.nodo_save_linked_roles(user.id, [], [sales.id, engineering.id])
+        self.assertEqual({group_id for row in roles for group_id in row['direct']}, {sales.id, engineering.id})
+        self.assertIn(extra, user.group_ids)
+        with self.assertRaisesRegex(ValidationError, '已被更新'):
+            member.nodo_save_linked_roles(user.id, [], [])
+        with self.assertRaisesRegex(ValidationError, '请选择 NODO 业务角色'):
+            member.nodo_save_linked_roles(user.id, [sales.id, engineering.id], [self.env.ref('base.group_system').id])
+        member.nodo_save_linked_roles(user.id, [sales.id, engineering.id], [engineering.id])
+        self.assertEqual(user.group_ids & (sales | engineering | extra), engineering | extra)
+
+    def test_linked_role_groups_show_inheritance_and_limit_each_privilege(self):
+        member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])
+        member.nodo_create_member_account('linked-inherited-role@nodo.test')
+        purchase = self.env.ref('nodo_base.group_role_purchase')
+        privilege = self.env['res.groups.privilege'].create({
+            'name': '采购岗位', 'category_id': self.env.ref('nodo_base.module_category_nodo_roles').id,
+        })
+        choices = self.env['res.groups'].create([
+            {'name': '采购助理', 'privilege_id': privilege.id, 'implied_ids': [Command.link(purchase.id)]},
+            {'name': '采购经理', 'privilege_id': privilege.id, 'implied_ids': [Command.link(purchase.id)]},
+        ])
+        with self.assertRaisesRegex(ValidationError, '只能选择一项'):
+            member.nodo_save_linked_roles(member.user_id.id, [], choices.ids)
+        roles = member.nodo_save_linked_roles(member.user_id.id, [], choices[:1].ids)
+        inherited = next(item for item in roles if item['id'] == purchase.privilege_id.id)
+        self.assertEqual(inherited['direct'], [])
+        self.assertEqual(inherited['inherited'], [purchase.name])
+
     def test_detail_starts_with_the_profile_and_respects_hr_permissions(self):
         view = self.env.ref('nodo_staff_import.staff_employee_detail_form')
         action = self.env.ref('hr.open_view_employee_list_my')

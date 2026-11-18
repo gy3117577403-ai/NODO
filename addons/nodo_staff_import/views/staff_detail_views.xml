@@ -142,6 +142,18 @@
             <xpath expr="//page[@name='hr_settings']//group[@name='user']/label[@for='user_id']" position="attributes">
                 <attribute name="string">关联用户</attribute>
             </xpath>
+            <xpath expr="//page[@name='hr_settings']//group[@name='user']//field[@name='user_id'][@groups='base.group_erp_manager']" position="attributes">
+                <attribute name="context">{
+                    'default_create_employee_id': id,
+                    'default_name': name,
+                    'default_phone': work_phone,
+                    'default_mobile': mobile_phone,
+                    'default_login': work_email,
+                    'default_partner_id': work_contact_id,
+                    'search_default_filter_no_share': 1,
+                    'nodo_linked_employee_id': id,
+                }</attribute>
+            </xpath>
             <xpath expr="//page[@name='hr_settings']//button[@name='action_nodo_open_member_account']" position="attributes">
                 <attribute name="class">btn btn-primary text-nowrap</attribute>
             </xpath>

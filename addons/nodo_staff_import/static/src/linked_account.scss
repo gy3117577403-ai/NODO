@@ -1,0 +1,313 @@
+.o_nodo_staff_detail .o_field_widget[name="user_id"] .o_external_button {
+    visibility: visible;
+}
+
+.o_form_view_container:has(.o_nodo_linked_account) {
+    > .o_content {
+        background: $nodo-background;
+
+        > .o_form_nosheet {
+            padding: 0;
+            background: transparent;
+        }
+    }
+
+    > .o_control_panel {
+        background: $nodo-card !important;
+
+        .o_control_panel_main {
+            width: 100%;
+            max-width: 84rem;
+            margin-inline: auto;
+            padding-inline: clamp(0px, 2vw, 28px);
+        }
+
+        .o_cp_pager {
+            display: none;
+        }
+    }
+}
+
+.o_nodo_linked_account {
+    padding: 34px 16px;
+}
+
+.nodo-linked-page {
+    width: 100%;
+    max-width: var(--nodo-staff-width);
+    margin-inline: auto;
+    padding: var(--nodo-staff-gutter);
+    border: 1px solid var(--nodo-line);
+    border-radius: var(--nodo-staff-radius);
+    background: var(--nodo-surface);
+    box-shadow: 0 5px 18px -12px $nodo-glass-shade;
+    color: var(--nodo-text);
+
+    h1 {
+        margin: 0 0 17px;
+        font-size: 20px;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+
+    .nodo-linked-login {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 14px;
+        padding-block: 14px;
+        overflow-wrap: anywhere;
+
+        span {
+            color: var(--nodo-muted);
+            font-size: 13px;
+        }
+
+        strong {
+            font-weight: 550;
+        }
+    }
+
+    .nodo-linked-section {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 18px;
+        padding-block: 17px;
+        border-top: 1px solid var(--nodo-line);
+
+        h2 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        p {
+            margin: 0;
+            color: var(--nodo-muted);
+            font-size: 13px;
+        }
+    }
+
+    .nodo-linked-role-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        margin: 7px 0 0;
+        padding: 0;
+        list-style: none;
+
+        li {
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: var(--nodo-selected);
+            color: var(--nodo-primary);
+            font-size: 12px;
+        }
+    }
+
+    .nodo-linked-secondary {
+        border-color: var(--nodo-line);
+        color: var(--nodo-text);
+
+        &:hover {
+            background: var(--nodo-panel);
+        }
+    }
+
+    footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 12px;
+        border-top: 1px solid var(--nodo-line);
+    }
+
+    .nodo-linked-full-settings {
+        padding: 4px 0;
+        border: 0;
+        background: transparent;
+        color: var(--nodo-primary);
+        font-size: 13px;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+.nodo-linked-role-dialog {
+    .nodo-linked-role-fields {
+        gap: 9px;
+    }
+
+    .nodo-linked-role-row {
+        display: grid;
+        grid-template-columns: minmax(70px, 25%) minmax(0, 1fr);
+        align-items: baseline;
+        gap: 10px;
+
+        label {
+            margin: 0;
+        }
+    }
+}
+
+.o_dialog .modal:has(.o_nodo_password_panel) {
+    backdrop-filter: none;
+
+    .modal-dialog {
+        width: calc(100% - 24px);
+        max-width: var(--nodo-staff-width);
+        margin-inline: auto;
+    }
+
+    .modal-content {
+        border: 1px solid var(--nodo-line) !important;
+        border-radius: var(--nodo-staff-radius) !important;
+        background: var(--nodo-surface);
+        box-shadow: var(--nodo-popover-shadow);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        min-height: 62px;
+        padding: 14px 16px 12px var(--nodo-staff-gutter);
+        border: 0;
+
+        h4.modal-title {
+            color: var(--nodo-text);
+            font-size: 20px !important;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .btn-close {
+            width: 36px;
+            height: 36px;
+            margin: 0;
+            padding: 0;
+            border-radius: 8px;
+            background-size: 13px;
+        }
+    }
+
+    .modal-body,
+    .o_form_sheet_bg {
+        padding: 0 !important;
+    }
+
+    .o_form_sheet {
+        margin: 0 !important;
+        padding: 0 var(--nodo-staff-gutter) 22px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .o_nodo_password_fields {
+        display: grid;
+        gap: 10px;
+        margin-top: 19px;
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--nodo-text) !important;
+            font-size: 13px;
+            font-weight: 600;
+
+            &::after {
+                margin-inline-start: 4px;
+                color: var(--nodo-error);
+                content: "*";
+            }
+        }
+
+        .o_field_widget {
+            width: 100%;
+            margin: 0;
+        }
+
+        .o_field_password {
+            position: relative;
+
+            button.oi {
+                position: absolute;
+                top: 50%;
+                inset-inline-end: 4px;
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                transform: translateY(-50%);
+                color: var(--nodo-muted);
+            }
+        }
+
+        input.o_input {
+            width: 100%;
+            height: var(--nodo-staff-control-height);
+            padding: 0 40px 0 11px;
+            border: 1px solid var(--nodo-control-line);
+            border-radius: var(--nodo-staff-control-radius);
+            background: var(--nodo-surface);
+            font-size: 15px;
+
+            &:focus {
+                border-color: var(--nodo-primary);
+                outline: 1px solid var(--nodo-primary);
+            }
+        }
+
+        .o_nodo_password_help {
+            justify-self: start;
+            font-size: 13px;
+        }
+    }
+
+    .modal-footer {
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        padding: 12px var(--nodo-staff-gutter);
+        border-top: 1px solid var(--nodo-line);
+
+        .btn {
+            min-width: 61px;
+            height: var(--nodo-staff-button-height);
+            margin: 0;
+            padding: 0 13px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .btn-secondary {
+            border-color: transparent;
+            background: transparent;
+            color: var(--nodo-muted);
+            box-shadow: none;
+        }
+
+        .btn-primary {
+            order: 1;
+            min-width: 78px;
+            border-color: transparent;
+            background: var(--nodo-primary);
+            color: var(--nodo-surface);
+            box-shadow: none;
+
+            &:hover:enabled {
+                background: var(--nodo-hover);
+            }
+        }
+    }
+}
+
+body:has(.o_dialog .modal:not(.o_inactive_modal) .o_nodo_password_panel) .modal-backdrop {
+    background-color: rgba(28, 48, 42, .32);
+}
+
+@media (max-width: 460px) {
+    .nodo-linked-page,
+    .o_dialog .modal:has(.o_nodo_password_panel) {
+        --nodo-staff-gutter: 16px;
+    }
+}

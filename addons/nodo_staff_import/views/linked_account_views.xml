@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="staff_linked_account_form" model="ir.ui.view">
+        <field name="name">hr.employee.form.nodo.linked.account</field>
+        <field name="model">hr.employee</field>
+        <field name="priority" eval="85"/>
+        <field name="arch" type="xml">
+            <form string="关联用户" create="false" edit="false" delete="false" duplicate="false">
+                <div class="o_nodo_linked_account" groups="base.group_system">
+                    <widget name="nodo_linked_account"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="staff_linked_account_action" model="ir.actions.act_window">
+        <field name="name">关联用户</field>
+        <field name="path">employee-account</field>
+        <field name="res_model">hr.employee</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="staff_linked_account_form"/>
+        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]"/>
+    </record>
+
+    <record id="staff_identitycheck_form" model="ir.ui.view">
+        <field name="name">res.users.identitycheck.form.nodo.staff</field>
+        <field name="model">res.users.identitycheck</field>
+        <field name="inherit_id" ref="base.res_users_identitycheck_view_form"/>
+        <field name="mode">primary</field>
+        <field name="priority" eval="85"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/div[field or div/field[@name='password']]" position="before">
+                <div class="o_nodo_password_panel nodo-staff-surface">
+                    <widget name="nodo_password_account_summary"/>
+                </div>
+            </xpath>
+            <xpath expr="//sheet/div[div/field[@name='password']]" position="attributes">
+                <attribute name="class">o_nodo_password_fields</attribute>
+            </xpath>
+            <xpath expr="//sheet/div[div/field[@name='password']]/h3" position="replace"/>
+            <xpath expr="//field[@name='password']" position="before">
+                <label for="password" string="当前管理员密码"/>
+            </xpath>
+            <xpath expr="//field[@name='password']" position="attributes">
+                <attribute name="class">w-100</attribute>
+                <attribute name="placeholder">输入当前管理员密码</attribute>
+            </xpath>
+            <xpath expr="//a[@href='/web/reset_password/']" position="replace">
+                <a href="/web/reset_password/" class="o_nodo_password_help">忘记密码？</a>
+            </xpath>
+            <xpath expr="//footer/button[@id='password_confirm']" position="attributes">
+                <attribute name="string">验证身份</attribute>
+            </xpath>
+            <xpath expr="//footer/button[@special='cancel']" position="attributes">
+                <attribute name="string">取消</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="staff_change_member_password_form" model="ir.ui.view">
+        <field name="name">change.password.user.form.nodo.staff</field>
+        <field name="model">change.password.user</field>
+        <field name="priority" eval="85"/>
+        <field name="arch" type="xml">
+            <form string="修改密码" create="false" delete="false" duplicate="false">
+                <sheet>
+                    <div class="o_nodo_password_panel nodo-staff-surface">
+                        <widget name="nodo_password_account_summary"/>
+                        <div class="o_nodo_password_fields">
+                            <div>
+                                <label for="new_passwd" string="新密码"/>
+                                <field name="new_passwd" widget="password" autocomplete="new-password"
+                                       placeholder="输入新密码" required="1"/>
+                            </div>
+                        </div>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="change_password_button" type="object" string="保存密码" class="btn-primary"/>
+                    <button string="取消" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="staff_change_own_password_form" model="ir.ui.view">
+        <field name="name">change.password.own.form.nodo.staff</field>
+        <field name="model">change.password.own</field>
+        <field name="priority" eval="85"/>
+        <field name="arch" type="xml">
+            <form string="修改密码">
+                <sheet>
+                    <div class="o_nodo_password_panel nodo-staff-surface">
+                        <widget name="nodo_password_account_summary"/>
+                        <div class="o_nodo_password_fields">
+                            <div>
+                                <label for="new_password" string="新密码"/>
+                                <field name="new_password" widget="password" autocomplete="new-password"
+                                       placeholder="输入新密码" required="1"/>
+                            </div>
+                            <div>
+                                <label for="confirm_password" string="确认新密码"/>
+                                <field name="confirm_password" widget="password" autocomplete="new-password"
+                                       placeholder="再次输入新密码" required="1"/>
+                            </div>
+                        </div>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="change_password" type="object" string="保存密码" class="btn-primary"/>
+                    <button string="取消" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

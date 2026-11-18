@@ -3,19 +3,7 @@
     <t t-name="nodo_staff_import.MemberAccountDialog">
         <t t-call="nodo_staff_import.StaffDialogFrame" dialogClass="'nodo-account-dialog'"
            titleId="'nodo-account-title'" title="'开通账号'" submitLabel="'开通账号'">
-            <div class="staff-summary">
-                <div class="staff-avatar">
-                    <img alt="" t-att-src="'/web/image/hr.employee/' + this.props.employee.id + '/avatar_128'"/>
-                </div>
-                <div class="staff-identity">
-                    <strong class="staff-account-name" t-out="this.props.employee.name"/>
-                    <div class="staff-source" t-if="this.props.employee.number or this.props.employee.department">
-                        <span t-if="this.props.employee.number" class="staff-code" t-out="this.props.employee.number"/>
-                        <span t-if="this.props.employee.department" class="staff-code" t-out="this.props.employee.department"/>
-                    </div>
-                </div>
-                <span class="staff-review">未开通</span>
-            </div>
+            <t t-call="nodo_staff_import.StaffAccountSummary" person="this.props.employee" login="false"/>
             <fieldset class="staff-fields" t-att-disabled="this.saving()">
                 <div>
                     <label for="nodo-account-login">登录名 <span class="staff-required" aria-hidden="true">*</span></label>

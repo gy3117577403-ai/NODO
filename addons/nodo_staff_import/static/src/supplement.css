@@ -1,12 +1,12 @@
 .nodo-staff-dialog, .nodo-staff-dialog * { box-sizing: border-box; }
 .nodo-staff-dialog {
-    width: min(584px, calc(100% - 24px));
+    width: min(var(--nodo-staff-width, 584px), calc(100% - 24px));
     max-width: none;
     max-height: calc(100dvh - 24px);
     margin: auto;
     padding: 0;
     border: 1px solid var(--nodo-line);
-    border-radius: 16px;
+    border-radius: var(--nodo-staff-radius, 16px);
     background: var(--nodo-surface);
     box-shadow: var(--nodo-popover-shadow);
     color: var(--nodo-text);
@@ -29,17 +29,17 @@
 }
 .nodo-staff-dialog .staff-close span::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .nodo-staff-dialog .staff-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 24px 22px; }
-.nodo-staff-dialog .staff-summary {
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-summary {
     display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center;
     gap: 12px; padding: 13px 14px; border-radius: 10px; background: var(--nodo-panel);
 }
-.nodo-staff-dialog .staff-avatar {
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-avatar {
     display: grid; place-items: center; width: 44px; height: 44px; overflow: hidden;
     border-radius: 12px; background: var(--nodo-selected); color: var(--nodo-primary);
     font-size: 19px; font-weight: 600;
 }
-.nodo-staff-dialog .staff-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.nodo-staff-dialog .staff-identity { min-width: 0; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-identity { min-width: 0; }
 .nodo-staff-dialog .staff-name { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; width: max-content; max-width: 100%; }
 .nodo-staff-dialog .staff-name::before {
     grid-area: 1 / 1; visibility: hidden; content: attr(data-value); white-space: pre; overflow: hidden; min-width: 3.5em; height: 31px;
@@ -60,23 +60,24 @@
     border-right: 4px solid var(--nodo-muted); content: "";
 }
 .nodo-staff-dialog .staff-name input:read-only + i { display: none; }
-.nodo-staff-dialog .staff-source { display: flex; align-items: baseline; flex-wrap: wrap; gap: 1px 8px; color: var(--nodo-muted); font-size: 12px; line-height: 1.6; }
-.nodo-staff-dialog .staff-code { min-width: 0; overflow-wrap: anywhere; }
-.nodo-staff-dialog .staff-review {
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-source { display: flex; align-items: baseline; flex-wrap: wrap; gap: 1px 8px; color: var(--nodo-muted); font-size: 12px; line-height: 1.6; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-code { min-width: 0; overflow-wrap: anywhere; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-review {
     display: inline-flex; align-items: center; gap: 6px; max-width: 10em; padding: 3px 8px;
     border-radius: 6px; background: var(--nodo-paper); color: var(--nodo-muted);
     overflow-wrap: anywhere; font-size: 12px; font-weight: 500;
 }
-.nodo-staff-dialog .staff-review::before { flex: none; width: 5px; height: 5px; border-radius: 50%; background: currentColor; content: ""; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-review::before { flex: none; width: 5px; height: 5px; border-radius: 50%; background: currentColor; content: ""; }
 .nodo-staff-dialog .staff-review[data-state="pending"] { background: var(--nodo-warning-tint); color: var(--nodo-warning); }
 .nodo-staff-dialog .staff-review[data-state="complete"] { background: var(--nodo-success-tint); color: var(--nodo-success); }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-review[data-state="active"] { background: var(--nodo-success-tint); color: var(--nodo-success); }
 .nodo-staff-dialog .staff-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 15px; margin-top: 19px; }
 .nodo-staff-dialog fieldset.staff-fields { min-width: 0; padding: 0; border: 0; }
 .nodo-staff-dialog .staff-required { color: var(--nodo-error); margin-inline-start: 2px; }
 .nodo-staff-dialog .staff-fields label { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; }
 .nodo-staff-dialog .staff-fields :is(input, select) {
-    display: block; width: 100%; min-width: 0; height: 42px; margin: 0; padding: 0 11px;
-    border: 1px solid var(--nodo-control-line); border-radius: 9px; background-color: var(--nodo-surface);
+    display: block; width: 100%; min-width: 0; height: var(--nodo-staff-control-height, 42px); margin: 0; padding: 0 11px;
+    border: 1px solid var(--nodo-control-line); border-radius: var(--nodo-staff-control-radius, 9px); background-color: var(--nodo-surface);
     box-shadow: none; font-size: 15px; text-overflow: ellipsis;
 }
 .nodo-staff-dialog .staff-fields select { cursor: pointer; background-image: none; }
@@ -90,18 +91,18 @@
 .nodo-staff-dialog .staff-footer { gap: 8px; padding: 12px 24px; border-top: 1px solid var(--nodo-line); }
 .nodo-staff-dialog .staff-end-actions { justify-content: flex-end; }
 .nodo-staff-dialog .staff-progress { min-width: 0; flex: 1; color: var(--nodo-muted); font-size: 13px; }
-.nodo-staff-dialog .staff-button {
-    min-width: 61px; height: 38px; flex: none; padding: 0 13px; border: 1px solid transparent;
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-button {
+    min-width: 61px; height: var(--nodo-staff-button-height, 38px); flex: none; padding: 0 13px; border: 1px solid transparent;
     border-radius: 8px; background: transparent; color: var(--nodo-muted); font-size: 14px; font-weight: 500;
 }
-.nodo-staff-dialog .staff-button.staff-primary { min-width: 78px; background: var(--nodo-primary); color: var(--nodo-surface); }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-button.staff-primary { min-width: 78px; background: var(--nodo-primary); color: var(--nodo-surface); }
 .nodo-staff-dialog :is(.staff-button, .staff-close):hover:enabled { background: var(--nodo-panel); color: var(--nodo-text); }
-.nodo-staff-dialog .staff-button.staff-primary:hover:enabled { background: var(--nodo-hover); color: var(--nodo-surface); }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-button.staff-primary:hover:enabled { background: var(--nodo-hover); color: var(--nodo-surface); }
 .nodo-staff-dialog button:focus-visible { outline: 2px solid var(--nodo-primary); outline-offset: 2px; }
 .nodo-staff-dialog button:disabled { cursor: wait; opacity: .72; }
 .nodo-staff-dialog .staff-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.nodo-account-dialog .staff-account-name { display: block; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
-.nodo-account-dialog .staff-account-hint { margin: 7px 0 0; color: var(--nodo-muted); font-size: 13px; }
+:is(.nodo-staff-dialog, .nodo-staff-surface) .staff-account-name { display: block; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.nodo-staff-dialog .staff-account-hint { margin: 7px 0 0; color: var(--nodo-muted); font-size: 13px; }
 
 @supports (appearance: base-select) {
     .nodo-staff-dialog .staff-fields select, .nodo-staff-dialog select::picker(select) { appearance: base-select; }
@@ -118,9 +119,9 @@
 @media (max-width: 460px) {
     .nodo-staff-dialog .staff-header { padding: 10px 10px 10px 16px; }
     .nodo-staff-dialog .staff-body { padding: 0 16px 16px; }
-    .nodo-staff-dialog .staff-summary { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 11px 10px; }
-    .nodo-staff-dialog .staff-avatar { width: 36px; height: 36px; border-radius: 10px; }
-    .nodo-staff-dialog .staff-review { max-width: 6em; padding-inline: 6px; }
+    :is(.nodo-staff-dialog, .nodo-staff-surface) .staff-summary { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 11px 10px; }
+    :is(.nodo-staff-dialog, .nodo-staff-surface) .staff-avatar { width: 36px; height: 36px; border-radius: 10px; }
+    :is(.nodo-staff-dialog, .nodo-staff-surface) .staff-review { max-width: 6em; padding-inline: 6px; }
     .nodo-staff-dialog .staff-fields { margin-top: 15px; gap: 13px; }
     .nodo-staff-dialog .staff-footer { padding: 10px 16px; }
 }

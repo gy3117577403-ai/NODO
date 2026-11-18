@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.LinkedAccount">
+        <article class="nodo-linked-page nodo-staff-surface">
+            <h1>关联用户</h1>
+            <t t-if="this.account()">
+                <t t-call="nodo_staff_import.StaffAccountSummary" person="this.account().employee" login="false"/>
+                <div class="nodo-linked-login">
+                    <span>登录名</span><strong t-out="this.account().login"/>
+                </div>
+                <section class="nodo-linked-section" aria-label="业务角色">
+                    <div>
+                        <h2>业务角色</h2>
+                        <ul class="nodo-linked-role-list" t-if="this.roleLabels.length">
+                            <li t-foreach="this.roleLabels" t-as="label" t-key="label" t-out="label"/>
+                        </ul>
+                        <p t-else="" t-out="this.account().canEditRoles ? '未分配业务角色' : '业务角色适用于内部用户'"/>
+                    </div>
+                    <button t-if="this.account().canEditRoles" t-ref="this.roleTrigger" type="button"
+                            class="staff-button staff-primary" t-on-click="this.editRoles">编辑角色</button>
+                </section>
+                <section class="nodo-linked-section" aria-label="登录密码">
+                    <div>
+                        <h2>登录密码</h2>
+                        <p>按系统提示验证管理员身份后，为该账号设置新密码。</p>
+                    </div>
+                    <button type="button" class="staff-button nodo-linked-secondary"
+                            t-att-disabled="this.opening()" t-on-click="() => this.openAction('action_nodo_linked_password')">修改密码</button>
+                </section>
+                <footer>
+                    <button type="button" t-att-disabled="this.opening()" class="nodo-linked-full-settings"
+                            t-on-click="() => this.openAction('action_nodo_open_linked_user_settings')">完整用户设置</button>
+                </footer>
+            </t>
+            <p class="staff-error" role="alert" t-else="" t-out="this.problem()"/>
+        </article>
+    </t>
+
+    <t t-name="nodo_staff_import.LinkedRoleDialog">
+        <t t-call="nodo_staff_import.StaffDialogFrame" dialogClass="'nodo-linked-role-dialog'"
+           titleId="'nodo-linked-role-title'" title="'编辑业务角色'" submitLabel="'保存角色'"
+           disabled="!Object.keys(this.changes()).length">
+            <t t-call="nodo_staff_import.StaffAccountSummary" person="this.props.account.employee" login="this.props.account.login"/>
+            <p t-if="this.props.account.multipleCompanies" class="staff-account-hint">业务角色适用于该账号所属的全部公司。</p>
+            <fieldset class="staff-fields nodo-linked-role-fields" t-att-disabled="this.saving()">
+                <div class="nodo-linked-role-row" t-foreach="this.props.account.roles" t-as="role" t-key="role.id">
+                    <label t-att-for="'nodo-linked-role-' + role.id" t-out="role.name"/>
+                    <div>
+                        <select t-att-id="'nodo-linked-role-' + role.id" t-on-change="ev => this.change(role, ev)">
+                            <option value="0" t-att-selected="this.selection(role) === 0">未分配</option>
+                            <option t-if="role.direct.length > 1" value="-1" disabled="disabled"
+                                    t-att-selected="this.selection(role) === -1">当前有多项分配</option>
+                            <option t-foreach="role.choices" t-as="choice" t-key="choice.id"
+                                    t-att-value="choice.id" t-att-selected="this.selection(role) === choice.id" t-out="choice.name"/>
+                        </select>
+                        <p t-if="role.inherited.length" class="staff-account-hint">已继承 <t t-out="role.inherited.join('、')"/></p>
+                    </div>
+                </div>
+            </fieldset>
+            <p t-if="this.problem()" class="staff-error staff-save-error" role="alert" tabindex="-1" t-out="this.problem()"/>
+        </t>
+    </t>
+
+    <t t-name="nodo_staff_import.PasswordAccountSummary">
+        <t t-if="this.props.record.context.nodo_account_summary" t-call="nodo_staff_import.StaffAccountSummary"
+           person="this.props.record.context.nodo_account_summary" login="this.props.record.context.nodo_account_login"/>
+    </t>
+</templates>

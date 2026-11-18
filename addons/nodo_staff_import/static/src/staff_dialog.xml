@@ -14,10 +14,26 @@
                 <footer class="staff-footer staff-end-actions">
                     <button type="button" class="staff-button" t-att-disabled="this.saving()"
                             t-on-click="this.cancel">取消</button>
-                    <button type="submit" class="staff-button staff-primary" t-att-disabled="this.saving()"
+                    <button type="submit" class="staff-button staff-primary" t-att-disabled="this.saving() or disabled"
                             t-out="this.saving() ? '保存中…' : submitLabel"/>
                 </footer>
             </form>
         </dialog>
+    </t>
+    <t t-name="nodo_staff_import.StaffAccountSummary">
+        <div class="staff-summary">
+            <div class="staff-avatar">
+                <img alt="" t-att-src="'/web/image/hr.employee/' + person.id + '/avatar_128'"/>
+            </div>
+            <div class="staff-identity">
+                <strong class="staff-account-name" t-out="person.name"/>
+                <div class="staff-source" t-if="person.number or person.department or login">
+                    <span t-if="person.number" class="staff-code" t-out="person.number"/>
+                    <span t-if="person.department" class="staff-code" t-out="person.department"/>
+                    <span t-if="login" class="staff-code" t-out="login"/>
+                </div>
+            </div>
+            <span class="staff-review" t-att-data-state="person.state" t-out="person.status or '未开通'"/>
+        </div>
     </t>
 </templates>

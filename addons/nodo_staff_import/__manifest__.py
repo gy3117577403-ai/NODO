@@ -11,6 +11,7 @@
         'views/staff_import_views.xml',
         'views/staff_member_views.xml',
         'views/staff_detail_views.xml',
+        'views/linked_account_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -26,6 +27,9 @@
             'nodo_staff_import/static/src/employee_detail.scss',
             'nodo_staff_import/static/src/member_account.js',
             'nodo_staff_import/static/src/member_account.xml',
+            'nodo_staff_import/static/src/linked_account.js',
+            'nodo_staff_import/static/src/linked_account.xml',
+            'nodo_staff_import/static/src/linked_account.scss',
         ],
     },
     'installable': True,

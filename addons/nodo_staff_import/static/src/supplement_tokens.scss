@@ -1,4 +1,6 @@
-.nodo-staff-dialog {
+.nodo-staff-dialog,
+.nodo-staff-surface,
+.o_dialog .modal:has(.o_nodo_password_panel) {
     --nodo-text: #{$nodo-text};
     --nodo-muted: #{$nodo-text-muted};
     --nodo-primary: #{$nodo-primary};
@@ -15,4 +17,10 @@
     --nodo-success-tint: #{mix($nodo-success-text, $nodo-card, 8%)};
     --nodo-error: #{$nodo-danger-text};
     --nodo-popover-shadow: 0 18px 48px -12px #{$nodo-glass-shade}, 0 3px 10px #{$nodo-glass-contact};
+    --nodo-staff-width: 584px;
+    --nodo-staff-radius: 16px;
+    --nodo-staff-gutter: 24px;
+    --nodo-staff-control-height: 42px;
+    --nodo-staff-control-radius: 9px;
+    --nodo-staff-button-height: 38px;
 }
