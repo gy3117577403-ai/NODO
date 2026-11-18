@@ -4,7 +4,12 @@ import { SearchBar } from "@web/search/search_bar/search_bar";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { kanbanView } from "@web/views/kanban/kanban_view";
-import { departmentNameStyle, directoryCountLabel, StaffDirectoryLayout } from "./member_directory";
+import {
+    departmentNameStyle,
+    directoryCountLabel,
+    StaffDirectoryControlPanel,
+    StaffDirectoryLayout,
+} from "./member_directory";
 import { DirectoryBoardControlPanel } from "./public_directory";
 
 class DepartmentIdentity extends Component {
@@ -34,9 +39,18 @@ registry.category("fields").add("nodo_department_identity", {
     fieldDependencies: [{ name: "nodo_directory_segments", type: "json" }],
 });
 
+class DepartmentDirectoryControlPanel extends StaffDirectoryControlPanel {
+    static template = "nodo_staff_import.DepartmentDirectoryControlPanel";
+}
+
 class DepartmentDirectoryLayout extends StaffDirectoryLayout {
     static rosterLabel = "部门卡片";
     static ControlPanel = DirectoryBoardControlPanel;
+}
+
+class DepartmentDirectoryToolbarLayout extends DepartmentDirectoryLayout {
+    static template = "nodo_staff_import.DepartmentDirectoryLayout";
+    static ControlPanel = DepartmentDirectoryControlPanel;
 }
 
 class DepartmentDirectorySearchBar extends SearchBar {
@@ -60,7 +74,30 @@ class DepartmentDirectoryController extends KanbanController {
     }
 }
 
+class DepartmentDirectoryToolbarController extends DepartmentDirectoryController {
+    static template = "nodo_staff_import.DepartmentDirectoryWithToolbar";
+    static components = {
+        ...DepartmentDirectoryController.components,
+        Layout: DepartmentDirectoryToolbarLayout,
+    };
+
+    get className() {
+        return `${super.className} o_nodo_department_toolbar`;
+    }
+
+    onPageChange() {
+        if (this.rootRef()) {
+            this.scrollTop();
+        }
+    }
+}
+
 registry.category("views").add("nodo_department_directory", {
     ...kanbanView,
     Controller: DepartmentDirectoryController,
+});
+
+registry.category("views").add("nodo_department_directory_toolbar", {
+    ...kanbanView,
+    Controller: DepartmentDirectoryToolbarController,
 });

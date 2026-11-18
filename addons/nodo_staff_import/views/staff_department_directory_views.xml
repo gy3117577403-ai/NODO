@@ -8,7 +8,7 @@
         <field name="priority">30</field>
         <field name="arch" type="xml">
             <xpath expr="//kanban" position="attributes">
-                <attribute name="js_class">nodo_department_directory</attribute>
+                <attribute name="js_class">nodo_department_directory_toolbar</attribute>
                 <attribute name="default_order">nodo_directory_path, id</attribute>
                 <attribute name="sample">0</attribute>
                 <attribute name="records_draggable">0</attribute>

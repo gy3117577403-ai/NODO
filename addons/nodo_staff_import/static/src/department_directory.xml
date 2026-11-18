@@ -19,6 +19,52 @@
         <xpath expr="//t[@t-set-slot='control-panel-buttons']/t[1]" position="replace"/>
     </t>
 
+    <t t-name="nodo_staff_import.DepartmentDirectoryWithToolbar"
+       t-inherit="nodo_staff_import.DepartmentDirectory" t-inherit-mode="primary">
+        <xpath expr="//SearchBar" position="attributes">
+            <attribute name="toggler"/>
+            <attribute name="autofocus">this.firstLoad and !this.uiService.isSmall</attribute>
+        </xpath>
+        <xpath expr="//t[@t-component='this.searchBarToggler.component']" position="replace"/>
+    </t>
+
+    <t t-name="nodo_staff_import.DepartmentDirectoryLayout" t-inherit="web.Layout" t-inherit-mode="primary">
+        <xpath expr="//t[@t-component='this.components.ControlPanel']" position="replace"/>
+        <xpath expr="//main" position="replace">
+            <div class="o_nodo_staff_workspace o_nodo_department_workspace"
+                 t-att-class="{'o_component_with_search_panel': this.props.display.searchPanel}">
+                <t t-component="this.components.SearchPanel" t-if="this.props.display.searchPanel"/>
+                <section class="o_nodo_roster_card" t-att-aria-label="this.constructor.rosterLabel">
+                    <t t-component="this.components.ControlPanel" slots="this.controlPanelSlots"
+                       t-if="this.props.display.controlPanel" display="this.props.display.controlPanel"/>
+                    <main t-ref="this.contentRef" class="o_content o_nodo_department_card_scroll"
+                          t-attf-class="{{ this.props.className }}" tabindex="0" aria-label="部门卡片滚动区域">
+                        <t t-call-slot="default" contentRef="this.contentRef"/>
+                    </main>
+                </section>
+            </div>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_staff_import.DepartmentDirectoryControlPanel"
+       t-inherit="nodo_staff_import.StaffDirectoryControlPanel" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_control_panel_breadcrumbs')]//t[@t-call-slot='control-panel-additional-actions']"
+               position="replace"/>
+        <xpath expr="//div[hasclass('o_control_panel_navigation')]//t[@t-call-slot='control-panel-additional-actions']"
+               position="replace"/>
+        <xpath expr="//div[hasclass('o_control_panel_navigation')]" position="inside">
+            <div class="o_nodo_department_toolbar_more d-empty-none">
+                <t t-call-slot="control-panel-additional-actions"/>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]/Dropdown/button" position="attributes">
+            <attribute name="class" add="o-dropdown-caret" separator=" "/>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]/Dropdown/button/span[hasclass('ms-1')]" position="attributes">
+            <attribute name="t-out">activeView.name</attribute>
+        </xpath>
+    </t>
+
     <t t-name="nodo_staff_import.DepartmentDirectorySearchBar" t-inherit="web.SearchBar" t-inherit-mode="primary">
         <xpath expr="//input[@role='searchbox']" position="attributes">
             <attribute name="placeholder">搜索部门名称或路径</attribute>

@@ -31,6 +31,7 @@ class TestDepartmentDirectory(TransactionCase):
         view = self.env.ref('nodo_staff_import.staff_department_directory_kanban')
         self.assertEqual(tuple(action.views[0]), (view.id, 'kanban'))
         kanban_arch = etree.fromstring(directory.get_view(view.id, 'kanban')['arch'])
+        self.assertEqual(kanban_arch.get('js_class'), 'nodo_department_directory_toolbar')
         self.assertIsNotNone(kanban_arch.find("field[@name='nodo_has_subdepartments']"))
         search_arch = etree.fromstring(directory.get_view(action.search_view_id.id, 'search')['arch'])
         search_domain = search_arch.find("field[@name='name']").get('filter_domain')

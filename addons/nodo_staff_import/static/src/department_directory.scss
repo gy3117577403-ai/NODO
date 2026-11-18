@@ -1,3 +1,88 @@
+.o_nodo_department_toolbar {
+    .o_nodo_department_workspace {
+        display: flex;
+        flex: 1 1 0;
+        overflow: hidden;
+
+        > .o_search_panel {
+            overscroll-behavior: contain;
+        }
+    }
+
+    .o_nodo_roster_card {
+        container: department-toolbar / inline-size;
+        align-self: stretch;
+        min-height: 0;
+
+        .o_control_panel {
+            position: static;
+            background-color: $nodo-card !important;
+        }
+
+        .o_control_panel_main {
+            flex-wrap: nowrap !important;
+        }
+
+        .o_control_panel_breadcrumbs:not(:has(button, a)) {
+            display: none !important;
+        }
+
+        .o_control_panel_navigation {
+            align-items: center;
+            gap: 8px !important;
+            margin-inline-start: auto;
+        }
+
+        .o_cp_searchview,
+        .o_cp_switch_buttons > button,
+        .o_nodo_department_toolbar_more button,
+        .o_cp_pager button {
+            min-height: 36px;
+        }
+
+        .o_cp_switch_buttons > button,
+        .o_nodo_department_toolbar_more button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .o_nodo_department_toolbar_more button {
+            min-width: 36px;
+        }
+    }
+
+    .o_nodo_department_card_scroll {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        border-radius: 0 0 14px 14px;
+    }
+
+    @container department-toolbar (max-width: 640px) {
+        .o_nodo_roster_card {
+            .o_control_panel_main {
+                flex-wrap: wrap !important;
+            }
+
+            .o_control_panel_actions {
+                flex: 0 1 100%;
+            }
+
+            .o_cp_searchview {
+                max-width: none;
+            }
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .o_nodo_department_workspace {
+            flex-direction: column;
+        }
+    }
+}
+
 .o_nodo_department_directory {
     .o_nodo_department_card {
         display: flex;
