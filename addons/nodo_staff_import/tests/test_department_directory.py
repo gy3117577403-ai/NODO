@@ -63,6 +63,16 @@ class TestDepartmentDirectory(TransactionCase):
                 count = department.nodo_direct_staff_count if direct else department.nodo_branch_staff_count
                 self.assertEqual(count, len(expected))
 
+    def test_empty_department_uses_employee_list_without_sample_rows(self):
+        empty_department = self.workshop.with_user(self.hr).with_context(nodo_department_direct=True)
+        action = empty_department.action_nodo_view_department_staff()
+        employees = self.env[action['res_model']].with_user(self.hr)
+        self.assertEqual(employees.search_count(action['domain']), 0)
+        view_id, view_type = action['views'][0]
+        self.assertEqual(view_type, 'list')
+        arch = etree.fromstring(employees.get_view(view_id, view_type)['arch'])
+        self.assertEqual(arch.get('sample'), '0')
+
     def test_manager_without_hr_access_uses_public_employees_and_visible_departments(self):
         member = new_test_user(self.env, login='department-member@nodo.test', groups='base.group_user')
         self.manager.user_id = member

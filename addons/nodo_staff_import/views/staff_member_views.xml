@@ -12,6 +12,7 @@
             <xpath expr="//list" position="attributes">
                 <attribute name="js_class">nodo_staff_directory</attribute>
                 <attribute name="default_order">nodo_department_path, name, id</attribute>
+                <attribute name="sample">0</attribute>
             </xpath>
             <xpath expr="//list/field[@name='avatar_128']" position="attributes">
                 <attribute name="options">{'size': [32, 32], 'img_class': 'rounded-circle o_nodo_staff_avatar_image'}</attribute>
