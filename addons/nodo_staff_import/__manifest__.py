@@ -13,6 +13,7 @@
         'views/staff_detail_views.xml',
         'views/staff_public_directory_views.xml',
         'views/staff_department_directory_views.xml',
+        'views/employee_plan_views.xml',
         'views/linked_account_views.xml',
     ],
     'assets': {
@@ -31,6 +32,9 @@
             'nodo_staff_import/static/src/department_directory.js',
             'nodo_staff_import/static/src/department_directory.xml',
             'nodo_staff_import/static/src/department_directory.scss',
+            'nodo_staff_import/static/src/employee_plan.js',
+            'nodo_staff_import/static/src/employee_plan.xml',
+            'nodo_staff_import/static/src/employee_plan.scss',
             'nodo_staff_import/static/src/employee_detail.js',
             'nodo_staff_import/static/src/employee_detail.xml',
             'nodo_staff_import/static/src/employee_detail.scss',

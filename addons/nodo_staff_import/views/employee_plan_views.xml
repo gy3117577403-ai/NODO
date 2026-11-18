@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="employee_plan_list" model="ir.ui.view">
+        <field name="name">mail.activity.plan.list.nodo.employee</field>
+        <field name="model">mail.activity.plan</field>
+        <field name="inherit_id" ref="mail.mail_activity_plan_view_tree"/>
+        <field name="mode">primary</field>
+        <field name="priority">42</field>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <attribute name="js_class">nodo_employee_plan_list</attribute>
+                <attribute name="string">员工计划</attribute>
+                <attribute name="sample">0</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='name']" position="attributes">
+                <attribute name="string">计划名称</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='department_id']" position="attributes">
+                <attribute name="string">适用范围</attribute>
+                <attribute name="widget">nodo_employee_plan_scope</attribute>
+                <attribute name="column_invisible"/>
+            </xpath>
+            <xpath expr="//list/field[@name='steps_count']" position="attributes">
+                <attribute name="string">步骤数</attribute>
+                <attribute name="width">88</attribute>
+            </xpath>
+            <xpath expr="//list/field[@name='res_model_id']" position="replace"/>
+        </field>
+    </record>
+
+    <record id="employee_plan_kanban" model="ir.ui.view">
+        <field name="name">mail.activity.plan.kanban.nodo.employee</field>
+        <field name="model">mail.activity.plan</field>
+        <field name="inherit_id" ref="mail.mail_activity_plan_view_kanban"/>
+        <field name="mode">primary</field>
+        <field name="priority">42</field>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="attributes">
+                <attribute name="js_class">nodo_employee_plan_kanban</attribute>
+                <attribute name="sample">0</attribute>
+                <attribute name="records_draggable">0</attribute>
+            </xpath>
+            <xpath expr="//templates/t[@t-name='card']" position="replace">
+                <t t-name="card">
+                    <div class="o_nodo_employee_plan_card">
+                        <field name="name" class="o_nodo_employee_plan_name"/>
+                        <div class="o_nodo_employee_plan_card_details">
+                            <field name="department_id" widget="nodo_employee_plan_scope"/>
+                            <span><strong><field name="steps_count"/></strong> 个步骤</span>
+                        </div>
+                    </div>
+                </t>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="employee_plan_search" model="ir.ui.view">
+        <field name="name">mail.activity.plan.search.nodo.employee</field>
+        <field name="model">mail.activity.plan</field>
+        <field name="inherit_id" ref="mail.mail_activity_plan_view_search"/>
+        <field name="mode">primary</field>
+        <field name="priority">42</field>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[@name='name']" position="attributes">
+                <attribute name="string">计划名称</attribute>
+            </xpath>
+            <xpath expr="//search/field[@name='name']" position="after">
+                <field name="department_id" string="适用部门"/>
+            </xpath>
+            <xpath expr="//filter[@name='group_by_model']" position="replace">
+                <filter string="按部门分组" name="group_by_department" domain="[]" context="{'group_by': 'department_id'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="employee_plan_step_form" model="ir.ui.view">
+        <field name="name">mail.activity.plan.template.form.nodo.employee</field>
+        <field name="model">mail.activity.plan.template</field>
+        <field name="inherit_id" ref="mail.mail_activity_plan_template_view_form"/>
+        <field name="mode">primary</field>
+        <field name="priority">42</field>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="string">计划步骤</attribute>
+                <attribute name="class" add="o_nodo_employee_plan_step" separator=" "/>
+            </xpath>
+            <xpath expr="//field[@name='activity_type_id']" position="attributes">
+                <attribute name="string">活动类型</attribute>
+            </xpath>
+            <xpath expr="//field[@name='summary']" position="attributes">
+                <attribute name="string">活动内容</attribute>
+                <attribute name="placeholder">例如：安排入职培训</attribute>
+            </xpath>
+            <xpath expr="//field[@name='responsible_type'][1]" position="attributes">
+                <attribute name="string">负责人规则</attribute>
+                <attribute name="widget">nodo_employee_plan_selection</attribute>
+            </xpath>
+            <xpath expr="//field[@name='responsible_id']" position="attributes">
+                <attribute name="string">指定人员</attribute>
+            </xpath>
+            <xpath expr="//field[@name='role_id']" position="attributes">
+                <attribute name="string">指定角色</attribute>
+            </xpath>
+            <xpath expr="//label[@for='delay_count']" position="attributes">
+                <attribute name="string">截止时间</attribute>
+            </xpath>
+            <xpath expr="//field[@name='delay_count']/.." position="attributes">
+                <attribute name="class" add="o_nodo_employee_plan_delay" separator=" "/>
+            </xpath>
+            <xpath expr="//field[@name='delay_count']" position="attributes">
+                <attribute name="help">以计划日期为基准填写间隔。填写 0 表示计划当天。</attribute>
+            </xpath>
+            <xpath expr="//field[@name='delay_unit']" position="attributes">
+                <attribute name="widget">nodo_employee_plan_selection</attribute>
+                <attribute name="help">选择间隔的单位。</attribute>
+            </xpath>
+            <xpath expr="//field[@name='delay_from']" position="attributes">
+                <attribute name="widget">nodo_employee_plan_selection</attribute>
+            </xpath>
+            <xpath expr="//field[@name='suggested_next_type_id']" position="attributes">
+                <attribute name="string">建议下一活动</attribute>
+            </xpath>
+            <xpath expr="//field[@name='note']" position="before">
+                <label for="note" string="备注"/>
+            </xpath>
+            <xpath expr="//field[@name='note']" position="attributes">
+                <attribute name="placeholder">填写步骤说明</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="employee_plan_form" model="ir.ui.view">
+        <field name="name">mail.activity.plan.form.nodo.employee</field>
+        <field name="model">mail.activity.plan</field>
+        <field name="inherit_id" ref="hr.mail_activity_plan_view_form_hr_employee"/>
+        <field name="mode">primary</field>
+        <field name="priority">42</field>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="string">员工计划</attribute>
+                <attribute name="class" add="o_nodo_employee_plan_form" separator=" "/>
+            </xpath>
+            <xpath expr="//sheet//field[@name='name']" position="attributes">
+                <attribute name="placeholder">例如：入职计划</attribute>
+            </xpath>
+            <xpath expr="//sheet//label[@for='name']" position="attributes">
+                <attribute name="string">计划名称</attribute>
+            </xpath>
+            <xpath expr="//sheet//widget[@name='web_ribbon']" position="attributes">
+                <attribute name="title">已归档</attribute>
+            </xpath>
+            <xpath expr="//group[@name='group_plan_fields']//field[@name='res_model']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//group[@name='group_plan_fields']//field[@name='company_id']" position="attributes">
+                <attribute name="string">公司</attribute>
+                <attribute name="placeholder">所有可访问公司</attribute>
+            </xpath>
+            <xpath expr="//field[@name='department_id']" position="attributes">
+                <attribute name="string">适用部门</attribute>
+                <attribute name="placeholder">通用（全部部门）</attribute>
+            </xpath>
+            <xpath expr="//page[field[@name='template_ids']]" position="attributes">
+                <attribute name="string">计划步骤</attribute>
+            </xpath>
+            <xpath expr="//field[@name='template_ids']" position="attributes">
+                <attribute name="string">计划步骤</attribute>
+                <attribute name="context">{'default_res_model': res_model, 'form_view_ref': 'nodo_staff_import.employee_plan_step_form'}</attribute>
+            </xpath>
+            <xpath expr="//field[@name='template_ids']/list" position="replace">
+                <list string="计划步骤">
+                    <control><create string="添加步骤"/></control>
+                    <field name="sequence" widget="handle"/>
+                    <field name="summary" string="活动内容"/>
+                    <field name="activity_type_id" string="活动类型" optional="show"/>
+                    <field name="responsible_type" string="负责人规则" widget="nodo_employee_plan_selection"/>
+                    <field name="delay_count" string="截止时间" widget="nodo_employee_plan_deadline"/>
+                    <field name="responsible_id" string="指定人员" widget="many2one_avatar_user" optional="hide"/>
+                    <field name="role_id" string="指定角色" optional="hide"/>
+                    <field name="suggested_next_type_id" string="建议下一活动" optional="hide"/>
+                </list>
+            </xpath>
+            <xpath expr="//field[@name='template_ids']/kanban" position="replace">
+                <kanban class="o_kanban_mobile">
+                    <templates>
+                        <t t-name="card">
+                            <field name="summary" class="fw-semibold"/>
+                            <field name="activity_type_id"/>
+                            <field name="responsible_type" widget="nodo_employee_plan_selection" readonly="1"/>
+                            <field name="delay_count" widget="nodo_employee_plan_deadline"/>
+                        </t>
+                    </templates>
+                </kanban>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr.mail_activity_plan_action_employee_view_tree" model="ir.actions.act_window.view">
+        <field name="view_id" ref="employee_plan_list"/>
+    </record>
+    <record id="employee_plan_action_kanban" model="ir.actions.act_window.view">
+        <field name="sequence">2</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="employee_plan_kanban"/>
+        <field name="act_window_id" ref="hr.mail_activity_plan_action"/>
+    </record>
+    <record id="hr.mail_activity_plan_action_employee_view_form" model="ir.actions.act_window.view">
+        <field name="sequence">3</field>
+        <field name="view_id" ref="employee_plan_form"/>
+    </record>
+    <record id="hr.mail_activity_plan_action" model="ir.actions.act_window">
+        <field name="name">员工计划</field>
+        <field name="search_view_id" ref="employee_plan_search"/>
+        <field name="help" type="html">
+            <p>暂无符合条件的员工计划</p>
+            <p>可以修改搜索条件，或新建一个计划。</p>
+        </field>
+    </record>
+    <record id="hr.menu_config_plan_plan" model="ir.ui.menu">
+        <field name="name">员工计划</field>
+    </record>
+    <function model="mail.activity.plan" name="_nodo_localize_employee_plan_defaults"/>
+</odoo>

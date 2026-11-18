@@ -1,0 +1,118 @@
+.o_nodo_employee_plan_index {
+    .o_nodo_roster_card {
+        .o_control_panel {
+            border-radius: 14px 14px 0 0;
+            background: $nodo-card !important;
+        }
+
+        .o_kanban_renderer.o_kanban_ungrouped {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(#{'min(100%, 250px)'}, 1fr));
+            min-height: 0;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 0 0 14px 14px;
+            background-color: mix($nodo-panel, $nodo-card, 65%);
+
+            > .o_kanban_record {
+                width: auto;
+                min-width: 0;
+                min-height: 90px;
+                margin: 0;
+            }
+
+            > .o_kanban_ghost {
+                display: none;
+            }
+
+            > .o_view_nocontent {
+                grid-column: 1 / -1;
+                position: static;
+                min-height: 140px;
+            }
+        }
+    }
+
+    .o_list_table .o_data_cell[name="name"] {
+        font-weight: 650;
+    }
+
+    .o_nodo_employee_plan_general {
+        color: $nodo-text-muted;
+    }
+
+    .o_nodo_employee_plan_card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+
+        .o_field_widget {
+            margin: 0;
+        }
+    }
+
+    .o_nodo_employee_plan_name {
+        font-size: 16px;
+        font-weight: 650;
+    }
+
+    .o_nodo_employee_plan_card_details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        color: $nodo-text-muted;
+    }
+}
+
+.o_nodo_employee_plan_form {
+    .o_form_sheet {
+        max-width: 62rem;
+        padding: clamp(16px, 2.2vw, 28px);
+        border-radius: 15px;
+        background: $nodo-card !important;
+        box-shadow: 0 6px 20px -14px $nodo-glass-shade;
+    }
+
+    .oe_title {
+        width: 100%;
+
+        h1 {
+            margin-block-start: 4px;
+            font-size: clamp(22px, 3vw, 30px);
+            font-weight: 650;
+        }
+    }
+
+    .o_list_table th {
+        font-weight: 600;
+    }
+}
+
+.o_nodo_employee_plan_step {
+    .o_form_sheet {
+        padding: clamp(14px, 2vw, 22px);
+        border: 0;
+    }
+
+    .o_nodo_employee_plan_delay {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .oe-bordered-editor {
+        margin-block-start: 4px;
+    }
+}
+
+@media (min-width: 576px) {
+    .modal-dialog:has(.o_nodo_employee_plan_step) {
+        max-width: 38rem;
+
+        .modal-content {
+            border-radius: 16px;
+        }
+    }
+}
