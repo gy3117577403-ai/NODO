@@ -1,19 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="nodo_staff_import.StaffDirectory" t-inherit="web.ListView" t-inherit-mode="primary">
-        <xpath expr="//t[@t-set-slot='control-panel-navigation-additional']" position="inside">
-            <div t-if="this.nodoCanAddMember and !this.hasSelectedRecords and !this.editedRecord"
-                 class="o_nodo_staff_actions d-inline-flex gap-2">
-                <button type="button" class="btn btn-secondary text-nowrap" t-on-click="this.importMembers"
-                        t-att-disabled="this.offlinePlugin.isOffline()">导入人员</button>
-                <button type="button" class="btn btn-primary o_nodo_add_member text-nowrap"
-                        t-on-click="this.openMemberDialog"
-                        t-att-disabled="this.openingMember() or this.offlinePlugin.isOffline()">
-                    <i class="oi" data-icon="add" aria-hidden="true"/> 添加成员
-                </button>
-            </div>
+        <xpath expr="//Layout" position="before">
+            <header class="o_nodo_staff_page_header" t-if="!this.env.inDialog">
+                <div>
+                    <h1>员工名单</h1>
+                    <p t-if="this.memberCountLabel" role="status" t-out="this.memberCountLabel"/>
+                </div>
+                <div t-if="this.nodoCanAddMember and !this.hasSelectedRecords and !this.editedRecord"
+                     class="o_nodo_staff_actions d-inline-flex gap-2">
+                    <button type="button" class="btn btn-secondary text-nowrap" t-on-click="this.importMembers"
+                            t-att-disabled="this.offlinePlugin.isOffline()">导入人员</button>
+                    <button type="button" class="btn btn-primary o_nodo_add_member text-nowrap"
+                            t-on-click="this.openMemberDialog"
+                            t-att-disabled="this.openingMember() or this.offlinePlugin.isOffline()">
+                        <i class="oi" data-icon="add" aria-hidden="true"/> 添加成员
+                    </button>
+                </div>
+            </header>
         </xpath>
     </t>
+
+    <t t-name="nodo_staff_import.StaffDirectoryLayout" t-inherit="web.Layout" t-inherit-mode="primary">
+        <xpath expr="//t[@t-component='this.components.ControlPanel']" position="replace"/>
+        <xpath expr="//main[hasclass('o_content')]" position="attributes">
+            <attribute name="class" add="o_nodo_staff_workspace" separator=" "/>
+        </xpath>
+        <xpath expr="//t[@t-call-slot='default']" position="replace">
+            <section class="o_nodo_roster_card" aria-label="员工名单">
+                <t t-component="this.components.ControlPanel" slots="this.controlPanelSlots"
+                   t-if="this.props.display.controlPanel" display="this.props.display.controlPanel"/>
+                <t t-call-slot="default" contentRef="this.contentRef"/>
+            </section>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_staff_import.StaffDirectoryControlPanel" t-inherit="web.ControlPanel" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_control_panel_breadcrumbs')]/t[@t-elif]" position="replace"/>
+        <xpath expr="//div[hasclass('o_control_panel_breadcrumbs')]/t[@t-else]" position="replace"/>
+        <xpath expr="//t[@t-if='this.env.config.noBreadcrumbs']" position="attributes">
+            <attribute name="t-if"/>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_pager')]" position="attributes">
+            <attribute name="t-if">this.pagerProps and this.pagerProps.total > this.pagerProps.limit</attribute>
+        </xpath>
+        <xpath expr="//nav[hasclass('o_cp_switch_buttons')]" position="replace"/>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]" position="attributes">
+            <attribute name="t-if"/>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]/Dropdown" position="attributes">
+            <attribute name="menuClass">{o_cp_switch_buttons: true, o_custom_bottom_sheet: this.uiService.isSmall}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]/Dropdown/button" position="attributes">
+            <attribute name="aria-label">切换视图</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_cp_switch_buttons')]/Dropdown/button" position="inside">
+            <span class="ms-1">视图</span>
+        </xpath>
+    </t>
+
     <t t-name="nodo_staff_import.StaffDirectory.Buttons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
         <xpath expr="//button[hasclass('o_list_button_add')]" position="attributes">
             <attribute name="t-if" add="!this.nodoCanAddMember" separator=" and "/>

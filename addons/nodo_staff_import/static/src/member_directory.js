@@ -4,6 +4,8 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useSubEnv } from "@web/owl2/utils";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { Layout } from "@web/search/layout";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { listView } from "@web/views/list/list_view";
@@ -116,8 +118,22 @@ class MemberDialog extends Component {
     }
 }
 
+class StaffDirectoryControlPanel extends ControlPanel {
+    static template = "nodo_staff_import.StaffDirectoryControlPanel";
+}
+
+class StaffDirectoryLayout extends Layout {
+    static template = "nodo_staff_import.StaffDirectoryLayout";
+
+    setup() {
+        super.setup();
+        this.components.ControlPanel = StaffDirectoryControlPanel;
+    }
+}
+
 class StaffDirectoryController extends EmployeeListController {
     static template = "nodo_staff_import.StaffDirectory";
+    static components = { ...EmployeeListController.components, Layout: StaffDirectoryLayout };
     openingMember = signal(false);
     recentMember = signal(null);
 
@@ -137,6 +153,12 @@ class StaffDirectoryController extends EmployeeListController {
 
     get nodoCanAddMember() {
         return this.nodoIsAdministrator && this.activeActions.create && !this.env.inDialog;
+    }
+
+    get memberCountLabel() {
+        if (!this.model.isReady() || this.model.useSampleModel || this.model.root.isGrouped) return "";
+        const { count, hasLimitedCount } = this.model.root;
+        return `${count}${hasLimitedCount ? "+" : ""} 位成员`;
     }
 
     async createRecord(options) {
