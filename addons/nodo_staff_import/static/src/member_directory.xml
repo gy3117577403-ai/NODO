@@ -67,10 +67,28 @@
 
     <t t-name="nodo_staff_import.StaffMemberIdentity">
         <div class="o_nodo_staff_identity">
-            <span class="o_nodo_staff_name" t-out="this.props.record.data[this.props.name]"/>
+            <div class="o_nodo_staff_name_line" t-att-class="{'o_nodo_staff_leader': this.leadershipLabel}">
+                <span class="o_nodo_staff_name" t-out="this.props.record.data[this.props.name]"/>
+                <span t-if="this.leadershipLabel" class="o_nodo_staff_leadership" t-out="this.leadershipLabel"/>
+            </div>
             <span t-if="this.props.record.data.nodo_personnel_number" class="o_nodo_staff_number"
                   t-out="this.props.record.data.nodo_personnel_number"/>
         </div>
+    </t>
+
+    <t t-name="nodo_staff_import.StaffDepartment">
+        <div t-if="this.level" class="o_nodo_staff_department">
+            <span class="o_nodo_department_level" t-att-data-level="this.level" t-out="this.levelLabel"/>
+            <div class="o_nodo_staff_department_path" t-out="this.props.record.data[this.props.name]"/>
+        </div>
+    </t>
+
+    <t t-name="nodo_staff_import.DepartmentCategory" t-inherit="web.SearchPanel.Category" t-inherit-mode="primary">
+        <xpath expr="//span[hasclass('o_search_panel_label_title')]" position="before">
+            <t t-set="level" t-value="this.departmentLevel(section, valueId)"/>
+            <span t-if="level" class="o_nodo_department_level" t-att-data-level="level"
+                  t-out="this.departmentLevelLabel(level)"/>
+        </xpath>
     </t>
 
     <t t-name="nodo_staff_import.MemberDialog">

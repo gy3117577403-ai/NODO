@@ -1,4 +1,13 @@
 @media screen {
+    :is(.o_field_image, .o_field_nodo_staff_avatar) img.o_nodo_staff_avatar_image {
+        display: block;
+        inline-size: var(--nodo-staff-avatar-size, 32px);
+        block-size: var(--nodo-staff-avatar-size, 32px);
+        object-fit: cover;
+        object-position: center;
+        background-color: mix($nodo-primary, $nodo-card, 10%);
+    }
+
     .o_form_view_container:has(> .o_content > .o_nodo_staff_detail) {
         --nodo-staff-gutter: clamp(16px, 3.4vw, 44px);
 
@@ -78,6 +87,7 @@
             padding: var(--nodo-profile-padding);
 
             .o_employee_avatar {
+                --nodo-staff-avatar-size: 68px;
                 flex: none;
 
                 .o_field_nodo_staff_avatar {
@@ -176,13 +186,6 @@
         .o_nodo_profile_statuses .o_field_badge {
             display: flex;
             align-items: center;
-        }
-
-        .o_nodo_profile_archived {
-            padding: 4px 9px;
-            background-color: mix($nodo-danger-text, $nodo-card, 9%);
-            color: $nodo-danger-text;
-            font-weight: 500;
         }
 
         .o_nodo_profile_actions {

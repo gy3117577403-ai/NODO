@@ -23,6 +23,9 @@ def field_error(field, message, employee_id=None):
 class HrEmployee(models.Model):
     _inherit = 'hr.employee'
 
+    nodo_department_path = fields.Char(string='部门', related='department_id.nodo_directory_path')
+    nodo_department_level = fields.Integer(compute='_compute_nodo_department_level')
+
     nodo_personnel_number = fields.Char(
         string='人员编号', copy=False, index='btree_not_null', groups='base.group_system',
         help='公司内唯一的稳定编号，用于后续名单导入匹配。',
@@ -47,6 +50,11 @@ class HrEmployee(models.Model):
         [('none', '未开通'), ('active', '已开通'), ('disabled', '已停用')],
         string='账号状态', compute='_compute_nodo_account_state', groups='base.group_system',
     )
+
+    @api.depends('department_id.parent_path')
+    def _compute_nodo_department_level(self):
+        for employee in self:
+            employee.nodo_department_level = (employee.department_id.parent_path or '').count('/')
 
     def _nodo_review_badge(self, pending):
         self.ensure_one()

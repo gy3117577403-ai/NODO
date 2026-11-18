@@ -43,6 +43,36 @@ class TestMemberDirectory(TransactionCase):
         view = self.env.ref('nodo_staff_import.staff_member_directory_list')
         self.assertEqual(tuple(self.env.ref('hr.open_view_employee_list_my').views[0]), (view.id, 'list'))
 
+    def test_department_path_sort_spans_pages_and_follows_hierarchy_changes(self):
+        departments = self.env['hr.department']
+        east, west = departments.create([
+            {'name': 'A 工程部', 'company_id': self.company.id},
+            {'name': 'Z 工程部', 'company_id': self.company.id},
+        ])
+        east_group, west_group = departments.create([
+            {'name': '配线组', 'parent_id': east.id, 'company_id': self.company.id},
+            {'name': '配线组', 'parent_id': west.id, 'company_id': self.company.id},
+        ])
+        east_person, west_person = self.employee.create([
+            {'name': '周谨', 'department_id': east_group.id},
+            {'name': '安禾', 'department_id': west_group.id},
+        ])
+        directory = self.employee.with_user(self.officer)
+        domain = [('id', 'in', (east_person | west_person).ids)]
+        order = 'nodo_department_path, name, id'
+        self.assertEqual(directory.search(domain, order=order, limit=1), east_person)
+        self.assertEqual(directory.search(domain, order=order, limit=1, offset=1), west_person)
+        self.assertEqual(directory.search(domain, order='nodo_department_path desc', limit=1), west_person)
+        self.assertEqual(east_person.nodo_department_level, 2)
+        self.assertEqual(east_person.nodo_department_path, 'A 工程部 / 配线组')
+
+        east.name = 'ZZ 工程部'
+        self.assertEqual(directory.search(domain, order=order, limit=1), west_person)
+        self.assertEqual(east_person.nodo_department_path, 'ZZ 工程部 / 配线组')
+        east_group.parent_id = west_group
+        self.assertEqual(east_person.nodo_department_level, 3)
+        self.assertEqual(east_person.nodo_department_path, 'Z 工程部 / 配线组 / 配线组')
+
     def test_duplicate_number_blocks_save_and_same_name_can_be_confirmed(self):
         first = self.directory.nodo_add_member({**self.values, 'number': 'A_07'})
         with self.assertRaisesRegex(ValidationError, '人员编号已被使用') as raised:

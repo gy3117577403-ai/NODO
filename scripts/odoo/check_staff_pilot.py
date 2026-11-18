@@ -15,6 +15,17 @@ def source_records(model, kind):
     return records
 
 
+def avatar_digest(people):
+    image_checksums = []
+    for person in people:
+        value = person.image_1920
+        content = getattr(value, 'content', value) or b''
+        if isinstance(content, str):
+            content = content.encode()
+        image_checksums.append([person.id, hashlib.sha256(content).hexdigest()])
+    return hashlib.sha256(json.dumps(image_checksums).encode()).hexdigest()
+
+
 def check_roster():
     if env.cr.dbname != 'nodo_staff_pilot':
         raise SystemExit('请在独立人员试点库核对架构图档案')
@@ -66,6 +77,12 @@ def check_roster():
         'additional_departments': len(additional_departments),
         'people_in_additional_departments': sum(person.department_id in additional_departments for person in active_people),
         'root_departments': sum(not department.parent_id for department in active_departments),
+        'department_levels': sorted({(department.parent_path or '').count('/') for department in active_departments}),
+        'department_managers': len(active_departments.manager_id & active_people),
+        'leader_titles': {
+            title: sum((person.job_title or '').strip().endswith(title) for person in active_people)
+            for title in ('组长', '主管')
+        },
         'no_department': sum(not person.department_id for person in active_people),
         'pending': sum(review_tag in person.category_ids for person in active_people),
         'missing_job': sum(not (person.job_id or person.job_title) for person in active_people),
@@ -74,6 +91,7 @@ def check_roster():
         'new_directory_view': bool(directory and views.get('list') == directory.id),
         'new_detail_view': bool(detail and views.get('form') == detail.id),
         'data_sha256': hashlib.sha256(json.dumps(content, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+        'avatars_sha256': avatar_digest(people),
     }
     env.cr.rollback()
     print('NODO_STAFF_PILOT_CHECK', json.dumps(report))

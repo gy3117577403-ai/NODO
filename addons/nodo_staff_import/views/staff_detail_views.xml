@@ -17,7 +17,7 @@
                    position="attributes">
                 <attribute name="widget">nodo_staff_avatar</attribute>
                 <attribute name="alt">员工头像</attribute>
-                <attribute name="options">{'size': [68, 68], 'zoom': True, 'preview_image': 'avatar_128', 'img_class': 'object-fit-cover'}</attribute>
+                <attribute name="options">{'size': [68, 68], 'zoom': True, 'preview_image': 'avatar_128', 'img_class': 'o_nodo_staff_avatar_image'}</attribute>
             </xpath>
             <xpath expr="//div[@name='employee_photo_and_info']/group/h1" position="attributes">
                 <attribute name="class">o_nodo_profile_name</attribute>
@@ -35,12 +35,12 @@
                             <span invisible="nodo_personnel_number">未填写</span>
                         </div>
                         <div class="o_nodo_profile_statuses">
-                            <span class="badge rounded-pill o_nodo_profile_archived" invisible="active">已归档</span>
-                            <field name="nodo_review_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                            <span class="badge o_nodo_status_key text-bg-danger" invisible="active">已归档</span>
+                            <field name="nodo_review_state" widget="badge" class="o_nodo_status_key" groups="base.group_system"
                                    decoration-warning="nodo_review_state == 'pending'"
                                    decoration-success="nodo_review_state == 'complete'"
                                    decoration-muted="nodo_review_state == 'unknown'"/>
-                            <field name="nodo_account_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                            <field name="nodo_account_state" widget="badge" class="o_nodo_status_key" groups="base.group_system"
                                    decoration-success="nodo_account_state == 'active'"
                                    decoration-muted="nodo_account_state == 'none'"
                                    decoration-danger="nodo_account_state == 'disabled'"/>

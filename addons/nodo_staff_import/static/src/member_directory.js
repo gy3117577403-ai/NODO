@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useSubEnv } from "@web/owl2/utils";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { Layout } from "@web/search/layout";
+import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { listView } from "@web/views/list/list_view";
@@ -13,11 +14,41 @@ import { listView } from "@web/views/list/list_view";
 class StaffMemberIdentity extends Component {
     static template = "nodo_staff_import.StaffMemberIdentity";
     props = useProps(standardFieldProps);
+
+    get leadershipLabel() {
+        return (this.props.record.data.job_title || "").trim().match(/(组长|主管)$/)?.[1];
+    }
 }
 
 registry.category("fields").add("nodo_member_identity", {
     component: StaffMemberIdentity,
     supportedTypes: ["char"],
+    fieldDependencies: [{ name: "job_title", type: "char" }],
+});
+
+const departmentLevels = ["", "一级", "二级", "三级", "四级", "五级", "六级", "七级", "八级", "九级", "十级"];
+
+function departmentLevelLabel(level) {
+    return departmentLevels[level] ?? `${level}级`;
+}
+
+class StaffDepartment extends Component {
+    static template = "nodo_staff_import.StaffDepartment";
+    props = useProps(standardFieldProps);
+
+    get level() {
+        return this.props.record.data.nodo_department_level;
+    }
+
+    get levelLabel() {
+        return departmentLevelLabel(this.level);
+    }
+}
+
+registry.category("fields").add("nodo_staff_department", {
+    component: StaffDepartment,
+    supportedTypes: ["char"],
+    fieldDependencies: [{ name: "nodo_department_level", type: "integer" }],
 });
 
 class MemberDialog extends Component {
@@ -122,12 +153,27 @@ class StaffDirectoryControlPanel extends ControlPanel {
     static template = "nodo_staff_import.StaffDirectoryControlPanel";
 }
 
+class StaffDirectorySearchPanel extends SearchPanel {
+    static subTemplates = { ...SearchPanel.subTemplates, category: "nodo_staff_import.DepartmentCategory" };
+
+    departmentLevel(section, valueId) {
+        return section.fieldName === "department_id" && valueId
+            ? this.getAncestorValueIds(section, valueId).length + 1
+            : 0;
+    }
+
+    departmentLevelLabel(level) {
+        return departmentLevelLabel(level);
+    }
+}
+
 class StaffDirectoryLayout extends Layout {
     static template = "nodo_staff_import.StaffDirectoryLayout";
 
     setup() {
         super.setup();
         this.components.ControlPanel = StaffDirectoryControlPanel;
+        this.components.SearchPanel = StaffDirectorySearchPanel;
     }
 }
 

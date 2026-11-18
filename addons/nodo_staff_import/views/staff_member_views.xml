@@ -11,9 +11,10 @@
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">
                 <attribute name="js_class">nodo_staff_directory</attribute>
+                <attribute name="default_order">nodo_department_path, name, id</attribute>
             </xpath>
             <xpath expr="//list/field[@name='avatar_128']" position="attributes">
-                <attribute name="options">{'size': [32, 32], 'img_class': 'rounded-circle'}</attribute>
+                <attribute name="options">{'size': [32, 32], 'img_class': 'rounded-circle o_nodo_staff_avatar_image'}</attribute>
                 <attribute name="width">42</attribute>
             </xpath>
             <xpath expr="//list/field[@name='name']" position="attributes">
@@ -29,15 +30,22 @@
             <xpath expr="//list/field[@name='parent_id']" position="attributes">
                 <attribute name="optional">hide</attribute>
             </xpath>
+            <xpath expr="//list/field[@name='department_id']" position="before">
+                <field name="nodo_department_path" string="部门" widget="nodo_staff_department" optional="show"/>
+            </xpath>
+            <xpath expr="//list/field[@name='department_id']" position="attributes">
+                <attribute name="string">部门归属</attribute>
+                <attribute name="optional">hide</attribute>
+            </xpath>
             <xpath expr="//list/field[@name='job_title']" position="attributes">
                 <attribute name="string">岗位</attribute>
             </xpath>
             <xpath expr="//list/field[@name='job_title']" position="after">
-                <field name="nodo_review_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_staff_status"
+                <field name="nodo_review_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_status_key" width="114"
                        decoration-warning="nodo_review_state == 'pending'"
                        decoration-success="nodo_review_state == 'complete'"
                        decoration-muted="nodo_review_state == 'unknown'"/>
-                <field name="nodo_account_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_staff_status"
+                <field name="nodo_account_state" widget="badge" groups="base.group_system" optional="show" class="o_nodo_status_key" width="85"
                        decoration-success="nodo_account_state == 'active'"
                        decoration-muted="nodo_account_state == 'none'"
                        decoration-danger="nodo_account_state == 'disabled'"/>
@@ -55,6 +63,9 @@
         <field name="arch" type="xml">
             <xpath expr="//search/field[@name='name']" position="after">
                 <field name="nodo_personnel_number" groups="base.group_system"/>
+            </xpath>
+            <xpath expr="//searchpanel/field[@name='department_id']" position="attributes">
+                <attribute name="depth">1</attribute>
             </xpath>
         </field>
     </record>

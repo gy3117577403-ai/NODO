@@ -102,6 +102,34 @@ body.o_web_client {
     }
 }
 
+// 只读状态键可用于普通 badge，也可加在原生徽章字段的容器上。
+.o_nodo_status_key.badge,
+.o_nodo_status_key > .badge {
+    --nodo-status-face: #{mix($nodo-text-muted, $nodo-card, 7%)};
+    --nodo-status-edge: #{mix($nodo-text-muted, $nodo-card, 23%)};
+    --nodo-status-ink: #{$nodo-text-muted};
+    display: inline-block;
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--nodo-status-edge);
+    border-radius: 6px !important;
+    background-color: var(--nodo-status-face) !important;
+    box-shadow: inset 0 1px 0 $nodo-glass-rim, 0 2px 0 var(--nodo-status-edge);
+    color: var(--nodo-status-ink) !important;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: normal;
+    overflow-wrap: anywhere;
+
+    @each $tone, $ink in (warning: $nodo-warning-text, success: $nodo-success-text, danger: $nodo-danger-text, info: #245B85, primary: $nodo-primary) {
+        &.text-bg-#{$tone} {
+            --nodo-status-face: #{mix($ink, $nodo-card, 9%)};
+            --nodo-status-edge: #{mix($ink, $nodo-card, 27%)};
+            --nodo-status-ink: #{$ink};
+        }
+    }
+}
+
 // 搜索框：清玻璃
 .o_searchview.form-control {
     border-color: transparent !important;
