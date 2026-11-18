@@ -4,6 +4,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 
 @tagged('nodo', 'post_install', '-at_install')
@@ -96,6 +97,47 @@ class TestMemberDirectory(TransactionCase):
             self.assertEqual(tree[office.id], office_segment['color'])
             self.assertEqual(tree[engineering.id], engineering_segment['color'])
 
+    def test_ordinary_employee_directory_shares_department_colors_and_stays_read_only(self):
+        member = new_test_user(self.env, login='public-directory-member@nodo.test', groups='base.group_user')
+        office = self.env['hr.department'].create({'name': '总经办', 'company_id': self.company.id})
+        assembly = self.env['hr.department'].create({
+            'name': '配线组', 'parent_id': office.id, 'company_id': self.company.id,
+        })
+        employee = self.employee.with_user(self.officer).create({
+            'name': '纪遥', 'department_id': assembly.id,
+        })
+        public_directory = self.env['hr.employee.public'].with_user(member)
+        public_employee = public_directory.search([('id', '=', employee.id)])
+        self.assertTrue(public_employee)
+        self.assertEqual(public_employee.nodo_department_segments, employee.nodo_department_segments)
+        self.assertFalse(public_employee.has_access('write'))
+        self.assertNotIn('nodo_personnel_number', public_directory.fields_get())
+        self.assertNotIn('nodo_account_state', public_directory.fields_get())
+
+        values = public_directory.search_panel_select_range('department_id', search_domain=[
+            ('id', '=', employee.id),
+        ])['values']
+        colors = {value['id']: value['nodo_color'] for value in values}
+        for segment in public_employee.nodo_department_segments:
+            self.assertEqual(colors[segment['id']], segment['color'])
+
+    def test_public_directory_uses_its_kanban_and_searches_public_fields(self):
+        member = new_test_user(self.env, login='public-directory-search@nodo.test', groups='base.group_user')
+        employee = self.employee.create({
+            'name': '闻理', 'job_title': '工序协调员', 'work_email': 'wells@nodo.test',
+        })
+        public_directory = self.env['hr.employee.public'].with_user(member)
+        action = self.env.ref('hr.hr_employee_public_action')
+        custom_view = self.env.ref('nodo_staff_import.staff_public_directory_kanban')
+        self.assertEqual(tuple(action.views[0]), (custom_view.id, 'kanban'))
+        self.assertEqual([view_type for _, view_type in action.views], ['kanban', 'list', 'hierarchy', 'form'])
+        view = public_directory.get_view(view_id=action.search_view_id.id, view_type='search')
+        search_arch = etree.fromstring(view['arch'])
+        search_domain = search_arch.find("field[@name='name']").get('filter_domain')
+        for keyword in ('闻理', '工序协调', 'wells@nodo.test'):
+            with self.subTest(keyword=keyword):
+                domain = safe_eval(search_domain, {'self': keyword})
+                self.assertIn(employee.id, public_directory.search(domain).ids)
 
     def test_duplicate_number_blocks_save_and_same_name_can_be_confirmed(self):
         first = self.directory.nodo_add_member({**self.values, 'number': 'A_07'})

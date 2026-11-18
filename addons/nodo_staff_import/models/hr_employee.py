@@ -54,20 +54,15 @@ class HrEmployee(models.Model):
     @api.depends('department_id.parent_path', 'department_id.nodo_directory_path')
     @api.depends_context('uid', 'company')
     def _compute_nodo_department_segments(self):
-        nodes = self.env['hr.department']._nodo_directory_nodes() if self.department_id else {}
+        paths = self.department_id._nodo_directory_segments()
         for employee in self:
-            path = (employee.department_id.parent_path or '').split('/')
-            segments = [nodes.get(int(identifier)) for identifier in path if identifier]
-            employee.nodo_department_segments = segments if all(segments) else []
+            employee.nodo_department_segments = paths.get(employee.department_id.id, [])
 
     @api.model
     def search_panel_select_range(self, field_name, **kwargs):
         result = super().search_panel_select_range(field_name, **kwargs)
         if field_name == 'department_id' and result.get('values'):
-            nodes = self.env['hr.department']._nodo_directory_nodes()
-            for value in result['values']:
-                if value['id'] in nodes:
-                    value['nodo_color'] = nodes[value['id']]['color']
+            self.env['hr.department']._nodo_color_search_panel_values(result['values'])
         return result
 
     def _nodo_review_badge(self, pending):

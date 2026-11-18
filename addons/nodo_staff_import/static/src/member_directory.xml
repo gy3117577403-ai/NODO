@@ -27,7 +27,7 @@
             <attribute name="class" add="o_nodo_staff_workspace" separator=" "/>
         </xpath>
         <xpath expr="//t[@t-call-slot='default']" position="replace">
-            <section class="o_nodo_roster_card" aria-label="员工名单">
+            <section class="o_nodo_roster_card" t-att-aria-label="this.constructor.rosterLabel">
                 <t t-component="this.components.ControlPanel" slots="this.controlPanelSlots"
                    t-if="this.props.display.controlPanel" display="this.props.display.controlPanel"/>
                 <t t-call-slot="default" contentRef="this.contentRef"/>
@@ -42,7 +42,7 @@
             <attribute name="t-if"/>
         </xpath>
         <xpath expr="//div[hasclass('o_cp_pager')]" position="attributes">
-            <attribute name="t-if">this.pagerProps and this.pagerProps.total > this.pagerProps.limit</attribute>
+            <attribute name="t-if">this.showDirectoryPager</attribute>
         </xpath>
         <xpath expr="//nav[hasclass('o_cp_switch_buttons')]" position="replace"/>
         <xpath expr="//div[hasclass('o_cp_switch_buttons')]" position="attributes">
@@ -77,14 +77,14 @@
     </t>
 
     <t t-name="nodo_staff_import.StaffDepartment">
-        <div t-if="this.departments.length" class="o_nodo_staff_department_path">
+        <div t-if="this.departments.length" class="o_nodo_staff_department_path" t-att-title="this.fullPathLabel">
             <div t-foreach="this.departments" t-as="department" t-key="department.id" class="o_nodo_department_segment">
                 <span t-if="!department_first" class="o_nodo_department_separator">/</span>
                 <div class="o_nodo_department_name" t-att-data-department-id="department.id"
                      t-att-style="this.departmentNameStyle(department.color)" t-out="department.name"/>
             </div>
         </div>
-        <div t-else="" class="o_nodo_staff_department_path" t-out="this.props.record.data[this.props.name]"/>
+        <div t-elif="!this.props.compact" class="o_nodo_staff_department_path" t-out="this.props.record.data[this.props.name]"/>
     </t>
 
     <t t-name="nodo_staff_import.DepartmentCategory" t-inherit="web.SearchPanel.Category" t-inherit-mode="primary">

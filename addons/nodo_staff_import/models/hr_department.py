@@ -24,3 +24,20 @@ class HrDepartment(models.Model):
                 'color': 0 if is_main_office else company_positions[company_id],
             }
         return nodes
+
+    def _nodo_directory_segments(self):
+        if not self:
+            return {}
+        nodes = self._nodo_directory_nodes()
+        paths = {}
+        for department in self:
+            identifiers = (department.parent_path or '').split('/')
+            segments = [nodes.get(int(identifier)) for identifier in identifiers if identifier]
+            paths[department.id] = segments if all(segments) else []
+        return paths
+
+    def _nodo_color_search_panel_values(self, values):
+        nodes = self._nodo_directory_nodes()
+        for value in values:
+            if value['id'] in nodes:
+                value['nodo_color'] = nodes[value['id']]['color']

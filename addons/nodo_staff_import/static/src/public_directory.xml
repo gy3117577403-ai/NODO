@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_staff_import.PublicDirectory" t-inherit="web.KanbanView" t-inherit-mode="primary">
+        <xpath expr="//Layout" position="before">
+            <header class="o_nodo_staff_page_header" t-if="!this.env.inDialog">
+                <div>
+                    <h1>员工目录</h1>
+                    <p t-if="this.memberCountLabel" role="status" t-out="this.memberCountLabel"/>
+                </div>
+            </header>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_staff_import.PublicDirectorySearchBar" t-inherit="web.SearchBar" t-inherit-mode="primary">
+        <xpath expr="//input[@role='searchbox']" position="attributes">
+            <attribute name="placeholder">搜索姓名、岗位或工作邮箱</attribute>
+        </xpath>
+    </t>
+</templates>

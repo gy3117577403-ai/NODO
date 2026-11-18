@@ -1,0 +1,133 @@
+.o_nodo_public_directory {
+    .o_nodo_roster_card {
+        max-height: none;
+
+        .o_control_panel {
+            border-radius: 14px 14px 0 0;
+            background-color: $nodo-card;
+        }
+    }
+
+    .o_kanban_renderer {
+        --Kanban-padding: 14px;
+        --Kanban-gap: 12px;
+
+        min-height: 0;
+        border: 0;
+        border-radius: 0 0 14px 14px;
+        background-color: mix($nodo-panel, $nodo-card, 65%);
+    }
+
+    .o_kanban_renderer.o_kanban_ungrouped {
+        display: grid !important;
+        // Compile the mixed-unit minimum as a browser CSS function.
+        grid-template-columns: repeat(auto-fill, minmax(#{'min(100%, 238px)'}, 1fr));
+        min-height: 0;
+        overflow: visible;
+
+        > .o_kanban_record {
+            width: auto;
+            min-width: 0;
+            margin: 0;
+        }
+
+        > .o_kanban_ghost {
+            display: none;
+        }
+
+        > .o_view_nocontent {
+            grid-column: 1 / -1;
+            position: static;
+            min-height: 140px;
+        }
+    }
+
+    .o_kanban_record:not(.o_kanban_ghost) {
+        --Card-padding-h: 14px;
+        --Card-padding-v: 12px;
+
+        min-height: 96px;
+
+        &:hover {
+            box-shadow: inset 0 0 0 1px $nodo-accent, 0 3px 9px -6px $nodo-glass-shade;
+        }
+
+        &:focus-visible {
+            outline: 2px solid $nodo-accent;
+            outline-offset: -2px;
+        }
+    }
+
+    .o_nodo_public_member {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .o_nodo_public_avatar {
+        --nodo-staff-avatar-size: 48px;
+
+        flex: 0 0 48px;
+    }
+
+    .o_nodo_public_member_text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+
+        > .o_field_widget {
+            max-width: 100%;
+            margin: 0;
+        }
+
+        .o_nodo_public_job {
+            color: $nodo-text-muted;
+            font-size: 13px;
+        }
+
+        .o_nodo_staff_department_path {
+            margin-top: 2px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .o_nodo_staff_workspace {
+            overflow: auto;
+
+            > .o_search_panel,
+            > .o_search_panel_sidebar {
+                position: sticky;
+                top: 0;
+            }
+        }
+
+        .o_nodo_roster_card .o_control_panel {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .o_nodo_staff_workspace {
+            gap: 10px;
+
+            > .o_search_panel {
+                max-width: 100%;
+                padding: 0 6px !important;
+
+                > div:first-child {
+                    flex-wrap: wrap;
+                    border-top: 0 !important;
+                }
+            }
+        }
+    }
+}

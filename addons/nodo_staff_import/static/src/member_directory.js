@@ -34,21 +34,38 @@ function departmentNameStyle(color) {
 
 class StaffDepartment extends Component {
     static template = "nodo_staff_import.StaffDepartment";
-    props = useProps(standardFieldProps);
+    props = useProps({ ...standardFieldProps, compact: t.boolean().optional() });
 
     departmentNameStyle = departmentNameStyle;
 
-    get departments() {
+    get departmentPath() {
         const segments = this.props.record.data.nodo_department_segments;
         return Array.isArray(segments) ? segments : [];
+    }
+
+    get departments() {
+        return this.props.compact ? this.departmentPath.slice(-2) : this.departmentPath;
+    }
+
+    get fullPathLabel() {
+        if (this.props.compact) {
+            return this.departmentPath.map((department) => department.name).join(" / ");
+        }
     }
 }
 
 registry.category("fields").add("nodo_staff_department", {
     component: StaffDepartment,
-    supportedTypes: ["char"],
+    supportedTypes: ["char", "many2one"],
     fieldDependencies: [{ name: "nodo_department_segments", type: "json" }],
+    extractProps: ({ options }) => ({ compact: Boolean(options.compact) }),
 });
+
+export function memberCountLabel(model) {
+    if (!model.isReady() || model.useSampleModel || model.root.isGrouped) return "";
+    const { count, hasLimitedCount } = model.root;
+    return `${count}${hasLimitedCount ? "+" : ""} 位成员`;
+}
 
 class MemberDialog extends Component {
     static template = "nodo_staff_import.MemberDialog";
@@ -148,8 +165,12 @@ class MemberDialog extends Component {
     }
 }
 
-class StaffDirectoryControlPanel extends ControlPanel {
+export class StaffDirectoryControlPanel extends ControlPanel {
     static template = "nodo_staff_import.StaffDirectoryControlPanel";
+
+    get showDirectoryPager() {
+        return this.pagerProps && this.pagerProps.total > this.pagerProps.limit;
+    }
 }
 
 class StaffDirectorySearchPanel extends SearchPanel {
@@ -158,12 +179,14 @@ class StaffDirectorySearchPanel extends SearchPanel {
     departmentNameStyle = departmentNameStyle;
 }
 
-class StaffDirectoryLayout extends Layout {
+export class StaffDirectoryLayout extends Layout {
     static template = "nodo_staff_import.StaffDirectoryLayout";
+    static rosterLabel = "员工名单";
+    static ControlPanel = StaffDirectoryControlPanel;
 
     setup() {
         super.setup();
-        this.components.ControlPanel = StaffDirectoryControlPanel;
+        this.components.ControlPanel = this.constructor.ControlPanel;
         this.components.SearchPanel = StaffDirectorySearchPanel;
     }
 }
@@ -193,9 +216,7 @@ class StaffDirectoryController extends EmployeeListController {
     }
 
     get memberCountLabel() {
-        if (!this.model.isReady() || this.model.useSampleModel || this.model.root.isGrouped) return "";
-        const { count, hasLimitedCount } = this.model.root;
-        return `${count}${hasLimitedCount ? "+" : ""} 位成员`;
+        return memberCountLabel(this.model);
     }
 
     async createRecord(options) {

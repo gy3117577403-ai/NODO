@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="staff_public_directory_kanban" model="ir.ui.view">
+        <field name="name">hr.employee.public.kanban.nodo.directory</field>
+        <field name="model">hr.employee.public</field>
+        <field name="inherit_id" ref="hr.hr_employee_public_view_kanban"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="attributes">
+                <attribute name="js_class">nodo_public_directory</attribute>
+                <attribute name="sample">0</attribute>
+                <attribute name="create">0</attribute>
+                <attribute name="edit">0</attribute>
+                <attribute name="delete">0</attribute>
+            </xpath>
+            <xpath expr="//kanban/field[@name='show_hr_icon_display']" position="replace"/>
+            <xpath expr="//kanban/field[@name='image_256']" position="replace"/>
+            <xpath expr="//kanban/field[@name='work_phone_sanitized']" position="replace"/>
+            <xpath expr="//kanban/field[@name='work_phone_formatted']" position="replace"/>
+            <xpath expr="//templates/t[@t-name='card']" position="replace">
+                <t t-name="card">
+                    <div class="o_nodo_public_member">
+                        <field name="avatar_128" widget="image" readonly="1" class="o_nodo_public_avatar m-0" alt="员工头像"
+                               options="{'size': [48, 48], 'img_class': 'rounded-circle o_nodo_staff_avatar_image'}"/>
+                        <div class="o_nodo_public_member_text">
+                            <field name="name" widget="nodo_member_identity"/>
+                            <field t-if="record.job_title.raw_value" name="job_title" class="o_nodo_public_job"/>
+                            <field t-elif="record.job_id.raw_value" name="job_id" class="o_nodo_public_job"
+                                   options="{'no_open': True}"/>
+                            <field name="department_id" widget="nodo_staff_department" options="{'compact': True}"/>
+                        </div>
+                    </div>
+                </t>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr.act_hr_employee_public_kanban_view" model="ir.actions.act_window.view">
+        <field name="view_id" ref="staff_public_directory_kanban"/>
+    </record>
+
+    <record id="hr.hr_employee_public_action" model="ir.actions.act_window">
+        <field name="help" type="html">
+            <p>未找到员工</p>
+            <p>可以更换关键词或清除筛选条件。</p>
+        </field>
+    </record>
+
+    <record id="staff_public_directory_search" model="ir.ui.view">
+        <field name="name">hr.employee.public.search.nodo.directory</field>
+        <field name="model">hr.employee.public</field>
+        <field name="inherit_id" ref="hr.hr_employee_public_view_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[@name='name']" position="attributes">
+                <attribute name="string">姓名、岗位或工作邮箱</attribute>
+                <attribute name="filter_domain">['|', '|', ('name', 'ilike', self), ('job_title', 'ilike', self), ('work_email', 'ilike', self)]</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

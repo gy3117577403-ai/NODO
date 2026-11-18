@@ -170,11 +170,7 @@
         }
     }
 
-    .o_list_table .o_data_row {
-        > .o_data_cell {
-            border-bottom-color: mix($nodo-border, $nodo-card, 72%);
-        }
-
+    .o_nodo_roster_card {
         .o_nodo_staff_identity {
             display: flex;
             flex-direction: column;
@@ -212,6 +208,12 @@
             font-size: 12px;
             font-variant-numeric: tabular-nums;
         }
+    }
+
+    .o_list_table .o_data_row {
+        > .o_data_cell {
+            border-bottom-color: mix($nodo-border, $nodo-card, 72%);
+        }
 
         &.o_nodo_staff_recent > .o_data_cell {
             background-color: $nodo-accent-soft;
@@ -223,18 +225,18 @@
     }
 }
 
-.o_nodo_staff_directory {
-    .o_nodo_department_name {
-        min-width: 0;
-        max-width: 100%;
-        padding: 1px 5px;
-        border-radius: 4px;
-        background-color: hsl(var(--nodo-department-hue), 52%, 91%);
-        color: hsl(var(--nodo-department-hue), 58%, 26%);
-        white-space: normal;
-        overflow-wrap: anywhere;
-    }
+.o_nodo_department_name {
+    min-width: 0;
+    max-width: 100%;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background-color: hsl(var(--nodo-department-hue), 52%, 91%);
+    color: hsl(var(--nodo-department-hue), 58%, 26%);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 
+.o_nodo_staff_directory {
     .o_nodo_staff_department_path {
         display: flex;
         flex-wrap: wrap;
