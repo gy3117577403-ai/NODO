@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="discuss.ChannelInvitation.main" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_nodo_chat_role_filters')]" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesStaffPicker" separator=" and "/>
+        </xpath>
+        <xpath expr="//div[hasclass('flex-grow-1', 'bg-inherit', 'o-min-height-0')][@t-att-class]" position="attributes">
+            <attribute name="t-att-class">{ 'px-1': !this.props.channel, 'o_nodo_staff_people_picker': this.nodoUsesStaffPicker }</attribute>
+        </xpath>
+        <xpath expr="//div[input[@id='o-discuss-ChannelInvitation-search']]" position="after">
+            <div t-if="this.nodoUsesStaffPicker" class="o_nodo_staff_people_filters">
+                <label>
+                    <span>部门</span>
+                    <select class="form-select" aria-label="按部门筛选" t-on-change="this.selectNodoDepartment">
+                        <option value="">全部部门</option>
+                        <option t-foreach="this.nodoDirectory.departmentOptions" t-as="department" t-key="department.id"
+                                t-att-value="department.id" t-att-selected="this.nodoDirectory.department === department.id"
+                                t-out="department.label"/>
+                    </select>
+                </label>
+                <label>
+                    <span>角色</span>
+                    <select class="form-select" aria-label="按角色筛选" t-on-change="(event) => this.selectNodoRole(event.target.value)">
+                        <option value="">全部角色</option>
+                        <t t-foreach="this.nodoDirectory.roleOptions" t-as="role" t-key="role.key">
+                            <option t-if="role.key" t-att-value="role.key" t-att-selected="this.nodoDirectory.role === role.key" t-out="role.label"/>
+                        </t>
+                    </select>
+                </label>
+            </div>
+        </xpath>
+        <xpath expr="//p[@role='status'][contains(@t-if, 'this.nodoUsesChatDirectory')]" position="replace">
+            <p t-if="this.nodoUsesChatDirectory and !this.state.hasPendingRequest and !this.selectablePartners.length"
+               class="mx-1 mt-2 mb-0 smaller o_nodo_chat_role_text" role="status" t-out="this.nodoStaffEmptyText"/>
+        </xpath>
+        <xpath expr="//hr[contains(@t-if, 'invitationLink')]" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesStaffPicker" separator=" and "/>
+        </xpath>
+        <xpath expr="//t[@t-if='this.props.channel?.invitationLink']" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesStaffPicker" separator=" and "/>
+        </xpath>
+        <xpath expr="//div[span[@t-out='this.props.channel.accessRestrictedToGroupText']]" position="attributes">
+            <attribute name="t-if">this.props.channel?.accessRestrictedToGroupText or (!this.nodoUsesStaffPicker and this.props.channel?.invitationLink)</attribute>
+        </xpath>
+        <xpath expr="//button[@t-on-click='this.onClickGenerateNewLink']" position="attributes">
+            <attribute name="t-if" add="!this.nodoUsesStaffPicker" separator=" and "/>
+        </xpath>
+        <xpath expr="//button[@t-on-click='this.onClickInvite']" position="attributes">
+            <attribute name="t-att-disabled">this.nodoUsesStaffPicker and this.nodoDirectory.saving</attribute>
+        </xpath>
+        <xpath expr="//button[contains(@t-on-click, 'this.onClickSelectedPartner')]" position="attributes">
+            <attribute name="title"/>
+            <attribute name="t-att-title">'移除 ' + selectedPartner.name + (selectedPartner.nodo_chat_department ? ' · ' + selectedPartner.nodo_chat_department : '')</attribute>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.ChannelInvitation-selectableItem" t-inherit-mode="extension">
+        <xpath expr="//div[@name='selectablePartnerDetail']" position="inside">
+            <span t-if="this.nodoUsesStaffPicker and selectablePartner.nodo_chat_department"
+                  class="o_nodo_staff_people_department text-truncate smaller" t-att-title="selectablePartner.nodo_chat_department"
+                  t-out="selectablePartner.nodo_chat_department"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="discuss.ChannelMemberList" t-inherit-mode="extension">
+        <xpath expr="//button[@name='inviteButton']" position="replace">
+            <button t-if="this.store.self_user?.share === false and this.props.channel.channel_type === 'channel'" name="inviteButton"
+                    t-on-click="() => this.openChannelInvitationDialog(this.env, this.props.channel)"
+                    class="btn btn-sm btn-primary rounded-3 flex-shrink-0 text-nowrap o-my-0_5" title="添加频道成员" aria-label="添加频道成员">
+                <i class="oi oi-fw me-1 opacity-75" data-icon="person_add"/>添加成员
+            </button>
+            <button t-else="" name="inviteButton" t-on-click="() => this.openChannelInvitationDialog(this.env, this.props.channel)"
+                    class="btn btn-sm btn-primary rounded-3 text-nowrap o-my-0_5" title="添加人员" aria-label="添加人员">
+                <i class="oi oi-fw me-1 opacity-75" data-icon="person_add"/>添加人员
+            </button>
+        </xpath>
+    </t>
+</templates>

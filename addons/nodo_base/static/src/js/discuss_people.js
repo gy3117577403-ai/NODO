@@ -90,25 +90,33 @@ patch(ChannelInvitation.prototype, {
         this.debouncedFetchPartnersToInvite();
     },
 
+    get nodoPeopleSearchFilters() {
+        return { role: this.nodoDirectory.role, channel_id: this.props.channel?.id };
+    },
+
+    applyNodoPeopleSearchOptions(result) {
+        this.nodoDirectory.roleOptions = [{ key: "", label: "全部" }, ...result.role_options];
+    },
+
     async fetchPartnersToInvite() {
         if (!this.nodoUsesChatDirectory) {
             return super.fetchPartnersToInvite(...arguments);
         }
-        const { role, queryVersion } = this.nodoDirectory;
+        const { queryVersion } = this.nodoDirectory;
         const searchTerm = this.searchStr;
         const channel = this.props.channel;
+        const filters = this.nodoPeopleSearchFilters;
         this.state.hasPendingRequest = true;
         try {
             const result = await this.sequential(() => this.orm.call("res.partner", "nodo_search_chat_people", [], {
                 search_term: searchTerm,
-                role,
-                channel_id: channel?.id,
+                ...filters,
             }));
             if (!result || queryVersion !== this.nodoDirectory.queryVersion) {
                 return;
             }
             this.store.insert(result.store_data);
-            this.nodoDirectory.roleOptions = [{ key: "", label: "全部" }, ...result.role_options];
+            this.applyNodoPeopleSearchOptions(result);
             const partners = result.partner_ids.map((id) => this.store["res.partner"].get(id));
             this.selectablePartners = this.suggestionService.sortPartnerSuggestions(partners, searchTerm, channel?.thread);
             this.state.showingPartialResults = result.has_more;
