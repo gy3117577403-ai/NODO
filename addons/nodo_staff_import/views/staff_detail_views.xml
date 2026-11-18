@@ -15,6 +15,8 @@
             </xpath>
             <xpath expr="//div[@name='employee_photo_and_info']/div[hasclass('o_employee_avatar')]/field[@name='image_1920']"
                    position="attributes">
+                <attribute name="widget">nodo_staff_avatar</attribute>
+                <attribute name="alt">员工头像</attribute>
                 <attribute name="options">{'size': [68, 68], 'zoom': True, 'preview_image': 'avatar_128', 'img_class': 'object-fit-cover'}</attribute>
             </xpath>
             <xpath expr="//div[@name='employee_photo_and_info']/group/h1" position="attributes">
@@ -27,20 +29,22 @@
                 <div class="o_nodo_profile_identity">
                     <div class="o_nodo_profile_metadata" invisible="not id">
                         <field name="active" invisible="1"/>
-                        <span class="badge rounded-pill o_nodo_profile_archived" invisible="active">已归档</span>
                         <div class="o_nodo_profile_number" groups="base.group_system">
                             <span>人员编号</span>
                             <field name="nodo_personnel_number" readonly="1" invisible="not nodo_personnel_number"/>
                             <span invisible="nodo_personnel_number">未填写</span>
                         </div>
-                        <field name="nodo_review_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
-                               decoration-warning="nodo_review_state == 'pending'"
-                               decoration-success="nodo_review_state == 'complete'"
-                               decoration-muted="nodo_review_state == 'unknown'"/>
-                        <field name="nodo_account_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
-                               decoration-success="nodo_account_state == 'active'"
-                               decoration-muted="nodo_account_state == 'none'"
-                               decoration-danger="nodo_account_state == 'disabled'"/>
+                        <div class="o_nodo_profile_statuses">
+                            <span class="badge rounded-pill o_nodo_profile_archived" invisible="active">已归档</span>
+                            <field name="nodo_review_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                                   decoration-warning="nodo_review_state == 'pending'"
+                                   decoration-success="nodo_review_state == 'complete'"
+                                   decoration-muted="nodo_review_state == 'unknown'"/>
+                            <field name="nodo_account_state" widget="badge" class="o_nodo_staff_status" groups="base.group_system"
+                                   decoration-success="nodo_account_state == 'active'"
+                                   decoration-muted="nodo_account_state == 'none'"
+                                   decoration-danger="nodo_account_state == 'disabled'"/>
+                        </div>
                     </div>
                 </div>
                 <div class="o_nodo_profile_actions" invisible="not id">
@@ -72,7 +76,7 @@
                 <page name="nodo_employee_profile" string="档案" class="o_nodo_profile_page">
                     <section class="o_nodo_profile_section" aria-label="任职信息">
                         <h2>任职信息</h2>
-                        <div class="o_nodo_profile_fields">
+                        <div class="o_nodo_profile_fields o_nodo_profile_assignment">
                             <div>
                                 <span class="o_nodo_profile_label">部门</span>
                                 <field name="department_id" readonly="1" invisible="not department_id"

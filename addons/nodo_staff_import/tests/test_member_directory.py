@@ -258,6 +258,8 @@ class TestMemberDirectory(TransactionCase):
                 self.assertIsNone(overview.find('.//field[@name="wage"]'))
                 self.assertIsNotNone(arch.find('.//span[@invisible="active"]'))
                 self.assertIsNone(arch.find('.//button[@name="action_send_invitation"]'))
+                avatar = arch.find('.//field[@name="image_1920"]')
+                self.assertEqual(avatar.get('widget'), 'nodo_staff_avatar')
                 job_field = arch.find('.//page[@name="work_information"]//field[@name="job_id"]')
                 self.assertEqual(job_field.get('widget'), 'nodo_staff_job')
                 self.assertEqual(
@@ -268,10 +270,9 @@ class TestMemberDirectory(TransactionCase):
                     arch.find('.//widget[@name="nodo_employee_supplement"]') is not None,
                     user == self.admin,
                 )
-                self.assertEqual(
-                    arch.find('.//field[@name="nodo_review_state"]') is not None,
-                    user == self.admin,
-                )
+                statuses = arch.find('.//div[@class="o_nodo_profile_statuses"]')
+                for status in ('nodo_review_state', 'nodo_account_state'):
+                    self.assertEqual(statuses.find(f'field[@name="{status}"]') is not None, user == self.admin)
 
     def test_employee_invitation_actions_are_disabled(self):
         member = self.directory.browse(self.directory.nodo_add_member(self.values)['id'])

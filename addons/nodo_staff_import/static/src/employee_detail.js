@@ -2,8 +2,19 @@ import "@hr/views/form_view";
 import "@mail/chatter/web/form_compiler";
 import { registry } from "@web/core/registry";
 import { createElement } from "@web/core/utils/xml";
+import { ImageField, imageField } from "@web/views/fields/image/image_field";
 import { buildM2OFieldDescription, Many2OneField } from "@web/views/fields/many2one/many2one_field";
 import { FormCompiler } from "@web/views/form/form_compiler";
+
+class StaffAvatarField extends ImageField {
+    static template = "nodo_staff_import.StaffAvatarField";
+
+    get containerClass() {
+        return "o_nodo_avatar_controls";
+    }
+}
+
+registry.category("fields").add("nodo_staff_avatar", { ...imageField, component: StaffAvatarField });
 
 class StaffJobField extends Many2OneField {
     static template = "nodo_staff_import.StaffJobField";
