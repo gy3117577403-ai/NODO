@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_navigation.ApplicationSidebar">
+        <aside t-if="this.visible" class="o_nodo_app_sidebar d-print-none"
+               t-att-class="{ 'o_nodo_sidebar_expanded': this.state.expanded }" aria-label="NODO 应用侧栏">
+            <div class="o_nodo_app_sidebar_head">
+                <img t-if="this.state.expanded" src="/nodo_base/static/img/nodo-wordmark.svg" alt="NODO"
+                     class="o_nodo_app_sidebar_wordmark"/>
+                <img t-else="" src="/nodo_base/static/img/nodo-mark.svg" alt="NODO"
+                     class="o_nodo_app_sidebar_mark"/>
+                <button type="button" class="o_nodo_app_sidebar_toggle"
+                        t-att-aria-label="this.state.expanded ? '收起应用侧栏' : '展开应用侧栏'"
+                        t-att-title="this.state.expanded ? '收起应用侧栏' : '展开应用侧栏'"
+                        t-att-aria-expanded="this.state.expanded ? 'true' : 'false'"
+                        aria-controls="nodo_application_navigation"
+                        t-on-click="this.toggleExpanded">
+                    <i class="oi" aria-hidden="true"
+                       t-att-data-icon="this.state.expanded ? 'left_panel_close' : 'left_panel_open'"/>
+                </button>
+            </div>
+            <div class="o_nodo_app_sidebar_shortcuts">
+                <button type="button" class="o_nodo_app_sidebar_jump" aria-label="快速跳转" title="快速跳转"
+                        t-on-click="this.openCommandPalette">
+                    <i class="oi" data-icon="search" aria-hidden="true"/>
+                    <span t-if="this.state.expanded">快速跳转</span>
+                </button>
+            </div>
+            <nav id="nodo_application_navigation" class="o_nodo_app_sidebar_navigation" aria-label="应用导航">
+                <section t-foreach="this.groups" t-as="group" t-key="group.key"
+                         class="o_nodo_app_sidebar_group" t-att-aria-label="group.label"
+                         t-att-class="{ 'o_nodo_app_sidebar_system': group.key === 'system' }">
+                    <p t-if="this.state.expanded" class="o_nodo_app_sidebar_group_name" t-out="group.label"/>
+                    <ul class="o_nodo_app_sidebar_items">
+                        <li t-foreach="group.items" t-as="item" t-key="item.app.id">
+                            <button type="button" class="o_nodo_app_sidebar_item"
+                                    t-att-aria-label="item.app.name" t-att-title="item.app.name"
+                                    t-att-aria-current="item.app.id === this.currentAppId ? 'page' : undefined"
+                                    t-att-disabled="!this.canOpen(item.app)"
+                                    t-on-click="() => this.openApp(item.app)">
+                                <i class="oi" t-att-data-icon="item.icon" aria-hidden="true"/>
+                                <span t-if="this.state.expanded" class="o_nodo_app_sidebar_item_name" t-out="item.app.name"/>
+                            </button>
+                        </li>
+                    </ul>
+                </section>
+            </nav>
+        </aside>
+    </t>
+
+    <t t-inherit="web.WebClient" t-inherit-mode="extension">
+        <xpath expr="//NavBar" position="before">
+            <NodoApplicationSidebar/>
+        </xpath>
+    </t>
+</templates>
