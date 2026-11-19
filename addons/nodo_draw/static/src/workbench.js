@@ -5,6 +5,7 @@ import {loadBundle} from "@web/core/assets";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas} from "./mesh";
+import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
 
 const MODEL="nodo.draw.design";
 const faceNames={door:"门板",door_right:"右门板",top:"顶板",bottom:"底板",back:"围板背面",left:"左侧板",right:"右侧板",mount:"安装板"};
@@ -14,18 +15,21 @@ const fieldNumber=(v)=>v===""?null:Number(v);
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
+    static components = {ArchivedCabinet, DrawingViewport};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
     hole=signal({type:"circle",face:"door",u:95,v:110,diameter:18,width:40,height:24});
     editing=signal(null); batch=signal(null); sheet=signal(null); showFiles=signal(false);
+    archiveMode=signal("drawing");
     canvas=signal.ref();
     threeHost=signal.ref();
     viewReset=signal(0);
     viewerError=signal("");
     setup(){
         this.orm=useService("orm"); this.notification=useService("notification");
+        this.drawingViews = new Map();
         this.epoch=0;this.faceNames=faceNames;this.docTypes=docTypes;
         this.dims=[["width","宽"],["height","高"],["depth","深"]];
         this.gauges=[["body","箱体"],["door","门板"],["mount","安装板"]];
@@ -100,6 +104,7 @@ export class Workbench extends Component {
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
         this.showFiles.set(false);this.batch.set(null);this.editing.set(null);this.face.set("door");
+        this.drawingViews.clear();this.archiveMode.set("drawing");
         this.mode.set("3d");this.opened.set(false);this.tab.set("cabinet");
         this.hole.set({...this.hole(),face:"door"});this.busy.set(false);
         const epoch=++this.epoch;
@@ -139,7 +144,11 @@ export class Workbench extends Component {
             const out=await this.orm.call(MODEL,"apply_design",[[doc.id],this.localEdit,this.form(),operation]);
             await this.refresh(doc.id,this.epoch,true);
             if(out.issues.length)this.issue.set(out.issues.join(" · "));
-            if(operation==="generate"){this.batch.set(null);this.sheet.set(null);this.showFiles.set(true);}
+            if(operation==="generate"){
+                this.setBuild(out.job_id);
+                this.archiveMode.set("drawing");
+                this.showFiles.set(true);
+            }
             if(operation==="assemble"){this.tab.set("assembly");this.mode.set("3d");}
         }catch(e){this.issue.set(e.data?.message||e.message);}
         finally{this.busy.set(false);}
@@ -175,7 +184,23 @@ export class Workbench extends Component {
     editHole(row){this.editing.set(row.id);this.hole.set({...row});this.face.set(row.face);}
     removeHole(id){this.patch({holes:this.form().holes.filter(h=>h.id!==id)});if(this.editing()===id)this.editing.set(null);}
     builds(){return (this.doc()?.jobs||[]).filter(j=>j.operation==="build");}
-    selectedBuild(){return this.builds().find(j=>j.id===this.batch())||this.builds()[0];}
+    selectedBuild() {
+        const builds = this.builds(), id = this.batch();
+        return id === null ? builds[0] : builds.find(job => job.id === id);
+    }
+    openArchive() {
+        this.batch.set(this.selectedBuild()?.id ?? null);
+        this.showFiles.set(true);
+    }
+    setBuild(id) {
+        this.batch.set(id);
+        this.sheet.set(null);
+    }
+    selectedSheet(job) {
+        return job.sheets.find(sheet => sheet.key === this.sheet()) || job.sheets[0];
+    }
+    drawingView(key) { return this.drawingViews.get(key) || fitView; }
+    rememberDrawingView(key, view) { this.drawingViews.set(key, view); }
     flatPointerDown(ev){
         if (ev.button !== 0) return;
         this.flatPress = {id: ev.pointerId, x: ev.clientX, y: ev.clientY};
