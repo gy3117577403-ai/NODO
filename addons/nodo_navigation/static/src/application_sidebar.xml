@@ -20,7 +20,7 @@
             </div>
             <div class="o_nodo_app_sidebar_shortcuts">
                 <button type="button" class="o_nodo_app_sidebar_jump" aria-label="快速跳转" title="快速跳转"
-                        t-on-click="this.openCommandPalette">
+                        t-on-click="this.openQuickJump">
                     <i class="oi" data-icon="search" aria-hidden="true"/>
                     <span t-if="this.state.expanded">快速跳转</span>
                 </button>

@@ -1,0 +1,130 @@
+.modal:has(.o_nodo_quick_jump) {
+    --Dialog-padding: 20px;
+}
+
+.modal-dialog:has(> .o_nodo_quick_jump) {
+    --modal-width: 560px;
+}
+
+.o_nodo_quick_jump {
+    color: $nodo-text;
+    background-color: $nodo-popover;
+
+    .modal-title {
+        font-weight: 700;
+    }
+}
+
+.o_nodo_quick_jump_search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding-inline: 13px;
+    border: 1px solid $nodo-border;
+    border-radius: 10px;
+    background: $nodo-panel;
+    color: $nodo-text-muted;
+
+    &:focus-within {
+        border-color: $nodo-primary;
+        box-shadow: 0 0 0 2px $nodo-accent-soft;
+    }
+
+    input {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: $nodo-text;
+
+        &::placeholder {
+            color: $nodo-text-muted;
+        }
+    }
+}
+
+.o_nodo_quick_jump_label {
+    margin: 16px 0 2px;
+    padding-inline: 8px;
+    color: $nodo-text-muted;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.o_nodo_quick_jump_results {
+    max-height: unquote("min(376px, 54dvh)");
+    margin: 8px -4px 0;
+    padding: 2px 4px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    list-style: none;
+}
+
+.o_nodo_quick_jump_result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: inherit;
+    text-align: start;
+
+    &:hover:not(:disabled) {
+        @include nodo-state;
+    }
+
+    &:focus-visible {
+        outline: 2px solid $nodo-primary;
+        outline-offset: -2px;
+    }
+
+    &:disabled {
+        cursor: wait;
+    }
+}
+
+.o_nodo_quick_jump_icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: $nodo-accent-soft;
+    color: $nodo-primary;
+    font-size: 1.1rem;
+}
+
+.o_nodo_quick_jump_description {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.o_nodo_quick_jump_name {
+    display: block;
+    font-weight: 600;
+}
+
+.o_nodo_quick_jump_path,
+.o_nodo_quick_jump_arrow {
+    color: $nodo-text-muted;
+}
+
+.o_nodo_quick_jump_path {
+    display: block;
+    font-size: 0.82rem;
+}
+
+.o_nodo_quick_jump_empty {
+    margin: 0;
+    padding: 28px 8px 18px;
+    color: $nodo-text-muted;
+    text-align: center;
+}

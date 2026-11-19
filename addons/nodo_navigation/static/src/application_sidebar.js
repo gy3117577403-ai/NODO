@@ -8,13 +8,14 @@ import { render } from "@web/owl2/utils";
 import { session } from "@web/session";
 import { WebClient } from "@web/webclient/webclient";
 import { groupApplications } from "./menu_groups";
+import { QuickJumpDialog } from "./quick_jump_dialog";
 
 class NodoApplicationSidebar extends Component {
     static template = "nodo_navigation.ApplicationSidebar";
 
     setup() {
         this.menu = useService("menu");
-        this.command = useService("command");
+        this.dialog = useService("dialog");
         this.pwa = useService("pwa");
         this.ui = proxy(useService("ui"));
         this.offline = usePlugin(OfflinePlugin);
@@ -48,8 +49,8 @@ class NodoApplicationSidebar extends Component {
         return this.menu.selectMenu(app);
     }
 
-    openCommandPalette() {
-        this.command.openMainPalette();
+    openQuickJump() {
+        this.dialog.add(QuickJumpDialog, {});
     }
 }
 
