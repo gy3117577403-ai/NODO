@@ -4,37 +4,31 @@ const MENU_LABELS = new Map([
     ["hr.menu_config_plan_plan", "员工计划"],
 ]);
 
-const COMMON_MENUS = [
-    "hr.menu_hr_employee_payroll",
-    "hr.menu_hr_employee",
-    "hr.menu_config_plan_plan",
-    "hr.menu_hr_department_kanban",
-    "mail.menu_root_discuss",
-    "nodo_supply.menu_purchase_collaboration",
-];
-
-function actionKey(menu) {
-    return `${menu.appID}:${menu.actionID}`;
-}
+const MENU_ALIASES = new Map([
+    ["purchase.menu_purchase_form_action", ["采购单"]],
+    ["sale.menu_sale_order", ["销售订单"]],
+]);
 
 export function collectQuickJumpEntries(apps) {
     const entries = [];
     const seen = new Set();
     function visit(menu, parents, icon) {
-        const names = [...parents, menu.name];
+        const path = [...parents, menu];
         const label = MENU_LABELS.get(menu.xmlid) ?? menu.name;
-        const key = `${actionKey(menu)}:${label}`;
+        const key = `${menu.appID}:${menu.actionID}:${label}`;
         if (menu.actionID && !seen.has(key)) {
             seen.add(key);
+            const branch = path[1]?.childrenTree?.length ? path[1] : null;
             entries.push({
                 menu,
                 icon,
                 label,
-                path: parents.length ? names.join(" → ") : "",
+                branch,
+                path: parents.length ? path.map(({ name }) => name).join(" → ") : "",
             });
         }
         for (const child of menu.childrenTree ?? []) {
-            visit(child, names, icon);
+            visit(child, path, icon);
         }
     }
     for (const { app, icon } of apps) {
@@ -43,19 +37,20 @@ export function collectQuickJumpEntries(apps) {
     return entries;
 }
 
-function commonEntries(entries) {
-    const byMenu = new Map(entries.map((entry) => [entry.menu.xmlid, entry]));
-    const preferred = COMMON_MENUS.map((key) => byMenu.get(key)).filter(Boolean);
-    const appEntries = entries.filter(({ menu }) => menu.id === menu.appID);
-    const seen = new Set();
-    return [...preferred, ...appEntries].filter(({ menu }) => {
-        const key = actionKey(menu);
-        if (seen.has(key)) {
-            return false;
+export function groupQuickJumpFunctions(entries, appId) {
+    const groups = new Map();
+    for (const entry of entries) {
+        const { menu, branch } = entry;
+        if (menu.appID !== appId || menu.id === appId) {
+            continue;
         }
-        seen.add(key);
-        return true;
-    }).slice(0, 6);
+        const id = branch?.id ?? appId;
+        if (!groups.has(id)) {
+            groups.set(id, { id, label: branch?.name, entries: [] });
+        }
+        groups.get(id).entries.push(entry);
+    }
+    return [...groups.values()];
 }
 
 function normalize(value) {
@@ -66,11 +61,12 @@ export function searchQuickJumpEntries(entries, value) {
     const query = normalize(value);
     const words = query.split(/[\s/→>]+/).filter(Boolean);
     if (!words.length) {
-        return commonEntries(entries);
+        return [];
     }
     const matches = [];
     for (const entry of entries) {
-        const names = [normalize(entry.label), normalize(entry.menu.name)];
+        const aliases = MENU_ALIASES.get(entry.menu.xmlid) ?? [];
+        const names = [entry.label, entry.menu.name, ...aliases].map(normalize);
         const path = normalize(entry.path);
         if (!words.every((word) => names.some((name) => name.includes(word)) || path.includes(word))) {
             continue;

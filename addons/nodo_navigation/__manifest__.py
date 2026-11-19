@@ -1,6 +1,6 @@
 {
     'name': 'NODO 应用导航',
-    'version': '20.0.1.1.0',
+    'version': '20.0.1.2.0',
     'summary': '按账号权限显示应用侧栏和功能搜索',
     'author': 'NODO',
     'license': 'Other proprietary',

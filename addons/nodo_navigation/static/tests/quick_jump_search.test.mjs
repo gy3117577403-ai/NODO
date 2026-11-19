@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { collectQuickJumpEntries, searchQuickJumpEntries } from "../src/quick_jump_search.js";
+import {
+    collectQuickJumpEntries,
+    groupQuickJumpFunctions,
+    searchQuickJumpEntries,
+} from "../src/quick_jump_search.js";
 
 const management = {
     id: 2, appID: 1, xmlid: "hr.menu_hr_employee_payroll", name: "管理", actionID: 20,
@@ -52,18 +56,45 @@ test("nodo quick jump adds no results for menus absent from the user's tree", ()
     assert.equal(searchQuickJumpEntries(staffEntries, "讨论")[0].menu, discuss);
 });
 
-test("nodo quick jump shows at most six default entries without app-home duplicates", () => {
-    const extraApps = [8, 9, 10].map((id) => ({
-        app: { id, appID: id, name: `应用 ${id}`, actionID: id * 10 },
-        icon: "apps",
-    }));
-    const entries = [...adminEntries, ...collectQuickJumpEntries(extraApps)];
-    const defaults = searchQuickJumpEntries(entries, "  ");
-    assert.equal(defaults.length, 6);
-    assert.deepEqual(defaults.slice(0, 4).map(({ menu }) => menu), [
-        management, directory, plans, discuss,
+test("nodo quick jump leaves an empty search to application browsing", () => {
+    assert.deepEqual(searchQuickJumpEntries(adminEntries, ""), []);
+    assert.deepEqual(searchQuickJumpEntries(adminEntries, "  "), []);
+});
+
+test("nodo quick jump browses only functions in the selected application and groups their menu branches", () => {
+    const featureGroups = groupQuickJumpFunctions(adminEntries, employeeApp.id);
+    assert.deepEqual(featureGroups.map(group => [group.label, group.entries.map(({ menu }) => menu)]), [
+        [undefined, [management, directory]],
+        ["配置", [plans]],
     ]);
-    assert.equal(defaults.some(({ menu }) => menu === employeeApp), false);
+    assert.deepEqual(groupQuickJumpFunctions(adminEntries, discuss.id), []);
+});
+
+test("nodo quick jump searches purchasing aliases across applications without adding hidden menus", () => {
+    const collaborationOrder = { id: 12, appID: 11, name: "采购单", actionID: 120 };
+    const purchaseOrder = {
+        id: 14, appID: 13, name: "采购订单", xmlid: "purchase.menu_purchase_form_action", actionID: 140,
+    };
+    const salesOrder = {
+        id: 16, appID: 15, name: "订单", xmlid: "sale.menu_sale_order", actionID: 160,
+    };
+    const collaborationApp = {
+        id: 11, appID: 11, name: "采购协作", actionID: 120, childrenTree: [collaborationOrder],
+    };
+    const purchaseApp = {
+        id: 13, appID: 13, name: "采购", actionID: 140, childrenTree: [purchaseOrder],
+    };
+    const salesApp = {
+        id: 15, appID: 15, name: "销售", actionID: 160, childrenTree: [salesOrder],
+    };
+    const apps = [collaborationApp, purchaseApp, salesApp].map(app => ({ app, icon: "description" }));
+    const entries = collectQuickJumpEntries(apps);
+    assert.deepEqual(searchQuickJumpEntries(entries, "采购单").map(({ path }) => path), [
+        "采购协作 → 采购单", "采购 → 采购订单",
+    ]);
+    assert.equal(searchQuickJumpEntries(entries, "销售订单")[0].menu, salesOrder);
+    const limited = collectQuickJumpEntries(apps.slice(0, 1));
+    assert.deepEqual(searchQuickJumpEntries(limited, "采购单").map(({ menu }) => menu), [collaborationOrder]);
 });
 
 test("nodo quick jump keeps same-named functions distinct by menu path", () => {

@@ -7,25 +7,58 @@
                 <input type="search" aria-label="搜索应用或功能" placeholder="搜索应用或功能"
                        autocomplete="off" t-ref="this.searchInput" t-on-input="this.updateQuery"/>
             </form>
-            <t t-if="this.results().length">
-                <p t-if="!this.query().trim()" class="o_nodo_quick_jump_label">常用入口</p>
-                <ul class="o_nodo_quick_jump_results" aria-label="可跳转的功能">
-                    <li t-foreach="this.results()" t-as="entry" t-key="entry.menu.id">
-                        <button type="button" class="o_nodo_quick_jump_result"
-                                t-att-disabled="this.opening()" t-on-click="() => this.openEntry(entry)">
-                            <span class="o_nodo_quick_jump_icon" aria-hidden="true">
-                                <i class="oi" t-att-data-icon="entry.icon"/>
-                            </span>
-                            <span class="o_nodo_quick_jump_description">
-                                <span class="o_nodo_quick_jump_name" t-out="entry.label"/>
-                                <span t-if="entry.path" class="o_nodo_quick_jump_path" t-out="entry.path"/>
-                            </span>
-                            <i class="oi o_nodo_quick_jump_arrow" data-icon="chevron_right" aria-hidden="true"/>
-                        </button>
-                    </li>
-                </ul>
-            </t>
-            <p t-else="" class="o_nodo_quick_jump_empty" role="status">没有找到匹配的功能</p>
+            <t t-set="searching" t-value="this.query().trim()"/>
+            <t t-set="app" t-value="!searching &amp;&amp; this.selectedApp()"/>
+            <nav t-if="app" class="o_nodo_quick_jump_trail" aria-label="应用功能导航">
+                <button type="button" class="o_nodo_quick_jump_back" aria-label="返回全部应用"
+                        t-on-click="() => this.browseApp(null)">
+                    <i class="oi" data-icon="arrow_back" aria-hidden="true"/>
+                    <span>全部应用</span>
+                </button>
+                <i class="oi" data-icon="chevron_right" aria-hidden="true"/>
+                <strong t-out="app.name"/>
+            </nav>
+            <div class="o_nodo_quick_jump_content" t-ref="this.content">
+                <t t-if="searching || app">
+                    <section t-foreach="this.functionGroups()" t-as="group" t-key="group.id"
+                             class="o_nodo_quick_jump_group" t-att-aria-label="group.label">
+                        <h5 t-if="group.label" class="o_nodo_quick_jump_group_name" t-out="group.label"/>
+                        <ul class="o_nodo_quick_jump_results" aria-label="可跳转的功能">
+                            <li t-foreach="group.entries" t-as="entry" t-key="entry.menu.id">
+                                <button type="button" class="o_nodo_quick_jump_result"
+                                        t-att-disabled="this.opening()" t-on-click="() => this.openEntry(entry)">
+                                    <span class="o_nodo_quick_jump_icon" aria-hidden="true">
+                                        <i class="oi" t-att-data-icon="entry.icon"/>
+                                    </span>
+                                    <span class="o_nodo_quick_jump_description">
+                                        <span class="o_nodo_quick_jump_name" t-out="entry.label"/>
+                                        <span t-if="entry.path" class="o_nodo_quick_jump_path" t-out="entry.path"/>
+                                    </span>
+                                    <i class="oi o_nodo_quick_jump_arrow" data-icon="chevron_right" aria-hidden="true"/>
+                                </button>
+                            </li>
+                        </ul>
+                    </section>
+                    <p t-if="!this.functionGroups().length" class="o_nodo_quick_jump_empty" role="status"
+                       t-out="searching ? '没有找到匹配的功能' : '暂无可用功能'"/>
+                </t>
+                <t t-else="">
+                    <section t-foreach="this.appGroups()" t-as="group" t-key="group.key"
+                             class="o_nodo_quick_jump_group" t-att-aria-label="group.label">
+                        <h5 class="o_nodo_quick_jump_group_name" t-out="group.label"/>
+                        <ul class="o_nodo_quick_jump_apps">
+                            <li t-foreach="group.items" t-as="item" t-key="item.app.id">
+                                <button type="button" class="o_nodo_quick_jump_app"
+                                        t-on-click="() => this.browseApp(item.app.id)">
+                                    <i class="oi" t-att-data-icon="item.icon" aria-hidden="true"/>
+                                    <span t-out="item.app.name"/>
+                                </button>
+                            </li>
+                        </ul>
+                    </section>
+                    <p t-if="!this.appGroups().length" class="o_nodo_quick_jump_empty" role="status">暂无可用应用</p>
+                </t>
+            </div>
         </Dialog>
     </t>
 </templates>

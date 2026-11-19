@@ -13,6 +13,11 @@
     .modal-title {
         font-weight: 700;
     }
+
+    :is(.o_nodo_quick_jump_app, .o_nodo_quick_jump_back, .o_nodo_quick_jump_result):focus-visible {
+        outline: 2px solid $nodo-primary;
+        outline-offset: -2px;
+    }
 }
 
 .o_nodo_quick_jump_search {
@@ -46,21 +51,102 @@
     }
 }
 
-.o_nodo_quick_jump_label {
-    margin: 16px 0 2px;
-    padding-inline: 8px;
+.o_nodo_quick_jump_content {
+    max-height: unquote("min(448px, 55dvh)");
+    margin: 10px -4px 0;
+    padding: 4px 4px 3px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.o_nodo_quick_jump_group + .o_nodo_quick_jump_group {
+    margin-top: 12px;
+}
+
+.o_nodo_quick_jump_group_name {
+    margin: 0 0 5px;
+    padding-inline: 2px;
     color: $nodo-text-muted;
-    font-size: 0.82rem;
+    font-size: 0.83rem;
     font-weight: 600;
 }
 
+.o_nodo_quick_jump_apps,
 .o_nodo_quick_jump_results {
-    max-height: unquote("min(376px, 54dvh)");
-    margin: 8px -4px 0;
-    padding: 2px 4px;
-    overflow-y: auto;
-    scrollbar-width: thin;
+    margin: 0;
+    padding: 0;
     list-style: none;
+}
+
+.o_nodo_quick_jump_apps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+
+    @include media-breakpoint-down(sm) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.o_nodo_quick_jump_app {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 100%;
+    min-height: 39px;
+    padding: 6px 10px;
+    border: 1px solid $nodo-border;
+    border-radius: 8px;
+    background: $nodo-panel;
+    color: $nodo-text;
+    text-align: start;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+
+    &:hover {
+        @include nodo-state;
+    }
+
+    .oi {
+        flex: 0 0 auto;
+        color: $nodo-primary;
+        font-size: 1.14rem;
+    }
+}
+
+.o_nodo_quick_jump_trail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid $nodo-border;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+
+    > .oi {
+        color: $nodo-text-muted;
+    }
+
+    + .o_nodo_quick_jump_content {
+        margin-top: 4px;
+    }
+}
+
+.o_nodo_quick_jump_back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $nodo-primary;
+
+    &:hover {
+        @include nodo-state;
+    }
 }
 
 .o_nodo_quick_jump_result {
@@ -78,11 +164,6 @@
 
     &:hover:not(:disabled) {
         @include nodo-state;
-    }
-
-    &:focus-visible {
-        outline: 2px solid $nodo-primary;
-        outline-offset: -2px;
     }
 
     &:disabled {
