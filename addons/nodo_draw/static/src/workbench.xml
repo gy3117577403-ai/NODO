@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="nodo_draw.Workbench">
+<main class="nd-work">
+    <header class="nd-head"><div><h1>技术工作台</h1><span>柜体设计</span></div>
+        <div class="nd-actions" t-if="this.doc()">
+            <select aria-label="选择设计" t-on-change="this.selectDesign">
+                <option t-foreach="this.docs()" t-as="d" t-key="d.id" t-att-value="d.id" t-att-selected="d.id===this.doc().id"><t t-out="d.source"/> · <t t-out="d.name"/></option>
+            </select>
+            <button class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')"><i class="fa fa-files-o"/> 一键出图</button>
+        </div>
+    </header>
+    <div t-if="!this.doc()" class="nd-empty">暂无已交接的柜体 BOM</div>
+    <t t-else="">
+    <t t-set="doc" t-value="this.doc()"/><t t-set="form" t-value="this.form()"/>
+    <div class="nd-error" role="alert" t-if="this.issue()"><i class="fa fa-exclamation-circle"/> <t t-out="this.issue()"/></div>
+    <div class="nd-layout">
+        <aside class="nd-panel nd-inspector">
+            <div class="nd-job"><span class="nd-id" t-out="doc.bom.source"/><h2 t-out="doc.name"/><small>交接版本 <t t-out="doc.bom.source_version"/> · <t t-out="doc.bom.quantity"/> 台</small></div>
+            <div class="nd-tabs"><button t-foreach="this.tabs" t-as="tup" t-key="tup[0]" t-att-class="this.tab()===tup[0]?'active':''" t-on-click="() => this.selectTab(tup[0])" t-out="tup[1]"/></div>
+            <div class="nd-fields" t-if="this.tab()==='cabinet'">
+                <h3>基础柜体</h3>
+                <div class="nd-switch" aria-label="选择柜型">
+                    <button t-att-class="form.kind==='single'?'active':''" t-on-click="() => this.patch({kind:'single'})">单开门</button>
+                    <button t-att-class="form.kind==='double'?'active':''" t-on-click="() => this.patch({kind:'double'})">双开门</button>
+                </div>
+                <h3>箱体尺寸 <small>mm</small></h3>
+                <div class="nd-trio"><label t-foreach="this.dims" t-as="row" t-key="row[0]"><t t-out="row[1]"/><input type="number" min="1" step="any" t-att-aria-label="'柜'+row[1]" t-att-value="form[row[0]]" t-on-input="ev => this.changeField(row[0],ev,true)"/></label></div>
+                <h3>材料与板厚</h3>
+                <label>板材<select aria-label="板材" t-on-change="ev => this.changeField('material',ev)"><option t-foreach="[['cold_rolled','冷轧板'],['galvanized','镀锌板'],['stainless','不锈钢板']]" t-as="m" t-key="m[0]" t-att-value="m[0]" t-att-selected="form.material===m[0]" t-out="m[1]"/></select></label>
+                <div class="nd-trio"><label t-foreach="this.gauges" t-as="row" t-key="row[0]"><t t-out="row[1]"/> mm<input type="number" step="0.1" t-att-aria-label="row[1]+'板厚'" t-att-value="form[row[0]]" t-on-input="ev => this.changeField(row[0],ev,true)"/></label></div>
+                <button class="nd-wide" t-att-disabled="this.busy()" t-on-click="() => this.apply('save')">保存并预览柜体</button>
+                <h3>附件清单 <small>每台</small></h3>
+                <div class="nd-bomrow" t-foreach="doc.bom.lines" t-as="line" t-key="line_index"><span><b t-out="this.rowInfo(line_index).model?.name || line.name"/><small t-out="line.code"/></span><b>× <t t-out="line.quantity"/></b></div>
+                <button class="nd-wide nd-soft" t-att-disabled="this.busy()" t-on-click="() => this.apply('assemble')">一键装配</button>
+            </div>
+            <div class="nd-fields" t-if="this.tab()==='assembly'">
+                <h3>附件库匹配 <small>每台</small></h3>
+                <div class="nd-match" t-foreach="doc.bom.lines" t-as="line" t-key="line_index">
+                    <t t-set="row" t-value="this.rowInfo(line_index)"/>
+                    <div class="nd-between"><strong><t t-out="line.code"/> × <t t-out="line.quantity"/></strong><span class="nd-tag" t-out="row.status"/></div>
+                    <label>附件型号<select t-att-aria-label="'第'+(line_index+1)+'行型号'" t-on-change="ev => this.links(line_index,'code',ev.target.value)">
+                        <option value="" t-if="!row.model">选择附件型号</option>
+                        <option t-foreach="Object.entries(doc.library)" t-as="entry" t-key="entry[0]" t-att-value="entry[0]" t-att-selected="row.code===entry[0]"><t t-out="entry[1].name"/> · <t t-out="entry[0]"/></option>
+                    </select></label>
+                    <label t-if="row.model">安装面<select t-att-aria-label="'第'+(line_index+1)+'行安装面'" t-on-change="ev => this.links(line_index,'face',ev.target.value)">
+                        <option t-if="!row.validFace" value="" selected="">选择适用安装面</option>
+                        <option t-foreach="this.mountingFaces(row.model)" t-as="id" t-key="id" t-att-value="id" t-att-selected="row.face===id" t-out="this.faceNames[id]"/></select></label>
+                    <small t-if="row.model">模型版本 <t t-out="row.model.version"/> · 已装 <t t-out="row.placed"/> / <t t-out="line.quantity"/></small>
+                </div>
+                <button class="nd-wide nd-soft" t-att-disabled="this.busy()" t-on-click="() => this.apply('assemble')">一键装配</button>
+                <t t-foreach="form.instances" t-as="a" t-key="a.id"><div class="nd-match" t-if="['step','lock'].includes(doc.library[a.code].kind)">
+                    <h3 t-out="doc.library[a.code].name"/><small>相对板面中心定位（mm）</small>
+                    <div class="nd-trio"><label t-foreach="[['u','横向'],['v','纵向']]" t-as="k" t-key="k[0]"><t t-out="k[1]"/><input type="number" step="any" t-att-value="form.positions?.[a.id]?.[k[0]] ?? a[k[0]]" t-on-input="ev => this.position(a,k[0],ev)"/></label>
+                    <label>转角<select t-on-change="ev => this.position(a,'rotation',ev)"><option t-foreach="[0,90,180,270]" t-as="v" t-key="v" t-att-value="v" t-att-selected="(form.positions?.[a.id]?.rotation ?? a.rotation)===v"><t t-out="v"/>°</option></select></label></div>
+                </div></t>
+            </div>
+            <div class="nd-fields" t-if="this.tab()==='holes'">
+                <h3>板面定位 <small>mm</small></h3>
+                <label>加工板面<select aria-label="加工板面" t-on-change="ev => this.setFace(ev.target.value)"><option t-foreach="this.faces()" t-as="kv" t-key="kv[0]" t-att-value="kv[0]" t-att-selected="this.face()===kv[0]" t-out="kv[1]"/></select></label>
+                <label>孔型<select aria-label="孔型" t-on-change="ev => this.setHole('type',ev.target.value)"><option t-foreach="[['circle','圆孔'],['rectangle','矩形孔'],['slot','长圆孔']]" t-as="kv" t-key="kv[0]" t-att-value="kv[0]" t-att-selected="this.hole().type===kv[0]" t-out="kv[1]"/></select></label>
+                <div class="nd-duo"><label t-foreach="[['u','横向 U'],['v','纵向 V']]" t-as="kv" t-key="kv[0]"><t t-out="kv[1]"/><input type="number" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-on-input="ev => this.setHole(kv[0],+ev.target.value)"/></label></div>
+                <div class="nd-duo"><label t-foreach="this.hole().type==='circle'?[['diameter','直径']]:[['width','孔宽'],['height','孔高']]" t-as="kv" t-key="kv[0]"><t t-out="kv[1]"/><input type="number" min="2" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-on-input="ev => this.setHole(kv[0],+ev.target.value)"/></label></div>
+                <button class="nd-wide nd-soft" t-on-click="() => this.addHole()" t-out="this.editing()?'应用孔位修改':'添加孔位'"/>
+                <div class="nd-bomrow" t-foreach="form.holes" t-as="r" t-key="r.id"><button class="nd-link" t-on-click="() => this.editHole(r)"><b t-out="r.id"/> · <t t-out="this.faceNames[r.face]"/><small><t t-out="r.u"/>，<t t-out="r.v"/> mm</small></button><button class="nd-icon" t-att-aria-label="'移除 '+r.id" t-on-click="() => this.removeHole(r.id)">×</button></div>
+                <button class="nd-wide" t-att-disabled="this.busy()" t-on-click="() => this.apply('save')">保存并预览开孔</button>
+            </div>
+        </aside>
+        <section class="nd-panel nd-stage">
+            <div class="nd-bar"><nav><button t-att-class="!this.showFiles()?'active':''" t-on-click="() => this.showFiles.set(false)">设计视图</button><button t-att-class="this.showFiles()?'active':''" t-on-click="() => this.showFiles.set(true)">图纸与版本 <span t-out="this.builds().length"/></button></nav>
+            <small t-att-class="doc.online?'nd-dot':'nd-offline'" t-out="doc.online?'计算服务在线':'计算服务离线'"/></div>
+            <t t-if="!this.showFiles()">
+                <div class="nd-viewport">
+                    <div class="nd-viewport-head"><b t-out="this.mode()==='3d'?'三维装配':this.faceNames[this.face()]+'定位'"/><div class="nd-segment"><button t-att-class="this.mode()==='3d'?'active':''" t-on-click="() => this.mode.set('3d')">三维</button><button t-att-class="this.mode()==='2d'?'active':''" t-on-click="() => this.mode.set('2d')">二维</button></div></div>
+                    <canvas aria-label="柜体工程模型" t-ref="this.canvas" t-on-pointerdown="this.pointerDown" t-on-pointermove="this.pointerMove" t-on-pointerup="this.pointerUp" t-on-pointercancel="() => { this.drag=null; }" t-on-wheel.prevent="ev => this.viewer?.scale(ev.deltaY)"/>
+                    <div class="nd-overlay" t-if="!this.mesh()"><b t-out="doc.jobs[0]?.state==='failed'?'模型生成失败':doc.jobs.length?'正在准备模型':'尚未生成柜体预览'"/><small t-if="!doc.jobs.length">选择柜型和规格后点击「保存并预览柜体」</small></div>
+                    <div class="nd-vtools"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="() => this.viewer?.fit()">复位视角</button></div>
+                </div>
+                <div class="nd-foot"><span t-if="form.kind"><b t-out="form.kind==='single'?'AE 单开门':'AE 双开门'"/> · 宽 <t t-out="form.width"/> / 高 <t t-out="form.height"/> / 深 <t t-out="form.depth"/> mm</span><small t-out="this.dirty()?'有未保存修改':(this.modelJob() &amp;&amp; this.modelJob().edit_number!==doc.edit_number?'显示上一版模型':'')"/></div>
+            </t>
+            <div t-else="" class="nd-files">
+                <t t-set="job" t-value="this.selectedBuild()"/>
+                <div class="nd-empty" t-if="!job">尚无图纸版本</div>
+                <t t-else=""><div class="nd-between"><h2>图纸成果</h2><select aria-label="图纸版本" t-on-change="ev => { this.batch.set(+ev.target.value); this.sheet.set(null); }"><option t-foreach="this.builds()" t-as="j" t-key="j.id" t-att-value="j.id" t-att-selected="j.id===job.id">V<t t-out="this.version(j.version)"/> · <t t-out="this.jobState(j)"/></option></select></div>
+                    <t t-if="job.state==='done'"><div class="nd-package"><b><t t-out="job.sheets.length"/> 张 DWG · <t t-out="job.cut_count"/> 份切割 DXF</b><span class="nd-tag">待工艺校核</span></div>
+                    <div class="nd-downloads"><a t-foreach="[['bundle','整套图包'],['step','整柜 STEP'],['bom','零件清单'],['holes','孔位表']]" t-as="link" t-key="link[0]" t-att-href="this.url(job.id,link[0])" t-out="link[1]"/></div>
+                    <details class="nd-limits"><summary>工程依据与待核项目</summary><ul><li t-foreach="job.limits" t-as="l" t-key="l_index" t-out="l"/></ul></details>
+                    <div class="nd-sheet-grid"><div><div class="nd-sheet" t-foreach="job.sheets" t-as="s" t-key="s.key"><button t-att-class="(this.sheet() || job.sheets[0].key)===s.key?'active':''" t-on-click="() => this.sheet.set(s.key)"><small t-out="this.docTypes[s.category]"/><t t-out="s.name"/></button><a t-att-href="this.url(job.id,s.key)">DWG</a><a t-if="s.category==='flat'" t-att-href="this.url(job.id,s.key+'c')">DXF</a></div></div><img class="nd-drawing" alt="当前工程图预览" t-att-src="this.url(job.id,(this.sheet() || job.sheets[0].key)+'p')"/></div>
+                    </t><div t-else="" class="nd-empty" t-out="job.error || job.stage"/>
+                </t>
+            </div>
+            <t t-set="recent" t-value="doc.jobs[0]"/>
+            <div class="nd-progress" t-if="recent &amp;&amp; ['queued','running'].includes(recent.state)"><span t-out="recent.stage"/><progress max="100" t-att-value="recent.progress"/><small><t t-out="recent.progress"/>%</small></div>
+        </section>
+    </div>
+    </t>
+</main>
+</t>
+</templates>

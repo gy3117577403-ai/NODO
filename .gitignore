@@ -24,6 +24,7 @@ filestore/
 sessions/
 odoo-data/
 pgdata/
+/.nodo-draw/
 *.dump
 *.sql.gz
 

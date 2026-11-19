@@ -1,0 +1,6 @@
+{
+  "T5-55": {"id":"fc-plate-t5","version":1,"code":"T5-55","kind":"step","name":"T 形五孔连接板","face":"door","faces":["door","door_right","mount"],"height":60,"thickness":4,"overhang":0,"maxQuantity":4,"source":"hasecilu · FreeCAD-library · CC BY 3.0，安装尺寸取自参考 STEP","assetHash":"2af625067f0dfa31d1b251fdf9546af8e92db33947dd4a911f231ff0bcc7fae1","size":[55,4,60],"bounds":[[-27.5,-4,0],[27.5,0,60]],"mount":{"unit":"mm","datum":[0,0,30],"normal":"-y","up":"z","throughPanel":false,"clearance":0},"holeCenters":[[-20,-20],[0,-20],[20,-20],[0,0],[0,20]],"diameter":5.5},
+  "EX-COVER": {"id":"example-canopy","name":"平板防尘罩","version":1,"kind":"canopy","face":"top","height":40,"overhang":12,"thickness":1.5,"maxQuantity":1,"source":"AE 程序模型 · 顶板四角连接"},
+  "EX-BASE": {"id":"example-base","name":"焊接底座","version":1,"kind":"base","face":"bottom","height":70,"overhang":0,"thickness":2,"maxQuantity":1,"source":"AE 程序模型 · 底板四角连接"},
+  "EX-LOCK-22": {"id":"example-lock","name":"圆锁组件","version":1,"kind":"lock","face":"door","height":18,"overhang":0,"thickness":2,"maxQuantity":4,"diameter":22,"source":"AE 程序模型 · 固定圆锁及安装孔"}
+}

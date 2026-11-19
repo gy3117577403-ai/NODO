@@ -15,6 +15,7 @@ services:
       - ./addons:/mnt/extra-addons:ro
       - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
       - ./scripts/odoo:/mnt/nodo-scripts:ro
+      - ./.nodo-draw/exchange:/mnt/nodo-draw
 
   db:
     image: postgres:16.16

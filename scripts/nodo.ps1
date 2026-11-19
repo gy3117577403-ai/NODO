@@ -15,6 +15,8 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   install <模块>  在 nodo_dev 中安装模块
   update <模块>   在 nodo_dev 中升级模块
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
+  draw-start      启动本机技术工作台 CAD 计算进程
+  seed-draw       在开发库准备两份 AE 附件 BOM
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
   check-staff-pilot 核对试点库的人员来源、档案关系和界面版本
@@ -190,6 +192,23 @@ switch ($Command) {
         Invoke-Compose run --rm --no-deps odoo odoo module install -c $OdooConf -d $DevDb $Module
         Invoke-Compose up -d --wait --wait-timeout 120 odoo
     }
+    'draw-start' {
+        $worker = Join-Path $Root 'scripts\draw\worker.py'
+        $cadRoot = Join-Path $Root '.nodo-draw'
+        if (-not (Test-Path -LiteralPath (Join-Path $cadRoot 'engine-manifest.json'))) {
+            throw '先用 scripts/draw/prepare.py 准备本机私有工程资源'
+        }
+        $heartbeat = Join-Path $cadRoot 'exchange\worker.json'
+        $running = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like ('*' + $worker + '*') }
+        if ($running -and (Test-Path -LiteralPath $heartbeat) -and ((Get-Date).ToUniversalTime() - (Get-Item -LiteralPath $heartbeat).LastWriteTimeUtc).TotalSeconds -lt 20) {
+            Write-Host 'CAD 服务已运行'
+            break
+        }
+        $python = (Get-Command python -CommandType Application | Select-Object -First 1).Source
+        Start-Process -FilePath $python -ArgumentList @('-u', ('"' + $worker + '"')) -WorkingDirectory $Root -WindowStyle Hidden -RedirectStandardError (Join-Path $cadRoot 'worker-error.log') -RedirectStandardOutput (Join-Path $cadRoot 'worker.log')
+        Write-Host '已请求启动 CAD 服务'
+    }
+    'seed-draw' { Assert-Initialized; Invoke-OdooShellScript 'seed_draw_boms.py' }
     'seed-users' {
         Assert-Initialized
         $out = Invoke-OdooShellScript 'seed_role_users.py'
