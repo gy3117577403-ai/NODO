@@ -72,7 +72,8 @@ class DrawDesign(models.Model):
     @api.model
     def list_designs(self):
         guard(self.env)
-        return self.search_read([('company_id','=',self.env.company.id)],['name','source','source_version'])
+        return self.search_read([('company_id','=',self.env.company.id)],['name','source','source_version'],
+                                order='source, id desc')
 
     def _check_read(self):
         self.ensure_one()

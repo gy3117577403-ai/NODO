@@ -1,9 +1,10 @@
 import {Component, signal, onWillStart, onWillUnmount, untrack, useEffect, useProps} from "@odoo/owl";
 import {registry} from "@web/core/registry";
 import {useService} from "@web/core/utils/hooks";
+import {loadBundle} from "@web/core/assets";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
-import {CabinetView} from "./mesh";
+import {FaceCanvas} from "./mesh";
 
 const MODEL="nodo.draw.design";
 const faceNames={door:"门板",door_right:"右门板",top:"顶板",bottom:"底板",back:"围板背面",left:"左侧板",right:"右侧板",mount:"安装板"};
@@ -20,6 +21,9 @@ export class Workbench extends Component {
     hole=signal({type:"circle",face:"door",u:95,v:110,diameter:18,width:40,height:24});
     editing=signal(null); batch=signal(null); sheet=signal(null); showFiles=signal(false);
     canvas=signal.ref();
+    threeHost=signal.ref();
+    viewReset=signal(0);
+    viewerError=signal("");
     setup(){
         this.orm=useService("orm"); this.notification=useService("notification");
         this.epoch=0;this.faceNames=faceNames;this.docTypes=docTypes;
@@ -28,23 +32,56 @@ export class Workbench extends Component {
         this.tabs=[["cabinet","柜体规格"],["assembly","附件装配"],["holes","自定义孔"]];
         useSetupAction({beforeLeave:()=>!this.dirty()||window.confirm("离开并放弃未保存的设计修改？")});
         onWillStart(async()=>{
-            this.docs.set(await this.orm.call(MODEL,"list_designs",[]));
-            if(this.docs().length) await this.loadDesign(this.docs()[0].id);
+            try {
+                await loadBundle("nodo_draw.assets_ae");
+                if (!window.nodoDrawAE0573?.mount) throw new Error();
+            } catch {
+                this.viewerError.set("三维视口加载失败，请刷新后重试。");
+            }
+            const designs = await this.orm.call(MODEL,"list_designs",[]);
+            this.docs.set(designs);
+            const initialId = new URLSearchParams(window.location.search).get("design");
+            const initial = designs.find(design => String(design.id) === initialId) || designs[0];
+            if (initial) await this.loadDesign(initial.id);
         });
         useEffect(()=>{
-            const canvas=this.canvas();
-            if(!canvas) return;
-            const view=new CabinetView(canvas); this.viewer=view;
-            untrack(()=>view.set(this.mesh(),this.display()));
-            return ()=>{view.dispose();if(this.viewer===view)this.viewer=null;};
+            const host = this.threeHost();
+            if (!host || this.viewerError()) return;
+            const view = window.nodoDrawAE0573.mount(host, point => this.selectPoint(point, true));
+            this.threeView = view;
+            untrack(() => this.updateThree());
+            return () => { this.threeView = null; view.dispose(); };
+        });
+        useEffect(() => {
+            const canvas = this.canvas();
+            if (!canvas) return;
+            const view = new FaceCanvas(canvas);
+            this.faceView = view;
+            untrack(() => view.set(this.mesh(), this.flatDisplay()));
+            return () => { this.faceView = null; view.dispose(); };
+        });
+        useEffect(() => {
+            this.updateThree();
         });
         useEffect(()=>{
-            const data=this.mesh(), display=this.display();
-            if(this.viewer)this.viewer.set(data,display);
+            const data=this.mesh(), display=this.flatDisplay();
+            this.faceView?.set(data,display);
         });
         onWillUnmount(()=>{this.epoch++;clearTimeout(this.poll);this.aborter?.abort();});
     }
-    display(){return {mode:this.mode(),open:this.opened(),face:this.face(),holes:this.form()?.holes||[]};}
+    flatDisplay(){return {face:this.face(),holes:this.form()?.holes||[]};}
+    designLabel(design){
+        const versions = this.docs().filter(item => item.source === design.source);
+        return design.source + " · " + design.name + (versions.length > 1 ? " · 交接版 " + design.source_version : "");
+    }
+    updateThree(){
+        const mesh = this.mesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
+        this.threeView?.update(mesh, open, paused, reset);
+    }
+    fitView(){
+        if (this.mode() === "3d") this.viewReset.set(this.viewReset() + 1);
+        else this.faceView?.fit();
+    }
     url(id,key){return "/nodo/draw/file/"+id+"/"+key;}
     version(value){return String(value).padStart(2,"0");}
     jobState(job){return {done:"已生成",failed:"生成失败",queued:"等待计算",running:"计算中"}[job.state];}
@@ -63,6 +100,7 @@ export class Workbench extends Component {
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
         this.showFiles.set(false);this.batch.set(null);this.editing.set(null);this.face.set("door");
+        this.mode.set("3d");this.opened.set(false);this.tab.set("cabinet");
         this.hole.set({...this.hole(),face:"door"});this.busy.set(false);
         const epoch=++this.epoch;
         await this.refresh(id,epoch,true);
@@ -116,7 +154,8 @@ export class Workbench extends Component {
         const face=choice.face||line.face||model?.face;
         const placed=form.instances.filter(a=>a.row===i && a.code===code&&a.face===face).length;
         const validFace=model && this.mountingFaces(model).includes(face);
-        const status=!model?"待匹配":!validFace?"待选安装面":placed===line.quantity?"已装配":"待装配";
+        const wrongKind=model?.cabinetKinds && !model.cabinetKinds.includes(form.kind);
+        const status=!model?"待匹配":wrongKind?"柜型不符":!validFace?"待选安装面":placed===line.quantity?"已装配":"待装配";
         return {code,model,face,placed,validFace,status};
     }
     position(a,key,ev){
@@ -137,14 +176,25 @@ export class Workbench extends Component {
     removeHole(id){this.patch({holes:this.form().holes.filter(h=>h.id!==id)});if(this.editing()===id)this.editing.set(null);}
     builds(){return (this.doc()?.jobs||[]).filter(j=>j.operation==="build");}
     selectedBuild(){return this.builds().find(j=>j.id===this.batch())||this.builds()[0];}
-    pointerDown(ev){this.drag={x:ev.clientX,y:ev.clientY,startX:ev.clientX,startY:ev.clientY};ev.target.setPointerCapture(ev.pointerId);}
-    pointerMove(ev){if(!this.drag)return;const d=this.drag;if(this.mode()==="3d")this.viewer?.drag(ev.clientX-d.x,ev.clientY-d.y);d.x=ev.clientX;d.y=ev.clientY;}
-    pointerUp(ev){
-        const d=this.drag;this.drag=null;if(!d||Math.hypot(ev.clientX-d.startX,ev.clientY-d.startY)>5)return;
-        const r=ev.target.getBoundingClientRect(),point=this.viewer?.pick(ev.clientX-r.left,ev.clientY-r.top);
-        if(!point)return;
-        this.tab.set("holes");this.setFace(point.face);this.mode.set("2d");
-        if("u" in point)this.hole.set({...this.hole(),u:point.u,v:point.v});
+    flatPointerDown(ev){
+        if (ev.button !== 0) return;
+        this.flatPress = {id: ev.pointerId, x: ev.clientX, y: ev.clientY};
+        ev.target.setPointerCapture(ev.pointerId);
+    }
+    flatPointerUp(ev){
+        const start = this.flatPress;
+        this.flatPress = null;
+        if (!start || start.id !== ev.pointerId || Math.hypot(ev.clientX-start.x, ev.clientY-start.y) > 5) return;
+        const rect = ev.target.getBoundingClientRect();
+        const point = this.faceView?.pick(ev.clientX - rect.left, ev.clientY - rect.top);
+        if (point) this.selectPoint(point, false);
+    }
+    selectPoint(point, fromModel){
+        if (fromModel) this.editing.set(null);
+        this.tab.set("holes");
+        this.face.set(point.face);
+        this.hole.set({...this.hole(), face: point.face, u: point.u, v: point.v});
+        this.mode.set("2d");
     }
 }
 registry.category("actions").add("nodo_draw.workbench",Workbench);

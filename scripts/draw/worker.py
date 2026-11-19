@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[2] / '.nodo-draw'
 ENGINE = ROOT / 'engineering' / 'ae-cabinet'
 EXCHANGE = ROOT / 'exchange'
 VENDOR = ENGINE / 'vendor' / 'freecad-library'
+HARDWARE = ROOT.parent / 'addons' / 'nodo_draw' / 'data' / 'hardware'
+T_PLATE_HASH = '2af625067f0dfa31d1b251fdf9546af8e92db33947dd4a911f231ff0bcc7fae1'
 
 
 def read(path):
@@ -37,8 +39,9 @@ def install_assets(work, parameters):
         digest = model['assetHash']
         if not re.fullmatch('[0-9a-f]{64}', digest) or model.get('assetPath') != f'library/{digest}.step':
             raise ValueError('模型版本引用无效')
-        source = VENDOR / 'fc-plate-t5' / 'T_shaped_5_holes-Plate.step'
-        if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
+        source = (VENDOR / 'fc-plate-t5' / 'T_shaped_5_holes-Plate.step'
+                  if digest == T_PLATE_HASH else HARDWARE / (digest + '.step'))
+        if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != digest:
             raise ValueError('附件 STEP 校验值与选用版本不一致')
         (work / 'library').mkdir(exist_ok=True)
         shutil.copyfile(source, work / model['assetPath'])
@@ -64,8 +67,9 @@ def make_outputs(work, payload):
         if (work / 'library').exists():
             for part in (work / 'library').glob('*.step'):
                 bundle.write(part, 'library/' + part.name)
-            for name in ('ATTRIBUTION.md','LICENSE-Assets.txt'):
-                bundle.write(VENDOR / name, 'licenses/FreeCAD-library/' + name)
+            if (work / 'library' / (T_PLATE_HASH + '.step')).is_file():
+                for name in ('ATTRIBUTION.md','LICENSE-Assets.txt'):
+                    bundle.write(VENDOR / name, 'licenses/FreeCAD-library/' + name)
     with zipfile.ZipFile(archive) as bundle:
         if bundle.testzip():
             raise ValueError('交付包 CRC 检查失败')

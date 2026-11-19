@@ -142,6 +142,8 @@ def match_row(settings, lines, library, i):
     issue = ''
     if not model:
         issue = '待匹配型号'
+    elif model.get('cabinetKinds') and settings['kind'] not in model['cabinetKinds']:
+        issue = '所选柜型与附件安装规则不符'
     elif face not in model.get('faces', [model['face']]) or (face == 'door_right' and settings['kind'] != 'double'):
         issue = '安装面与柜型不符'
     return dict(code=code, face=face, issue=issue)
@@ -164,10 +166,12 @@ def assemble(settings, lines, library):
         if issue:
             issues.append(f'第 {i + 1} 行 {code} · {issue}')
             continue
+        placement = library[code].get('placement', {})
         for n in range(lines[i]['quantity']):
             ident = f'a{i+1}n{n+1}'
             instances.setdefault(ident, dict(id=ident, row=i, code=code, face=row['face'],
-                                             u=n*65, v=0, rotation=0))
+                                             u=placement.get('u', 0) + n*65,
+                                             v=placement.get('v', 0), rotation=0))
     settings['instances'] = list(instances.values())
     return issues
 
@@ -185,12 +189,24 @@ def parameters(settings, library, revision):
         definition = {k: copy.deepcopy(m[k]) for k in ('id', 'name', 'kind', 'version', 'source',
                       'mount', 'assetHash', 'size', 'bounds') if k in m}
         centers = m.get('holeCenters', [[0, 0]] if m['kind'] == 'lock' else [])
-        definition.update(code=item['code'], status='pending', holes=[
+        holes = copy.deepcopy(m['holes']) if 'holes' in m else [
             dict(type='circle', u=u, v=v, diameter=m['diameter']) for u, v in centers
-        ], rules={'faces': m.get('faces', [m['face']]), 'maxQuantity': m['maxQuantity']})
+        ]
+        placement = m.get('placement', {})
+        opening = m.get('templateOpening')
+        if (opening and opening['templateId'] == p['configuration']['templateId']
+                and opening['face'] == item['face'] and item['u'] == placement['u']
+                and item['v'] == placement['v']):
+            # This square opening is already present in the native door solid and flat.
+            # Retain its provenance. A relocated lock still needs its own new cutout.
+            definition['templateOpening'] = copy.deepcopy(opening)
+            holes = []
+        definition.update(code=item['code'], status='pending', holes=holes,
+                          rules={'faces': m.get('faces', [m['face']]), 'maxQuantity': m['maxQuantity']})
         if 'assetHash' in m:
             definition['assetPath'] = 'library/' + m['assetHash'] + '.step'
         p['accessories'].append({**{k: item[k] for k in ('id','face','u','v','rotation')},
-            'anchor':'center','anchorV':'center','side':'outside','definition':definition,
+            'anchor':placement.get('anchor','center'),'anchorV':placement.get('anchorV','center'),
+            'side':'outside','definition':definition,
             **{k:m[k] for k in ('height','thickness','overhang')}})
     return p

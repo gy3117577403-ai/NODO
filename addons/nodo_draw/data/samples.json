@@ -1,4 +1,6 @@
 [
   {"source":"AE-101","title":"壁挂控制箱","kind":"single","width":380,"height":300,"depth":210,"quantity":2,"lines":[{"code":"T5-55","quantity":1},{"code":"EX-COVER","quantity":1}]},
-  {"source":"AE-202","title":"双门配电箱","kind":"double","width":1000,"height":700,"depth":300,"quantity":1,"lines":[{"code":"T5-55","quantity":1,"face":"door_right"}]}
+  {"source":"AE-202","title":"双门配电箱","kind":"double","width":1000,"height":700,"depth":300,"quantity":1,"lines":[{"code":"T5-55","quantity":1,"face":"door_right"}]},
+  {"source":"AE-303","source_version":"2","title":"五金装配柜","kind":"single","width":420,"height":340,"depth":235,"quantity":1,
+   "lines":[{"code":"AE-SQ35","quantity":1,"face":"door"},{"code":"T5-55","quantity":1,"face":"mount"},{"code":"EX-COVER","quantity":1,"face":"top"},{"code":"EX-BASE","quantity":1,"face":"bottom"}]}
 ]

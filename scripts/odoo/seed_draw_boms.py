@@ -5,4 +5,4 @@ if env.cr.dbname != 'nodo_dev':
 for bom in SAMPLES:
     env['nodo.draw.design'].handoff_bom(bom)
 env.cr.commit()
-print('技术工作台两份附件 BOM 已就绪。')
+print(f'技术工作台 {len(SAMPLES)} 份附件 BOM 已就绪。')

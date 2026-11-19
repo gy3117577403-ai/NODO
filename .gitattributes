@@ -5,3 +5,6 @@
 *.png binary
 *.jpg binary
 *.pdf binary
+addons/nodo_draw/data/hardware/*.step binary
+# Generated browser bundle includes literal upstream GLSL. Review the pinned inputs and adapter.
+addons/nodo_draw/static/lib/ae/viewport.min.js -diff linguist-generated

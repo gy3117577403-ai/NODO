@@ -2,5 +2,16 @@
   "T5-55": {"id":"fc-plate-t5","version":1,"code":"T5-55","kind":"step","name":"T 形五孔连接板","face":"door","faces":["door","door_right","mount"],"height":60,"thickness":4,"overhang":0,"maxQuantity":4,"source":"hasecilu · FreeCAD-library · CC BY 3.0，安装尺寸取自参考 STEP","assetHash":"2af625067f0dfa31d1b251fdf9546af8e92db33947dd4a911f231ff0bcc7fae1","size":[55,4,60],"bounds":[[-27.5,-4,0],[27.5,0,60]],"mount":{"unit":"mm","datum":[0,0,30],"normal":"-y","up":"z","throughPanel":false,"clearance":0},"holeCenters":[[-20,-20],[0,-20],[20,-20],[0,0],[0,20]],"diameter":5.5},
   "EX-COVER": {"id":"example-canopy","name":"平板防尘罩","version":1,"kind":"canopy","face":"top","height":40,"overhang":12,"thickness":1.5,"maxQuantity":1,"source":"AE 程序模型 · 顶板四角连接"},
   "EX-BASE": {"id":"example-base","name":"焊接底座","version":1,"kind":"base","face":"bottom","height":70,"overhang":0,"thickness":2,"maxQuantity":1,"source":"AE 程序模型 · 底板四角连接"},
-  "EX-LOCK-22": {"id":"example-lock","name":"圆锁组件","version":1,"kind":"lock","face":"door","height":18,"overhang":0,"thickness":2,"maxQuantity":4,"diameter":22,"source":"AE 程序模型 · 固定圆锁及安装孔"}
+  "EX-LOCK-22": {"id":"example-lock","name":"圆锁组件","version":1,"kind":"lock","face":"door","height":18,"overhang":0,"thickness":2,"maxQuantity":4,"diameter":22,"source":"AE 程序模型 · 固定圆锁及安装孔"},
+  "AE-SQ35": {
+    "id":"ae-square-lock-35","code":"AE-SQ35","name":"方锁组件（含锁舌）","version":2,
+    "kind":"step","cabinetKinds":["single"],"face":"door","height":26,"overhang":0,"thickness":2,"maxQuantity":1,
+    "source":"京能 0.57.3 方锁闭锁包络 · AE 单门原方孔 21.2 mm，锁颈 21 mm，厂家尺寸待核",
+    "assetHash":"bf9a44e4e6ba0b65da0dd0fd184e8eaf8f9ec4c69541f953fd91a2f3b994874a",
+    "size":[47.5,35,26],"bounds":[[-17.5,-17.5,-21],[30,17.5,5]],
+    "mount":{"unit":"mm","datum":[0,0,0],"normal":"z","up":"y","throughPanel":true,"clearance":0},
+    "placement":{"anchor":"right","anchorV":"center","u":52.5,"v":0},
+    "templateOpening":{"templateId":"AE-SINGLE-02","face":"door","width":21.2,"height":21.2},
+    "holes":[{"type":"rectangle","u":0,"v":0,"width":21.2,"height":21.2}]
+  }
 }

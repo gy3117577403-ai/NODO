@@ -15,8 +15,8 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   install <模块>  在 nodo_dev 中安装模块
   update <模块>   在 nodo_dev 中升级模块
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
-  draw-start      启动本机技术工作台 CAD 计算进程
-  seed-draw       在开发库准备两份 AE 附件 BOM
+  draw-start [refresh] 启动本机 CAD 计算进程；refresh 在空闲时重载工作进程
+  seed-draw       在开发库准备 AE 附件 BOM
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
   check-staff-pilot 核对试点库的人员来源、档案关系和界面版本
@@ -199,7 +199,20 @@ switch ($Command) {
             throw '先用 scripts/draw/prepare.py 准备本机私有工程资源'
         }
         $heartbeat = Join-Path $cadRoot 'exchange\worker.json'
-        $running = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like ('*' + $worker + '*') }
+        $workerArg = '"' + $worker + '"'
+        $running = @(Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.EndsWith($workerArg, [StringComparison]::OrdinalIgnoreCase) })
+        if ($Module -eq 'refresh' -and $running.Count) {
+            $pending = Get-ChildItem -LiteralPath (Join-Path $cadRoot 'exchange') -Directory | Where-Object {
+                $request = Join-Path $_.FullName 'request.json'
+                $stateFile = Join-Path $_.FullName 'status.json'
+                (Test-Path -LiteralPath $request) -and ((-not (Test-Path -LiteralPath $stateFile)) -or
+                    ((Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json).state -notin @('done','failed')))
+            }
+            if ($pending) { throw '仍有 CAD 任务在排队或计算，请在队列空闲后重载。' }
+            $running | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
+            $running | ForEach-Object { Wait-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
+            $running = @()
+        }
         if ($running -and (Test-Path -LiteralPath $heartbeat) -and ((Get-Date).ToUniversalTime() - (Get-Item -LiteralPath $heartbeat).LastWriteTimeUtc).TotalSeconds -lt 20) {
             Write-Host 'CAD 服务已运行'
             break

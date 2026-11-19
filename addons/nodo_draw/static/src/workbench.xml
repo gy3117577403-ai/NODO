@@ -5,7 +5,7 @@
     <header class="nd-head"><div><h1>技术工作台</h1><span>柜体设计</span></div>
         <div class="nd-actions" t-if="this.doc()">
             <select aria-label="选择设计" t-on-change="this.selectDesign">
-                <option t-foreach="this.docs()" t-as="d" t-key="d.id" t-att-value="d.id" t-att-selected="d.id===this.doc().id"><t t-out="d.source"/> · <t t-out="d.name"/></option>
+                <option t-foreach="this.docs()" t-as="d" t-key="d.id" t-att-value="d.id" t-att-selected="d.id===this.doc().id" t-out="this.designLabel(d)"/>
             </select>
             <button class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')"><i class="fa fa-files-o"/> 一键出图</button>
         </div>
@@ -50,7 +50,7 @@
                 </div>
                 <button class="nd-wide nd-soft" t-att-disabled="this.busy()" t-on-click="() => this.apply('assemble')">一键装配</button>
                 <t t-foreach="form.instances" t-as="a" t-key="a.id"><div class="nd-match" t-if="['step','lock'].includes(doc.library[a.code].kind)">
-                    <h3 t-out="doc.library[a.code].name"/><small>相对板面中心定位（mm）</small>
+                    <h3 t-out="doc.library[a.code].name"/><small t-out="doc.library[a.code].placement?.anchor==='right'?'横向距板面右边，纵向相对板面中心（mm）':'相对板面中心定位（mm）'"/>
                     <div class="nd-trio"><label t-foreach="[['u','横向'],['v','纵向']]" t-as="k" t-key="k[0]"><t t-out="k[1]"/><input type="number" step="any" t-att-value="form.positions?.[a.id]?.[k[0]] ?? a[k[0]]" t-on-input="ev => this.position(a,k[0],ev)"/></label>
                     <label>转角<select t-on-change="ev => this.position(a,'rotation',ev)"><option t-foreach="[0,90,180,270]" t-as="v" t-key="v" t-att-value="v" t-att-selected="(form.positions?.[a.id]?.rotation ?? a.rotation)===v"><t t-out="v"/>°</option></select></label></div>
                 </div></t>
@@ -72,9 +72,11 @@
             <t t-if="!this.showFiles()">
                 <div class="nd-viewport">
                     <div class="nd-viewport-head"><b t-out="this.mode()==='3d'?'三维装配':this.faceNames[this.face()]+'定位'"/><div class="nd-segment"><button t-att-class="this.mode()==='3d'?'active':''" t-on-click="() => this.mode.set('3d')">三维</button><button t-att-class="this.mode()==='2d'?'active':''" t-on-click="() => this.mode.set('2d')">二维</button></div></div>
-                    <canvas aria-label="柜体工程模型" t-ref="this.canvas" t-on-pointerdown="this.pointerDown" t-on-pointermove="this.pointerMove" t-on-pointerup="this.pointerUp" t-on-pointercancel="() => { this.drag=null; }" t-on-wheel.prevent="ev => this.viewer?.scale(ev.deltaY)"/>
+                    <div class="nd-three-host" t-att-hidden="this.mode()!=='3d'" t-ref="this.threeHost"/>
+                    <div t-if="this.mode()==='3d' &amp;&amp; this.viewerError()" class="nd-overlay" role="alert" t-out="this.viewerError()"/>
+                    <canvas t-if="this.mode()==='2d'" aria-label="板面开孔定位" t-ref="this.canvas" t-on-pointerdown="this.flatPointerDown" t-on-pointerup="this.flatPointerUp" t-on-pointercancel="() => { this.flatPress=null; }" t-on-wheel.prevent="ev => this.faceView?.scale(ev.deltaY)"/>
                     <div class="nd-overlay" t-if="!this.mesh()"><b t-out="doc.jobs[0]?.state==='failed'?'模型生成失败':doc.jobs.length?'正在准备模型':'尚未生成柜体预览'"/><small t-if="!doc.jobs.length">选择柜型和规格后点击「保存并预览柜体」</small></div>
-                    <div class="nd-vtools"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="() => this.viewer?.fit()">复位视角</button></div>
+                    <div class="nd-vtools"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="this.fitView">复位视角</button></div>
                 </div>
                 <div class="nd-foot"><span t-if="form.kind"><b t-out="form.kind==='single'?'AE 单开门':'AE 双开门'"/> · 宽 <t t-out="form.width"/> / 高 <t t-out="form.height"/> / 深 <t t-out="form.depth"/> mm</span><small t-out="this.dirty()?'有未保存修改':(this.modelJob() &amp;&amp; this.modelJob().edit_number!==doc.edit_number?'显示上一版模型':'')"/></div>
             </t>

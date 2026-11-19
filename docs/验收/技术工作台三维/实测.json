@@ -1,0 +1,228 @@
+{
+  "before": {
+    "phase": "before",
+    "viewport": {
+      "width": 1173,
+      "height": 871
+    },
+    "browser": "157.0.8103.51",
+    "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 5080 Laptop GPU (0x00002C19) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.1062)",
+    "models": [
+      {
+        "code": "AE-101",
+        "mesh": "/nodo/draw/file/10/mesh",
+        "sha256": "628974ae9ef42acb2fc500915715e249a383a59998eb0f4acb1c2f1daace9bc3",
+        "parts": 21,
+        "triangles": 44142,
+        "rotate": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 36.9,
+            "p95": 43.5
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 37.2,
+            "p95": 44.6
+          }
+        },
+        "zoom": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 42.6,
+            "p95": 53.1
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 43.6,
+            "p95": 53.3
+          }
+        }
+      },
+      {
+        "code": "AE-202",
+        "mesh": "/nodo/draw/file/11/mesh",
+        "sha256": "84a911686929842583d47185589439ad7fb2ce279c208dca785ec2e9307c6f5d",
+        "parts": 25,
+        "triangles": 79892,
+        "rotate": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 43.9,
+            "p95": 48.6
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 44.2,
+            "p95": 48.8
+          }
+        },
+        "zoom": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 50.9,
+            "p95": 58.8
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 51.1,
+            "p95": 59
+          }
+        }
+      }
+    ]
+  },
+  "after": {
+    "phase": "after",
+    "viewport": {
+      "width": 1173,
+      "height": 871
+    },
+    "browser": "157.0.8103.51",
+    "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 5080 Laptop GPU (0x00002C19) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.1062)",
+    "models": [
+      {
+        "code": "AE-101",
+        "mesh": "/nodo/draw/file/10/mesh",
+        "sha256": "628974ae9ef42acb2fc500915715e249a383a59998eb0f4acb1c2f1daace9bc3",
+        "parts": 21,
+        "triangles": 44142,
+        "rotate": {
+          "cpuMs": {
+            "samples": 44,
+            "median": 0.5,
+            "p95": 0.9
+          },
+          "intervalMs": {
+            "samples": 43,
+            "median": 3.4,
+            "p95": 3.7
+          }
+        },
+        "zoom": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 0.4,
+            "p95": 0.5
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 3.4,
+            "p95": 3.5
+          }
+        }
+      },
+      {
+        "code": "AE-202",
+        "mesh": "/nodo/draw/file/11/mesh",
+        "sha256": "84a911686929842583d47185589439ad7fb2ce279c208dca785ec2e9307c6f5d",
+        "parts": 25,
+        "triangles": 79892,
+        "rotate": {
+          "cpuMs": {
+            "samples": 44,
+            "median": 0.5,
+            "p95": 0.6
+          },
+          "intervalMs": {
+            "samples": 43,
+            "median": 3.3,
+            "p95": 3.5
+          }
+        },
+        "zoom": {
+          "cpuMs": {
+            "samples": 45,
+            "median": 0.5,
+            "p95": 0.6
+          },
+          "intervalMs": {
+            "samples": 44,
+            "median": 3.3,
+            "p95": 3.5
+          }
+        }
+      }
+    ]
+  },
+  "selection": [
+    {
+      "code": "AE-101",
+      "face": "door",
+      "pointMm": [
+        153.61,
+        216.61
+      ],
+      "independentMm": [
+        153.607,
+        216.614
+      ],
+      "shape": "Ø12 mm",
+      "insidePoints": 5,
+      "outsidePoints": 4,
+      "restored": true
+    },
+    {
+      "code": "AE-202",
+      "face": "door_right",
+      "pointMm": [
+        185.98,
+        463.74
+      ],
+      "independentMm": [
+        185.985,
+        463.737
+      ],
+      "shape": "24 × 14 mm",
+      "insidePoints": 5,
+      "outsidePoints": 4,
+      "restored": true
+    }
+  ],
+  "hardware": {
+    "design": "4",
+    "parts": 27,
+    "hinges": 2,
+    "studs": 4,
+    "nativeOpeningMm": 21.2,
+    "neckMm": 21,
+    "occurrences": [
+      {
+        "code": "AE-SQ35",
+        "face": "door",
+        "solids": 1
+      },
+      {
+        "code": "T5-55",
+        "face": "mount",
+        "solids": 1
+      },
+      {
+        "code": "EX-COVER",
+        "face": "top",
+        "solids": 5
+      },
+      {
+        "code": "EX-BASE",
+        "face": "bottom",
+        "solids": 5
+      }
+    ],
+    "closedPairs": 53,
+    "sampledDegrees": [
+      0,
+      10,
+      20,
+      30,
+      40,
+      50,
+      60,
+      70,
+      80,
+      90,
+      100,
+      110
+    ],
+    "collisions": 0
+  }
+}

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -66,6 +67,29 @@ class TestDrawWorkbench(TransactionCase):
         self.assertTrue(spec.assemble(settings,lines,spec.LIBRARY))
         with self.assertRaises(ValueError):
             spec.edit(settings, {**settings,'width':float('nan')},lines,spec.LIBRARY)
+
+    def test_square_lock_uses_the_single_door_cutout_datum(self):
+        bom = spec.intake(next(row for row in spec.SAMPLES if row['source'] == 'AE-303'))
+        settings = spec.initial(bom)
+        self.assertFalse(spec.assemble(settings, bom['lines'], spec.LIBRARY))
+        self.assertEqual(len(settings['instances']), 4)
+        definition = spec.LIBRARY['AE-SQ35']
+        asset = spec.DATA / 'hardware' / (definition['assetHash'] + '.step')
+        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(), definition['assetHash'])
+        for width in (380, 420):
+            settings['width'] = width
+            lock = spec.parameters(settings, spec.LIBRARY, 1)['accessories'][0]
+            self.assertEqual((lock['anchor'], lock['u'], lock['anchorV'], lock['v']), ('right', 52.5, 'center', 0))
+            self.assertEqual(2.5 + (width - 5) - lock['u'], width - 55)
+            self.assertEqual(lock['definition']['holes'], [])
+            self.assertEqual(lock['definition']['templateOpening']['width'], 21.2)
+            self.assertTrue(lock['definition']['mount']['throughPanel'])
+        settings['instances'][0]['u'] = 75
+        relocated = spec.parameters(settings, spec.LIBRARY, 2)['accessories'][0]['definition']
+        self.assertNotIn('templateOpening', relocated)
+        self.assertEqual(relocated['holes'], [dict(type='rectangle',u=0,v=0,width=21.2,height=21.2)])
+        settings['kind'] = 'double'
+        self.assertTrue(spec.match_row(settings, bom['lines'], spec.LIBRARY, 0)['issue'])
 
     def test_snapshot_conflict_delivery_and_retry(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(workbench,'EXCHANGE',Path(tmp)), patch.object(workbench,'online',return_value=True):

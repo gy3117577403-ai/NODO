@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "template": "square-lock",
+  "unit": "mm",
+  "faceWidth": 35,
+  "faceHeight": 35,
+  "faceDepth": 5,
+  "cornerRadius": 3,
+  "neckWidth": 21,
+  "neckHeight": 21,
+  "insertionDepth": 20,
+  "openingWidth": 21.2,
+  "openingHeight": 21.2,
+  "camLength": 30,
+  "camWidth": 12,
+  "camThickness": 3,
+  "camBackset": 18,
+  "evidence": "闭锁实体采用京能 0.57.3 方锁模板默认尺寸。安装孔沿用 AE 单门原方孔 21.2 mm；21 mm 锁颈单边名义间隙 0.1 mm，厂家尺寸及公差待核。"
+}

@@ -32,3 +32,7 @@ NODO 后台的材质规则（实心玻璃，不透明版）借鉴了 Solid Glass
 
 - 效果图中使用的 Tabler 图标（MIT）未打包进产品。
 - 产品界面使用系统字体（微软雅黑、苹方），PDF 使用容器内的 Noto CJK（SIL Open Font License）。
+
+## 技术工作台三维视口
+
+技术工作台内置京能 0.57.3 的 AE 视口。其浏览器运行时包含 Three.js 0.186.1、three-mesh-bvh 0.9.16、React 和 React DOM 19.3.1，以及 Scheduler 0.28.0。各包均采用 MIT 许可，完整版权声明和许可随视口一起提供。[许可原文](addons/nodo_draw/static/lib/ae/LICENSES.txt)
