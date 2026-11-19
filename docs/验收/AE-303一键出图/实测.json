@@ -1,0 +1,289 @@
+{
+  "source": "AE-303",
+  "handoff": 2,
+  "job": 19,
+  "revision": "V02",
+  "solids": 27,
+  "cabinet_WDH_mm": [
+    420,
+    235,
+    340
+  ],
+  "assembled_WDH_mm": [
+    444,
+    259,
+    451.5
+  ],
+  "dwg": 29,
+  "cut_dxf": 12,
+  "door_square": {
+    "cut_contours": 2,
+    "lock_contours": 1,
+    "lock_edges": 4,
+    "duplicate_edges": 0,
+    "size_mm": [
+      21.2,
+      21.2
+    ],
+    "flat_xy_mm": [
+      375.32,
+      178.6
+    ],
+    "world_on_door_mm": [
+      365,
+      0,
+      170.0
+    ],
+    "neck_mm": 21,
+    "nominal_clearance_per_side_mm": 0.1
+  },
+  "bom_rows": 27,
+  "bom_pages": [
+    24,
+    3
+  ],
+  "fittings": [
+    {
+      "code": "AE-SQ35",
+      "surface": "door",
+      "per_cabinet": 1,
+      "components": 1,
+      "coordinates_mm": {
+        "a1n1_model": [
+          [
+            347.5,
+            -5.0,
+            152.5
+          ],
+          [
+            395.0,
+            21.0,
+            187.5
+          ]
+        ]
+      }
+    },
+    {
+      "code": "T5-55",
+      "surface": "mount",
+      "per_cabinet": 1,
+      "components": 1,
+      "coordinates_mm": {
+        "a2n1_model": [
+          [
+            182.5,
+            203.5,
+            140.0
+          ],
+          [
+            237.5,
+            207.5,
+            200.0
+          ]
+        ]
+      }
+    },
+    {
+      "code": "EX-COVER",
+      "surface": "top",
+      "per_cabinet": 1,
+      "components": 5,
+      "coordinates_mm": {
+        "a3n1_plate": [
+          [
+            -12.0,
+            -12.0,
+            380.0
+          ],
+          [
+            432.0,
+            247.0,
+            381.5
+          ]
+        ],
+        "a3n1_post1": [
+          [
+            35.5,
+            187.4,
+            340.0
+          ],
+          [
+            47.5,
+            199.4,
+            380.0
+          ]
+        ],
+        "a3n1_post2": [
+          [
+            372.5,
+            187.4,
+            340.0
+          ],
+          [
+            384.5,
+            199.4,
+            380.0
+          ]
+        ],
+        "a3n1_post3": [
+          [
+            35.5,
+            56.5,
+            340.0
+          ],
+          [
+            47.5,
+            68.5,
+            380.0
+          ]
+        ],
+        "a3n1_post4": [
+          [
+            372.5,
+            56.5,
+            340.0
+          ],
+          [
+            384.5,
+            68.5,
+            380.0
+          ]
+        ]
+      }
+    },
+    {
+      "code": "EX-BASE",
+      "surface": "bottom",
+      "per_cabinet": 1,
+      "components": 5,
+      "coordinates_mm": {
+        "a4n1_front": [
+          [
+            0.0,
+            0.0,
+            -70.0
+          ],
+          [
+            420.0,
+            2.0,
+            -2.0
+          ]
+        ],
+        "a4n1_back": [
+          [
+            0.0,
+            233.0,
+            -70.0
+          ],
+          [
+            420.0,
+            235.0,
+            -2.0
+          ]
+        ],
+        "a4n1_left": [
+          [
+            0.0,
+            2.0,
+            -70.0
+          ],
+          [
+            2.0,
+            233.0,
+            -2.0
+          ]
+        ],
+        "a4n1_right": [
+          [
+            418.0,
+            2.0,
+            -70.0
+          ],
+          [
+            420.0,
+            233.0,
+            -2.0
+          ]
+        ],
+        "a4n1_plate": [
+          [
+            0.0,
+            0.0,
+            -2.0
+          ],
+          [
+            420.0,
+            235.0,
+            0.0
+          ]
+        ]
+      }
+    }
+  ],
+  "installation_holes": {
+    "mount": 5,
+    "top": 4,
+    "bottom": 4
+  },
+  "assembly_views": [
+    {
+      "id": "front",
+      "visibleEntities": 94,
+      "size": [
+        444.0,
+        451.5
+      ]
+    },
+    {
+      "id": "right",
+      "visibleEntities": 99,
+      "size": [
+        259.0,
+        451.5
+      ]
+    },
+    {
+      "id": "left",
+      "visibleEntities": 102,
+      "size": [
+        259.00000000000006,
+        451.5
+      ]
+    },
+    {
+      "id": "back",
+      "visibleEntities": 84,
+      "size": [
+        444.0,
+        451.5
+      ]
+    },
+    {
+      "id": "bottom",
+      "visibleEntities": 34,
+      "size": [
+        444.0,
+        259.0
+      ]
+    },
+    {
+      "id": "top",
+      "visibleEntities": 8,
+      "size": [
+        444.0,
+        259.0
+      ]
+    }
+  ],
+  "mount_view": [
+    {
+      "id": "main",
+      "entities": 29,
+      "size": [
+        365.0000000000002,
+        305.0
+      ]
+    }
+  ],
+  "engineering_status": "REFERENCE_CALIBRATED_REVIEW_REQUIRED"
+}

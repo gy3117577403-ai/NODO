@@ -10,6 +10,28 @@ from pathlib import Path
 ENGINE = Path(__file__).resolve().parents[2] / '.nodo-draw' / 'engineering' / 'ae-cabinet'
 
 
+def register_mount_projection(source, parameters):
+    from formed_template import layout
+    from reference_models import legacy_parameters
+    import ezdxf
+
+    # The old projection strips holes from its layout parameters. Its STEP
+    # geometry includes the cuts, but the view does not reserve the hole table.
+    projected = layout('mount', legacy_parameters(parameters))['views'][0]
+    printed = layout('mount', parameters)['views'][0]
+    dx, dy = [b-a for a, b in zip(projected['origin'], printed['origin'])]
+    if not (dx or dy):
+        return source
+    drawing = ezdxf.readfile(source)
+    layers = {projected['visibleLayer'], projected['hiddenLayer']}
+    for entity in drawing.modelspace():
+        if entity.dxf.layer in layers:
+            entity.translate(dx, dy, 0)
+    registered = source.with_name('formed_mount_registered.dxf')
+    drawing.saveas(registered)
+    return registered
+
+
 def check_assembly(source, returned, expected, work, original_verify):
     from assembly_template import project_point
     from cadgen import build123d as bd
@@ -48,6 +70,19 @@ def main():
     from cadgen import build123d  # Initialize the CAD kernel before binding its verifier.
     import drawings
     import incremental
+    import modular_drawing
+    from design_templates import registered
+    from reference_models import active as reference_active, dual
+
+    original_compose = modular_drawing.compose
+
+    def compose(part, p, source, output, records, is_flat=False):
+        if (part == 'mount' and not is_flat and reference_active(p) and not dual(p)
+                and not registered(p, part) and any(h['face'] == 'mount' for h in p['holes'])):
+            source = register_mount_projection(source, p)
+        return original_compose(part, p, source, output, records, is_flat)
+
+    modular_drawing.compose = compose
 
     work = Path(sys.argv[2]).resolve()
     parameters = json.loads(Path(sys.argv[1]).read_text('utf-8'))
