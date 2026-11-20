@@ -3,7 +3,7 @@ import {intersectFace} from "@jingneng/HoleGizmo";
 
 // A ray can hit a back wall through an opening or hit the lock in front of it.
 // Keep the visible surface and the nearest eligible work plane as separate facts.
-export function pickDrillPlane(ray, faces, objects, lockedFace) {
+export function pickDrillPlane(ray, faces, objects) {
     const visible = objects.filter(object => object.group.visible);
     const [hit] = ray.intersectObjects(visible.map(object => object.mesh));
     const surface = hit?.face ? {
@@ -13,7 +13,6 @@ export function pickDrillPlane(ray, faces, objects, lockedFace) {
     } : null;
     let nearest = null;
     for (const face of faces) {
-        if (lockedFace && face.id !== lockedFace) continue;
         const object = visible.find(item => item.part.id === face.part);
         if (!object) continue;
         const uv = intersectFace(ray.ray, face, object.mesh.matrixWorld);

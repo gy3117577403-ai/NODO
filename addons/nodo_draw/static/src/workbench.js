@@ -145,7 +145,7 @@ export class Workbench extends Component {
         };
         const overlay = paused ? null : this.holeOverlay(mesh);
         const drill = !paused && this.drilling() && !this.busy() && this.holeGeometryReady(mesh) ? {
-            face:drillFace, snap:this.drillSnap(),
+            snap:this.drillSnap(),
             pick:(plane, surface, obstructed) => this.pickDrill(plane, surface, obstructed),
             move:(u,v) => this.moveDrill(u,v), end:() => this.endHoleInput(),
             edit:id => this.pickExistingHole(id),
@@ -662,18 +662,23 @@ export class Workbench extends Component {
             this.drillNotice.set("此处是附件关联孔位，请在装配中调整。");
             return false;
         }
-        if (this.holeDraft().active && this.editing() !== id) {
+        const switching = row.face !== this.face();
+        if (!switching && this.holeDraft().active && this.editing() !== id) {
             this.drillNotice.set(pendingHoleNotice);
             return false;
         }
-        this.selectBoard(row.face);
-        if (this.editing() !== id) this.editHole(row);
+        const select = () => {
+            this.selectBoard(row.face);
+            if (this.editing() !== id) this.editHole(row);
+        };
+        if (switching) this.recordHoleChange(select);
+        else select();
         return true;
     }
     pickDrill(plane, surface, obstructed) {
         if (!this.drilling() || this.busy() || !this.holeGeometryReady()) return;
         if (!plane) {
-            this.drillNotice.set(this.drillFace() ? "请点当前板面，或从左侧切换加工面。" : "请选择可加工的板件主面。");
+            this.drillNotice.set("请点击模型上可见的加工板面。");
             return;
         }
         const face = this.board(plane.face), mesh = this.displayMesh(), shapes = window.nodoDrawAE0573;
@@ -691,19 +696,24 @@ export class Workbench extends Component {
         const point = onFace ? surface : plane;
         const contains = hole => hole.face === face.id && shapes.holeContains(hole, face, point.u, point.v);
         const existing = this.form().holes.find(contains);
-        if (existing) {
-            this.pickExistingHole(existing.id);
-            return;
-        }
-        const material = faceSurface(mesh, face);
         const oldCut = (mesh.parameters.holes ?? []).some(hole => !linkedHole(hole) && /^H\d+$/.test(hole.id) && contains(hole));
-        if (!onFace && !oldCut) {
+        if (!onFace && !existing && !oldCut) {
+            const material = faceSurface(mesh, face);
             if (material.triangles.length && !containsMaterial(material, [point.u, point.v])) {
                 this.selectBoard(face.id);
                 this.drillNotice.set("此处是原图开孔或空白区域，请在有板材的位置开孔。");
             } else {
                 this.drillNotice.set("请选择可加工的板件主面。");
             }
+            return;
+        }
+        if (face.id !== this.face() && this.holeDrafts.get(face.id)?.active) {
+            this.recordHoleChange(() => this.selectBoard(face.id));
+            this.drillNotice.set("已恢复此面的待确认孔位。");
+            return;
+        }
+        if (existing) {
+            this.pickExistingHole(existing.id);
             return;
         }
         this.recordHoleChange(() => {

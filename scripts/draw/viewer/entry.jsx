@@ -24,7 +24,6 @@ export function mount(host) {
                 return;
             }
             const drill = drilling && {
-                face: drilling.face,
                 pick: ({plane, surface, obstructed}) => drilling.pick(plane, surface && locateFace(surface, model.faces), obstructed),
             };
             root.render(<Viewer model={model} angle={open ? 70 : 0} explode={0}

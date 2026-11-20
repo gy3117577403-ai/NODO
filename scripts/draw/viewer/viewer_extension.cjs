@@ -6,9 +6,9 @@ module.exports = function extendViewer(source) {
     const dispatch = "   setRay(e);\n   const accessory=accessories.select(ray);";
     const changes = [
         [imports, imports + "\nimport {pickDrillPlane} from '@nodo/drill-pick';"],
-        [props, "drill?:{face:string|null;pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
+        [props, "drill?:{pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
         [dispatch, "   setRay(e);\n   const drill=live.current.drill;\n" +
-            "   if(drill){drill.pick(pickDrillPlane(ray,live.current.model.faces,objects,drill.face));return;}\n" +
+            "   if(drill){drill.pick(pickDrillPlane(ray,live.current.model.faces,objects));return;}\n" +
             "   const accessory=accessories.select(ray);"],
     ];
     let text = source.toString("utf8");
