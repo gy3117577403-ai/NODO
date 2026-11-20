@@ -170,6 +170,54 @@ class TestDrawWorkbench(TransactionCase):
             self.assertNotEqual(saved['job_id'], preview_id)
             self.assertEqual([job['id'] for job in self.design.workspace()['jobs']], [saved['job_id']])
 
+    def test_base_cabinet_preview_uses_structure_only(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
+                patch.object(workbench, 'online', return_value=True):
+            raw = {**self.design.settings, 'holes': [dict(id='H1', face='door', type='circle', u=95, v=110, diameter=18)]}
+            self.design.apply_design(self.design.edit_number, raw, 'assemble')
+            saved = self.design.settings
+            self.assertEqual(len(saved['instances']), 2)
+            preview_ids = {}
+            jobs = self.env['nodo.draw.job']
+            for kind in ('single', 'double'):
+                base_id = self.design.preview_cabinet(self.design.edit_number, {**saved, 'kind': kind}, 'base')
+                preview_ids[kind] = base_id
+                base = jobs.browse(base_id).payload['parameters']
+                self.assertEqual(base['configuration']['kind'], kind)
+                self.assertEqual((base['width'], base['height'], base['depth']), (380, 300, 210))
+                self.assertEqual((base['holes'], base['accessories']), ([], []))
+            full_id = self.design.preview_cabinet(self.design.edit_number, saved, 'design')
+            full = jobs.browse(full_id).payload['parameters']
+            self.assertEqual(len(full['accessories']), 2)
+            self.assertEqual(full['holes'][0]['id'], 'H1')
+            self.assertEqual(self.design.preview_cabinet(self.design.edit_number, saved, 'base'), preview_ids['single'])
+            self.assertEqual(self.design.settings, saved)
+
+    def test_original_drawing_reuse_and_parameter_change(self):
+        raw = {**self.raw, 'source': '基础柜体', 'lines': []}
+        design = self.model.browse(self.model.with_user(self.sales).handoff_bom(raw)['design_id']).with_user(self.engineer)
+        single = design.settings
+        double = {**single, 'kind': 'double', 'width': 1000, 'height': 700, 'depth': 300}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
+                patch.object(workbench, 'online', return_value=False) as worker:
+            for kind, settings in (('single', single), ('double', double)):
+                root = Path(tmp) / 'reference' / kind
+                root.mkdir(parents=True)
+                (root / 'index.json').write_text('[{"key":"basis_01"}]', 'utf-8')
+                result = design.apply_design(design.edit_number, settings, 'generate')
+                self.assertEqual(result, {'reference_kind': kind, 'issues': []})
+            self.assertFalse(design.workspace()['jobs'])
+            worker.return_value = True
+            customized = {**double, 'width': 1020}
+            first = design.apply_design(design.edit_number, customized, 'generate')
+            self.assertEqual(design.apply_design(design.edit_number, customized, 'generate'), first)
+            design.apply_design(design.edit_number, double, 'generate')
+            self.assertEqual(design.apply_design(design.edit_number, customized, 'generate'), first)
+            self.assertEqual([job['id'] for job in design.workspace()['jobs']], [first['job_id']])
+            material_changed = {**double, 'thickness': {'body': 1.6}}
+            second = design.apply_design(design.edit_number, material_changed, 'generate')
+            self.assertNotEqual(second['job_id'], first['job_id'])
+
     def test_snapshot_conflict_delivery_and_retry(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(workbench,'EXCHANGE',Path(tmp)), patch.object(workbench,'online',return_value=True):
             settings = copy.deepcopy(self.design.settings)

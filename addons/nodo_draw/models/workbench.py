@@ -7,10 +7,15 @@ from pathlib import Path
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from . import sheet_settings, specification as spec
+from . import sheet_settings, specification as spec, standard_drawings
 
 EXCHANGE = Path('/mnt/nodo-draw')
 DRAWING_FORMAT = 2
+
+
+def drawing_inputs(payload):
+    parameters = {key: value for key, value in payload['parameters'].items() if key != 'revision'}
+    return {**payload, 'parameters': parameters}
 
 
 def read_json(path):
@@ -75,6 +80,11 @@ class DrawDesign(models.Model):
         return self.search_read([('company_id','=',self.env.company.id)],['name','source','source_version'],
                                 order='source, id desc')
 
+    @api.model
+    def list_reference_drawings(self):
+        guard(self.env)
+        return standard_drawings.catalog(EXCHANGE)
+
     def _check_read(self):
         self.ensure_one()
         guard(self.env)
@@ -113,19 +123,26 @@ class DrawDesign(models.Model):
             edit_number=self.edit_number, version=version, payload=payload, preview_user_id=preview_user_id,
         ))
 
-    def preview_cabinet(self, expected, values):
+    def preview_cabinet(self, expected, values, scope='design'):
         self._lock_editor(expected)
+        if scope not in ('base', 'design'):
+            raise UserError('柜体预览范围无效。')
+        old, lines = self.settings, self.bom['lines']
+        if scope == 'base' and isinstance(values, dict):
+            old, lines = {**old, 'instances': []}, []
+            values = {**values, 'holes': [], 'matches': {}, 'positions': {}}
         try:
-            settings = spec.edit(self.settings, values, self.bom['lines'], self.library)
+            settings = spec.edit(old, values, lines, self.library)
             payload = self._job_payload(settings, 'preview', 0)
         except ValueError as exc:
             raise UserError(str(exc)) from exc
         owner = self.env.uid
         recent = self.env['nodo.draw.job'].search([
-            ('design_id', '=', self.id), ('edit_number', '=', self.edit_number), ('preview_user_id', '=', owner),
-        ], order='id desc', limit=1)
-        if recent and recent.payload == payload and recent._info()['state'] != 'failed':
-            return recent.id
+            ('design_id', '=', self.id), ('preview_user_id', '=', owner),
+        ], order='id desc', limit=8)
+        for job in recent:
+            if job.payload == payload and job._info()['state'] != 'failed':
+                return job.id
         return self._new_job(payload, 0, owner).id
 
     def cabinet_preview_status(self, job_id):
@@ -164,14 +181,24 @@ class DrawDesign(models.Model):
             self.sudo().write({'settings':new,'edit_number':self.edit_number+1})
         jobs = self.env['nodo.draw.job'].sudo()
         kind = 'build' if operation == 'generate' else 'preview'
-        current = jobs.search([('design_id','=',self.id),('edit_number','=',self.edit_number),
-                               ('operation','=',kind),('preview_user_id','=',False)],order='id desc',limit=1)
-        compatible = current and (kind == 'preview' or current.payload.get('drawing_format') == DRAWING_FORMAT)
-        if compatible and current._info()['state'] != 'failed':
-            return {'job_id':current.id, 'issues':issues}
         previous = jobs.search([('design_id','=',self.id),('operation','=','build')],order='version desc',limit=1)
         version = (previous.version or 0) + 1
-        job = self._new_job(self._job_payload(new, kind, version), version)
+        payload = self._job_payload(new, kind, version)
+        if kind == 'build':
+            if standard_drawings.matches(payload['parameters']):
+                if not standard_drawings.catalog(EXCHANGE)[new['kind']]['sheets']:
+                    raise UserError('当前柜型的基础原图尚未准备。')
+                return {'reference_kind': new['kind'], 'issues': issues}
+            inputs = drawing_inputs(payload)
+            for job in jobs.search([('design_id', '=', self.id), ('operation', '=', 'build')], order='id desc'):
+                if drawing_inputs(job.payload) == inputs and job._info()['state'] != 'failed':
+                    return {'job_id': job.id, 'issues': issues}
+        else:
+            current = jobs.search([('design_id', '=', self.id), ('edit_number', '=', self.edit_number),
+                                   ('operation', '=', 'preview'), ('preview_user_id', '=', False)], order='id desc', limit=1)
+            if current and current._info()['state'] != 'failed':
+                return {'job_id': current.id, 'issues': issues}
+        job = self._new_job(payload, version)
         return {'job_id':job.id,'issues':issues}
 
 

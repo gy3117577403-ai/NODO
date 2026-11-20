@@ -1,7 +1,7 @@
 {
     'name': 'NODO 技术工作台',
     'author': 'NODO',
-    'version': '20.0.1.6.0',
+    'version': '20.0.1.7.0',
     'category': 'Manufacturing',
     'summary': '从附件清单到 AE 柜装配与工程图纸',
     'license': 'Other proprietary',

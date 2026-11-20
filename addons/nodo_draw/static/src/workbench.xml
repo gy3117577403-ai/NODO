@@ -10,11 +10,11 @@
     <div t-if="!this.doc()" class="nd-empty">暂无已交接的柜体 BOM</div>
     <t t-else="">
     <t t-set="doc" t-value="this.doc()"/><t t-set="form" t-value="this.form()"/>
-    <t t-set="job" t-value="this.showFiles() ? this.selectedBuild() : null"/>
+    <t t-set="job" t-value="this.showFiles() ? this.selectedDrawing() : null"/>
     <t t-set="sheet" t-value="job?.state==='done' ? this.selectedSheet(job) : null"/>
     <Portal target="'.nd-workbar-slot'">
     <t t-set="doc" t-value="this.doc()"/>
-    <t t-set="job" t-value="this.showFiles() ? this.selectedBuild() : null"/>
+    <t t-set="job" t-value="this.showFiles() ? this.selectedDrawing() : null"/>
     <t t-set="sheet" t-value="job?.state==='done' ? this.selectedSheet(job) : null"/>
     <div class="nd-workbar" role="toolbar" aria-label="柜体设计工具栏">
         <div class="nd-context">
@@ -22,10 +22,17 @@
                     t-att-title="'交接版 '+doc.bom.source_version+' · '+doc.bom.quantity+' 台'">
                 <option t-foreach="this.docs()" t-as="d" t-key="d.id" t-att-value="d.id" t-att-selected="d.id===doc.id" t-out="this.designLabel(d)"/>
             </select>
-            <select t-if="job" class="nd-version-choice" aria-label="图纸版本" t-on-change="ev => this.setBuild(+ev.target.value)">
-                <option t-foreach="this.builds()" t-as="j" t-key="j.id" t-att-value="j.id" t-att-selected="j.id===job.id">V<t t-out="this.version(j.version)"/> · <t t-out="this.jobState(j)"/></option>
+            <select t-if="this.showFiles()" class="nd-version-choice" aria-label="图纸版本" t-on-change="this.selectDrawingVersion">
+                <optgroup label="基础原图">
+                    <option t-foreach="Object.values(this.referenceDrawings())" t-as="ref" t-key="ref.kind" t-att-value="'original-'+ref.kind"
+                            t-att-selected="job?.id==='original-'+ref.kind" t-out="ref.label"/>
+                </optgroup>
+                <optgroup t-if="this.builds().length" label="出图版本">
+                    <option t-foreach="this.builds()" t-as="j" t-key="j.id" t-att-value="j.id" t-att-selected="j.id===job?.id">V<t t-out="this.version(j.version)"/> · <t t-out="this.jobState(j)"/></option>
+                </optgroup>
             </select>
-            <span t-if="job?.state==='done'" class="nd-tag">待工艺校核</span>
+            <span t-if="job?.reference" class="nd-tag" title="原图尺寸（宽 × 高 × 深）" aria-label="原图尺寸（宽 × 高 × 深）"><t t-out="job.dimensions.width"/> × <t t-out="job.dimensions.height"/> × <t t-out="job.dimensions.depth"/> mm</span>
+            <span t-elif="job?.state==='done'" class="nd-tag">待工艺校核</span>
             <button t-if="!this.showFiles()" type="button" class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')">一键出图</button>
             <span t-if="!this.showFiles() &amp;&amp; !doc.online" class="nd-offline" role="status" title="计算服务离线" aria-label="计算服务离线">
                 <i class="fa fa-exclamation-circle" aria-hidden="true"/>
@@ -33,6 +40,7 @@
         </div>
         <div class="nd-workbar-views" role="group" aria-label="工作台视图">
             <button type="button" t-att-aria-pressed="!this.showFiles()?'true':'false'" t-on-click="this.openDesign">设计视图</button>
+            <button type="button" t-if="!this.showFiles()" t-on-click="() => this.openReference()">基础原图</button>
             <button type="button" t-if="!this.showFiles()" t-on-click="this.openArchive">图纸与版本</button>
         </div>
         <div class="nd-workbar-views" role="group" aria-label="设计视口" t-if="!this.showFiles()">
@@ -40,7 +48,7 @@
             <button type="button" t-att-aria-pressed="this.mode()==='2d'?'true':'false'" t-on-click="() => this.selectTab('holes')">二维</button>
         </div>
         <div t-elif="job?.state==='done'" class="nd-bar-actions">
-            <div class="nd-workbar-views" role="group" aria-label="成果视图">
+            <div t-if="!job.reference" class="nd-workbar-views" role="group" aria-label="成果视图">
                 <button type="button" t-att-aria-pressed="this.archiveMode()==='drawing'?'true':'false'" t-on-click="() => this.archiveMode.set('drawing')">图纸</button>
                 <button type="button" t-att-aria-pressed="this.archiveMode()==='3d'?'true':'false'" t-on-click="() => this.archiveMode.set('3d')">本版本三维</button>
             </div>
@@ -53,13 +61,13 @@
                 <button type="button" t-att-aria-expanded="this.archiveMenu()==='downloads'?'true':'false'" t-on-click="() => this.toggleArchiveMenu('downloads')">下载</button>
                 <div class="nd-popover nd-downloads" t-if="this.archiveMenu()==='downloads'" aria-label="下载文件" t-on-click="() => this.archiveMenu.set(null)">
                     <t t-if="sheet">
-                        <a t-att-href="this.url(job.id,sheet.key)" t-att-aria-label="'下载'+sheet.name+' DWG'">当前图纸 DWG</a>
-                        <a t-if="sheet.category==='flat'" t-att-href="this.url(job.id,sheet.key+'c')" t-att-aria-label="'下载'+sheet.name+' DXF'">当前切割 DXF</a>
+                        <a t-att-href="this.drawingFile(job,sheet,'dwg')" t-att-aria-label="'下载'+sheet.name+' DWG'" t-out="job.reference?'当前原图 DWG':'当前图纸 DWG'"/>
+                        <a t-if="!job.reference &amp;&amp; sheet.category==='flat'" t-att-href="this.url(job.id,sheet.key+'c')" t-att-aria-label="'下载'+sheet.name+' DXF'">当前切割 DXF</a>
                     </t>
-                    <a t-foreach="this.downloads" t-as="link" t-key="link[0]" t-att-href="this.url(job.id,link[0])" t-out="link[1]"/>
+                    <t t-if="!job.reference"><a t-foreach="this.downloads" t-as="link" t-key="link[0]" t-att-href="this.url(job.id,link[0])" t-out="link[1]"/></t>
                 </div>
             </div>
-            <div class="nd-menu">
+            <div class="nd-menu" t-if="!job.reference">
                 <button type="button" aria-label="版本详情" title="版本详情" t-att-aria-expanded="this.archiveMenu()==='details'?'true':'false'"
                         t-on-click="() => this.toggleArchiveMenu('details')">⋯</button>
                 <section class="nd-popover nd-version-details" t-if="this.archiveMenu()==='details'" aria-label="版本详情">
@@ -202,11 +210,12 @@
                 </div>
                 <div class="nd-foot">
                     <span><t t-if="visual"><b t-out="'AE '+this.kindName(visual.parameters.configuration.kind)"/> · 宽 <t t-out="visual.dimensions.width"/> / 高 <t t-out="visual.dimensions.height"/> / 深 <t t-out="visual.dimensions.depth"/> mm</t></span>
-                    <small t-out="draft?.mesh ? (draft.snapshot===form?'草稿预览 · 未保存':'草稿已修改，预览待更新') : (this.dirty()?'有未保存修改':(this.modelJob() &amp;&amp; this.modelJob().edit_number!==doc.edit_number?'显示上一版模型':''))"/>
+                    <small t-out="this.previewNote()"/>
                 </div>
             </t>
             <div t-else="" class="nd-files">
                 <div class="nd-empty" t-if="!job">尚无图纸版本</div>
+                <div class="nd-empty" role="status" t-elif="job.state==='unavailable'">当前柜型的基础原图尚未准备</div>
                 <div t-elif="job.state!=='done'" class="nd-empty nd-archive-state" role="status">
                     <b t-out="this.jobState(job)"/>
                     <p t-out="job.error || job.stage"/>
@@ -228,7 +237,7 @@
                     <t t-if="sheet">
                         <t t-set="viewKey" t-value="job.id + '/' + sheet.key"/>
                         <t t-key="viewKey">
-                            <DrawingViewport src="this.url(job.id,sheet.key+'p')" title="sheet.name" showTitle="this.directoryHidden()"
+                            <DrawingViewport src="this.drawingFile(job,sheet,'svg')" title="sheet.name" showTitle="this.directoryHidden()"
                                              initialView="this.drawingView(viewKey)" remember="view => this.rememberDrawingView(viewKey,view)"/>
                         </t>
                     </t>

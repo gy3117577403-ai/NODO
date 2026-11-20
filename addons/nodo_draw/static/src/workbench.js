@@ -25,6 +25,8 @@ export class Workbench extends Component {
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
     draftPreview=signal(null);
+    referenceDrawings=signal({});
+    referenceKind=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
     hole=signal(defaultHole("door"));
     editing=signal(null); batch=signal(null); sheet=signal(null); showFiles=signal(false);
@@ -57,8 +59,11 @@ export class Workbench extends Component {
             } catch {
                 this.viewerError.set("三维视口加载失败，请刷新后重试。");
             }
-            const designs = await this.orm.call(MODEL,"list_designs",[]);
+            const [designs, references] = await Promise.all([
+                this.orm.call(MODEL,"list_designs",[]), this.orm.call(MODEL,"list_reference_drawings",[]),
+            ]);
             this.docs.set(designs);
+            this.referenceDrawings.set(references);
             const initialId = new URLSearchParams(window.location.search).get("design");
             const initial = designs.find(design => String(design.id) === initialId) || designs[0];
             if (initial) await this.loadDesign(initial.id);
@@ -103,9 +108,24 @@ export class Workbench extends Component {
         const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
         this.threeView?.update(mesh, open, paused, reset);
     }
+    previewScope() { return this.tab() === "cabinet" ? "base" : "design"; }
     displayMesh() {
-        const mesh = this.draftPreview()?.mesh || this.mesh();
-        return meshKind(mesh) === this.form()?.kind ? mesh : null;
+        const preview = this.draftPreview(), scope = this.previewScope(), kind = this.form()?.kind;
+        if (preview?.scope === scope && meshKind(preview.mesh) === kind) return preview.mesh;
+        const mesh = this.mesh();
+        if (!mesh || meshKind(mesh) !== kind) return null;
+        if (scope === "base" && (mesh.parameters.accessories?.length || mesh.parameters.holes?.length)) return null;
+        return mesh;
+    }
+    previewNote() {
+        const draft = this.draftPreview();
+        if (draft?.mesh && draft.snapshot !== this.form()) return "草稿已修改，预览待更新";
+        if (this.displayMesh() && this.previewScope() === "base") {
+            return this.dirty() ? "基础预览 · 未保存" : "基础预览";
+        }
+        if (draft?.mesh) return "草稿预览 · 未保存";
+        if (this.dirty()) return "有未保存修改";
+        return this.modelJob() && this.modelJob().edit_number !== this.doc().edit_number ? "显示上一版模型" : "";
     }
     kindName(kind) { return kind === "double" ? "双开门" : "单开门"; }
     fitView(){
@@ -138,14 +158,18 @@ export class Workbench extends Component {
         const chosen=Number(select.value);
         select.value=String(current);
         const archive = this.showFiles();
-        if (await this.loadDesign(chosen) && archive) this.openArchive();
+        const reference = this.referenceKind();
+        if (await this.loadDesign(chosen) && archive) {
+            if (reference) this.openReference();
+            else this.openArchive();
+        }
     }
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
         this.resetDraftPreview();
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
-        this.showFiles.set(false);this.batch.set(null);this.editing.set(null);this.face.set("door");
+        this.showFiles.set(false);this.batch.set(null);this.referenceKind.set(null);this.editing.set(null);this.face.set("door");
         this.drawingViews.clear();this.archiveMode.set("drawing");this.archiveMenu.set(null);
         this.holeDrafts.clear();this.frontFacesOpen.set(false);
         this.mode.set("3d");this.opened.set(false);this.tab.set("cabinet");
@@ -170,8 +194,11 @@ export class Workbench extends Component {
                 if(epoch===this.epoch&&this.meshRequest===current.id){
                     this.mesh.set(mesh);this.modelJob.set(current);
                     if (this.displayMesh() === mesh && !this.board()) this.setFace("door");
+                    this.ensureDraftPreview();
                 }
             }).catch(err=>{if(err.name!=="AbortError"&&epoch===this.epoch){this.issue.set(err.message);this.meshRequest=null;}});
+        } else if (replace) {
+            this.ensureDraftPreview();
         }
         const latest=data.jobs[0];
         if(latest?.state==="failed")this.issue.set(latest.error);
@@ -197,15 +224,21 @@ export class Workbench extends Component {
             this.opened.set(false);
         }
         this.resetDraftPreview();
-        if (this.displayMesh()) return;
+        this.ensureDraftPreview();
+    }
+    ensureDraftPreview() {
         const snapshot = this.form();
+        if (!snapshot?.kind || this.showFiles() || this.draftPreview() || this.displayMesh()) return;
+        if (this.dims.some(([key]) => snapshot[key] === null)) return;
+        const scope = this.previewScope();
+        if (scope === "design" && snapshot.kind === this.doc().settings.kind) return;
         const id = this.doc().id;
         const expected = this.localEdit;
         const request = this.draftPreviewAbort = new AbortController();
-        this.draftPreview.set({snapshot, stage:"等待计算"});
+        this.draftPreview.set({snapshot, scope, stage:"等待计算"});
         this.draftPreviewPoll = setTimeout(async () => {
             try {
-                const job = await this.orm.call(MODEL, "preview_cabinet", [[id], expected, snapshot]);
+                const job = await this.orm.call(MODEL, "preview_cabinet", [[id], expected, snapshot, scope]);
                 await this.readDraftPreview(id, job, request.signal);
             } catch (error) {
                 this.failDraftPreview(error, request.signal);
@@ -236,11 +269,16 @@ export class Workbench extends Component {
     }
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
     selectTab(id) {
+        const previous = this.previewScope();
         this.tab.set(id);
         this.showFiles.set(false);
         this.panelHidden.set(false);
         if (id === "holes") this.mode.set("2d");
         else if (id !== "materials") this.mode.set("3d");
+        if (previous !== this.previewScope()) {
+            this.resetDraftPreview();
+            this.ensureDraftPreview();
+        }
     }
     startPanelResize(event) {
         if (!event.isPrimary || event.button !== 0) return;
@@ -274,9 +312,12 @@ export class Workbench extends Component {
             if(epoch!==this.epoch)return;
             if(out.issues.length)this.issue.set(out.issues.join(" · "));
             if(operation==="generate"){
-                this.setBuild(out.job_id);
-                this.archiveMode.set("drawing");
-                this.showFiles.set(true);
+                if (out.reference_kind) this.openReference(out.reference_kind);
+                else {
+                    this.setBuild(out.job_id);
+                    this.archiveMode.set("drawing");
+                    this.showFiles.set(true);
+                }
             }
             if(operation==="assemble"){this.tab.set("assembly");this.mode.set("3d");}
         }catch(e){if(epoch===this.epoch)this.issue.set(e.data?.message||e.message);}
@@ -328,22 +369,51 @@ export class Workbench extends Component {
         const builds = this.builds(), id = this.batch();
         return id === null ? builds[0] : builds.find(job => job.id === id);
     }
+    selectedDrawing() {
+        const reference = this.referenceDrawings()[this.referenceKind()];
+        if (!reference) return this.selectedBuild();
+        return {...reference, id:`original-${reference.kind}`, reference:true,
+            state:reference.sheets.length ? "done" : "unavailable"};
+    }
     openArchive() {
+        if (!this.selectedBuild()) {
+            this.openReference();
+            return;
+        }
+        this.referenceKind.set(null);
         this.batch.set(this.selectedBuild()?.id ?? null);
+        this.archiveMenu.set(null);
+        this.showFiles.set(true);
+    }
+    openReference(kind = this.form().kind || "single") {
+        this.referenceKind.set(kind);
+        this.sheet.set(null);
+        this.archiveMode.set("drawing");
         this.archiveMenu.set(null);
         this.showFiles.set(true);
     }
     openDesign() {
         this.archiveMenu.set(null);
         this.showFiles.set(false);
+        this.ensureDraftPreview();
+    }
+    selectDrawingVersion(event) {
+        const value = event.target.value;
+        if (value.startsWith("original-")) this.openReference(value.slice("original-".length));
+        else this.setBuild(Number(value));
     }
     setBuild(id) {
+        this.referenceKind.set(null);
         this.batch.set(id);
         this.sheet.set(null);
         this.archiveMenu.set(null);
     }
     selectedSheet(job) {
         return job.sheets.find(sheet => sheet.key === this.sheet()) || job.sheets[0];
+    }
+    drawingFile(job, sheet, extension) {
+        if (job.reference) return `/nodo/draw/reference/${job.kind}/${sheet.key}/${extension}`;
+        return this.url(job.id, sheet.key + (extension === "svg" ? "p" : ""));
     }
     drawingView(key) { return this.drawingViews.get(key) || fitView; }
     rememberDrawingView(key, view) { this.drawingViews.set(key, view); }

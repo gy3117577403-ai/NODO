@@ -1,0 +1,14 @@
+{
+    "single": {
+        "label": "单开门原图",
+        "artifact": "reference-single-06",
+        "dimensions": {"width": 380, "height": 300, "depth": 210},
+        "sheet_count": 14
+    },
+    "double": {
+        "label": "双开门原图",
+        "artifact": "reference-double-06",
+        "dimensions": {"width": 1000, "height": 700, "depth": 300},
+        "sheet_count": 15
+    }
+}

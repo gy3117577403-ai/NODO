@@ -1,5 +1,6 @@
 // Targeted browser acceptance. The engineering run creates a synthetic design on nodo_dev.
 const assert = require("node:assert/strict");
+const {createHash} = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
@@ -10,8 +11,8 @@ const workbench = origin + "/odoo/technical-workbench";
 const navigation = {waitUntil:"domcontentloaded", timeout:30000};
 const destination = path.resolve(process.argv[2] || path.join(root, ".nodo-draw/output/playwright/workspace-layout"));
 const mode = process.argv[3] || "all";
-assert(["all", "layout", "materials", "toolbar", "cabinet-preview"].includes(mode),
-    "选择 layout、materials、toolbar、cabinet-preview 或 all");
+assert(["all", "layout", "materials", "toolbar", "cabinet-preview", "reference-output"].includes(mode),
+    "选择 layout、materials、toolbar、cabinet-preview、reference-output 或 all");
 const exact = (page, name) => page.getByRole("button", {name, exact:true});
 const tool = (page, name) => page.getByRole("group", {name:"设计工具", exact:true}).getByRole("button", {name, exact:true});
 const rpc = params => ({jsonrpc:"2.0", method:"call", id:1, params});
@@ -277,15 +278,45 @@ async function rpcResult(request, model, method, args) {
     return payload.result;
 }
 
+async function verifyOriginalSheet(page, kind) {
+    const base = path.join(root, ".nodo-draw/exchange/reference", kind);
+    const sheets = JSON.parse(fs.readFileSync(path.join(base, "index.json"), "utf8"));
+    assert.equal(sheets.length, kind === "single" ? 14 : 15);
+    const drawing = `/nodo/draw/reference/${kind}/${sheets[0].key}`;
+    await page.waitForFunction(url => {
+        const image = document.querySelector(".nd-drawing-surface img");
+        return image?.getAttribute("src") === url && image.naturalWidth > 0;
+    }, drawing + "/svg");
+    assert.equal(await page.locator(".nd-sheet-list button").count(), sheets.length);
+    const dimensions = kind === "single" ? "380 × 300 × 210 mm" : "1000 × 700 × 300 mm";
+    assert.equal(await field(page, "原图尺寸（宽 × 高 × 深）").innerText(), dimensions);
+    await screenshot(page, kind === "single" ? "单开门基础原图" : "双开门基础原图");
+    await exact(page, "下载").click();
+    const link = page.getByRole("link", {name:/下载.*DWG/});
+    assert.equal(await link.getAttribute("href"), drawing + "/dwg");
+    const response = await page.request.get(origin + drawing + "/dwg");
+    assert(response.ok());
+    assert.equal(createHash("sha256").update(await response.body()).digest("hex"), sheets[0].sha256);
+    await page.keyboard.press("Escape");
+    return {sheets:sheets.length, dimensions, originalName:sheets[0].filename};
+}
+
 async function checkCabinetPreview(page) {
     await page.setViewportSize({width:1173, height:871});
+    const singleBase = page.waitForResponse(async response => {
+        if (!meshResponse(response)) return false;
+        const mesh = await response.json();
+        return mesh.parameters.configuration.kind === "single" && !mesh.parameters.accessories.length && !mesh.parameters.holes.length;
+    }, {timeout:75000});
     await page.goto(workbench, navigation);
     await expandNav(page);
     const modelCaption = kind => page.locator(".nd-foot").getByText(`AE ${kind}`, {exact:true});
     const host = page.locator(".nd-three-host");
     const indicator = page.getByText("正在生成双开门预览", {exact:true});
-    await modelCaption("单开门").waitFor();
+    await modelCaption("单开门").waitFor({timeout:75000});
     await host.locator("canvas").waitFor();
+    const single = await (await singleBase).json();
+    assert.equal(single.faces.length, 7);
     const id = Number(await field(page, "选择设计").inputValue());
     const workspace = () => rpcResult(page.request, "nodo.draw.design", "workspace", [[id]]);
     const before = await workspace();
@@ -309,6 +340,8 @@ async function checkCabinetPreview(page) {
     const rightDoor = mesh.faces.find(board => board.id === "door_right");
     assert.equal(mesh.parameters.configuration.kind, "double");
     assert.deepEqual(mesh.dimensions, {width:420, height:340, depth:235});
+    assert.deepEqual(mesh.parameters.accessories, []);
+    assert.deepEqual(mesh.parameters.holes, []);
     assert(rightDoor && mesh.parts.some(part => part.id === rightDoor.part && part.valid && part.triangles.length));
     assert.equal(mesh.faces.length, 8);
     await modelCaption("双开门").waitFor();
@@ -318,11 +351,28 @@ async function checkCabinetPreview(page) {
     await exact(page, "打开柜门").click();
     await exact(page, "合上柜门").waitFor();
     await screenshot(page, "AE-101-双门打开");
+
+    const assembled = page.waitForResponse(meshResponse, {timeout:75000});
+    await tool(page, "附件").click();
+    const assemblyMesh = await (await assembled).json();
+    assert.equal(assemblyMesh.parameters.configuration.kind, "double");
+    assert.deepEqual(assemblyMesh.parameters.accessories.map(item => item.definition.code).sort(), ["EX-COVER", "T5-55"]);
+    assert(assemblyMesh.parameters.holes.some(hole => hole.ownerAccessory));
+    await host.locator("canvas").waitFor({timeout:75000});
+    await screenshot(page, "AE-101-双门附件");
     await exact(page, "二维").click();
     await board(page, "door_right").click();
     await activeFace(page).and(board(page, "door_right")).waitFor();
     assert.equal(await page.locator(".nd-face-tile").count(), 8);
     await tool(page, "规格").click();
+    await modelCaption("双开门").waitFor({timeout:75000});
+
+    await exact(page, "基础原图").click();
+    const doubleOriginal = await verifyOriginalSheet(page, "double");
+    await field(page, "图纸版本").selectOption("original-single");
+    const singleOriginal = await verifyOriginalSheet(page, "single");
+    await exact(page, "设计视图").click();
+    await modelCaption("双开门").waitFor();
 
     const historical = before.jobs.find(job => job.operation === "build" && job.state === "done");
     assert(historical);
@@ -365,9 +415,59 @@ async function checkCabinetPreview(page) {
     assert.deepEqual(after.settings, before.settings);
     assert.equal(after.edit_number, before.edit_number);
     assert.deepEqual(after.jobs.map(job => job.id), before.jobs.map(job => job.id));
-    return {dimensions:mesh.dimensions, boards:mesh.faces.length, elapsedMs, draftJob:jobId,
+    return {dimensions:mesh.dimensions, singleBoards:single.faces.length, doubleBoards:mesh.faces.length,
+        baseAccessories:0, assembledAccessories:assemblyMesh.parameters.accessories.length,
+        drawings:{single:singleOriginal, double:doubleOriginal}, elapsedMs, draftJob:jobId,
         historicalRevision:`V${String(historical.version).padStart(2,"0")}`, savedSettingsMatch:true,
         latePreviewIgnored:true, validationErrorShown:true};
+}
+
+async function checkReferenceOutput(page) {
+    const model = "nodo.draw.design";
+    const fixture = {source:"AE-305", source_version:"1", title:"基础壁挂箱", kind:"single", quantity:1,
+        width:380, height:300, depth:210, lines:[]};
+    const {design_id:id} = await rpcResult(page.request, model, "handoff_bom", [fixture]);
+    const workspace = () => rpcResult(page.request, model, "workspace", [[id]]);
+    await page.setViewportSize({width:1173, height:871});
+    await page.goto(workbench, navigation);
+    await field(page, "选择设计").waitFor();
+    await chooseDesign(page, "AE-305 · 基础壁挂箱");
+    const submit = async () => {
+        const waiting = page.waitForResponse(response => response.url().endsWith("/nodo.draw.design/apply_design") &&
+            response.request().method() === "POST");
+        await exact(page, "一键出图").click();
+        const out = await (await waiting).json();
+        assert(!out.error, out.error?.data?.message || "一键出图失败");
+        return out.result;
+    };
+    const initial = (await workspace()).jobs.filter(job => job.operation === "build");
+    await field(page, "柜宽").fill("380");
+    await field(page, "柜高").fill("300");
+    await field(page, "柜深").fill("210");
+    assert.equal((await submit()).reference_kind, "single");
+    await page.locator('.nd-drawing-surface img[src*="reference/single"]').waitFor();
+    assert.deepEqual((await workspace()).jobs.filter(job => job.operation === "build"), initial);
+    await exact(page, "设计视图").click();
+
+    await field(page, "柜宽").fill("420");
+    await field(page, "柜高").fill("340");
+    await field(page, "柜深").fill("235");
+    const generated = await submit();
+    assert(Number.isInteger(generated.job_id));
+    const drawing = page.locator(`.nd-drawing-surface img[src*="/file/${generated.job_id}/"]`);
+    await drawing.waitFor({timeout:150000});
+    await screenshot(page, "AE-305-调整规格后出图");
+    const built = (await workspace()).jobs.find(job => job.id === generated.job_id);
+    assert.equal(built.state, "done");
+    assert.deepEqual(built.dims.map(Math.round), [420,235,340]);
+    await exact(page, "设计视图").click();
+    const reused = await submit();
+    assert.equal(reused.job_id, generated.job_id);
+    const jobs = (await workspace()).jobs.filter(job => job.operation === "build");
+    assert.equal(jobs.length, initial.length + Number(!initial.some(job => job.id === built.id)));
+    return {source:fixture.source, standardUsesOriginal:true, changedJob:built.id,
+        changedRevision:`V${String(built.version).padStart(2,"0")}`, changedWidthDepthHeight:built.dims,
+        fileCounts:{dwg:built.sheets.length, dxf:built.cut_count}, sameParametersReused:true};
 }
 
 async function apply(page, buttonName) {
@@ -507,6 +607,7 @@ async function main() {
         }
         if (mode === "all" || mode === "materials") result.materials = await checkMaterials(await page());
         if (mode === "cabinet-preview") result.preview = await checkCabinetPreview(await page());
+        if (mode === "reference-output") result.output = await checkReferenceOutput(await page());
         assert.deepEqual(errors,[]);
         const json = JSON.stringify(result,null,2)+"\n";
         fs.writeFileSync(path.join(destination, `验收-${mode}.json`),json);
