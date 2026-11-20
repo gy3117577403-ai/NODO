@@ -2,7 +2,7 @@ import {Component, signal, useListener, useProps} from "@odoo/owl";
 
 export class ExplosionControls extends Component {
     static template = "nodo_draw.ExplosionControls";
-    props = useProps({value: Number, change: Function, activate: {type: Function, optional: true}});
+    props = useProps({value: Number, change: Function, fit: Function, activate: {type: Function, optional: true}});
     opened = signal(false);
     root = signal.ref();
     trigger = signal.ref();
@@ -21,5 +21,10 @@ export class ExplosionControls extends Component {
     toggle() {
         if (!this.opened()) this.props.activate?.();
         this.opened.set(!this.opened());
+    }
+
+    setEndpoint(value) {
+        this.props.change(value);
+        this.props.fit();
     }
 }

@@ -9,12 +9,12 @@
             <div t-if="this.opened()" class="nd-explosion-slider" role="group" aria-label="模型拆解">
                 <div class="nd-explosion-value">
                     <input type="range" aria-label="拆解比例" min="0" max="100" step="1" t-att-value="this.props.value"
-                           t-on-input="event => this.props.change(+event.target.value)"/>
+                           t-on-input="event => this.props.change(+event.target.value)" t-on-change="() => this.props.fit()"/>
                     <output aria-label="当前拆解比例"><t t-out="this.props.value"/>%</output>
                 </div>
                 <div class="nd-explosion-actions">
-                    <button type="button" t-on-click="() => this.props.change(0)">收拢</button>
-                    <button type="button" t-on-click="() => this.props.change(100)">完全展开</button>
+                    <button type="button" t-on-click="() => this.setEndpoint(0)">收拢</button>
+                    <button type="button" t-on-click="() => this.setEndpoint(100)">完全展开</button>
                 </div>
             </div>
         </div>

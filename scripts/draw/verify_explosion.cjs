@@ -9,7 +9,7 @@ const {target, drawWorkspace} = require("./verify_selection.cjs");
 
 const root = path.resolve(__dirname,"../..");
 const exchange = path.join(root,".nodo-draw/exchange");
-const out = path.join(root,".nodo-draw/output/playwright/explosion");
+const out = path.join(root,".nodo-draw/output/playwright/explosion-clearance");
 const origin = "http://127.0.0.1:8079";
 const url = origin + "/odoo/technical-workbench";
 const state = path.join(root,".nodo-draw/dev-session.local.json");
@@ -35,6 +35,45 @@ async function modelImage(page) {
     const clip = {x:Math.ceil(box.x)+20,y:Math.ceil(box.y)+15,
         width:Math.floor(box.width)-40,height:Math.floor(box.height)-160};
     return page.screenshot({clip,animations:"disabled"});
+}
+async function visibleAssemblyGroups(page, expected) {
+    const image = await canvas(page).screenshot({style:".nd-viewport-head,.nd-vtools { visibility: hidden !important }"});
+    const groups = await page.evaluate(async data => {
+        const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
+        const {width,height} = bitmap;
+        const context = new OffscreenCanvas(width,height).getContext("2d");
+        context.drawImage(bitmap,0,0);
+        const {data:pixels} = context.getImageData(0,0,width,height);
+        const mask = new Uint8Array(width*height), stack = new Int32Array(mask.length);
+        const sample = (width+1)*8;
+        for (let y=2;y<height-2;y++) for (let x=2;x<width-2;x++) {
+            const i = y*width+x, p = 4*i;
+            mask[i] = Math.max(Math.abs(pixels[p]-pixels[sample]),Math.abs(pixels[p+1]-pixels[sample+1]),
+                Math.abs(pixels[p+2]-pixels[sample+2]))>10;
+        }
+        const boxes = [];
+        for (let i=0;i<mask.length;i++) {
+            if (!mask[i]) continue;
+            let count=0, size=0, left=width, right=0, top=height, bottom=0;
+            const visit = next => { if (mask[next]) { mask[next]=0; stack[size++]=next; } };
+            visit(i);
+            while (size) {
+                const at = stack[--size], x = at % width, y = Math.floor(at/width);
+                left=Math.min(left,x); right=Math.max(right,x); top=Math.min(top,y); bottom=Math.max(bottom,y);
+                count++;
+                if (x>0) visit(at-1);
+                if (x<width-1) visit(at+1);
+                if (y>0) visit(at-width);
+                if (y<height-1) visit(at+width);
+            }
+            if (count>500) boxes.push({count,margin:Math.min(left,top,width-1-right,height-1-bottom)});
+        }
+        return boxes;
+    },image.toString("base64"));
+    assert.equal(groups.length,expected,JSON.stringify(groups));
+    const minMargin = Math.min(...groups.map(group=>group.margin));
+    assert(minMargin>=12,`完全展开后距视口最窄仅 ${minMargin}px`);
+    return {visibleGroups:groups.length,minMargin};
 }
 async function openControls(page) {
     await frame(page);
@@ -62,11 +101,12 @@ async function dragHalfway(page) {
     }
     assert.equal(Number(await picker(page).inputValue()),50);
 }
-async function place(page, model, id, offset = [0,0,0], ratios = [.37,.65]) {
+async function place(page, model, id, spread = false, ratios = [.37,.65]) {
     const face = model.faces.find(board=>board.id===id);
     assert(face,id);
-    const shifted = {...face,origin:face.origin.map((value,i)=>value+offset[i])};
-    const click = target(model,shifted,await canvas(page).boundingBox(),[face.width*ratios[0],face.height*ratios[1]]);
+    const part = model.parts.find(item=>item.id===face.part);
+    const shifted = spread ? {...face,origin:face.origin.map((value,i)=>value+part.explode[i])} : face;
+    const click = target(model,shifted,await canvas(page).boundingBox(),[face.width*ratios[0],face.height*ratios[1]],0,spread);
     await page.mouse.click(click.x,click.y);
     await frame(page);
 }
@@ -104,20 +144,26 @@ async function singleDoor(page, mesh) {
     assert.equal(await picker(page).inputValue(),"0");
     await dragHalfway(page);
     const half = await modelImage(page);
+    await picker(page).press("End");
+    const sliderFull = await modelImage(page);
     await setEndpoint(page,100);
     const full = await modelImage(page);
     assert(!closed.equals(half) && !half.equals(full),"滑杆没有改变模型");
+    assert(full.equals(sliderFull),"滑杆到达 100% 时未按完全展开取景");
     await screenshot(page,"AE-101-单门拆解");
+    const fullyExpanded = await visibleAssemblyGroups(page,5);
     await setEndpoint(page,0);
     assert(closed.equals(await modelImage(page)),"收拢后的视口与初始位置不一致");
     assert(await oldCanvas.evaluate(element=>element.isConnected),"拆解重建了三维画布");
     await oldCanvas.dispose();
 
     await btn(page,"打开柜门").click();
+    await btn(page,"复位视角").click();
     const open = await modelImage(page);
     await openControls(page);
     await setEndpoint(page,100);
     assert(!open.equals(await modelImage(page)));
+    await visibleAssemblyGroups(page,5);
     await setEndpoint(page,0);
     assert(await btn(page,"合上柜门").isVisible());
     assert(open.equals(await modelImage(page)),"开门收拢没有恢复原姿态");
@@ -159,27 +205,24 @@ async function singleDoor(page, mesh) {
     await btn(page,"三维").click();
     await openControls(page);
     assert.equal(await picker(page).inputValue(),"50");
-    return {ratios:[0,50,100,0],canvasReused:true,doorPosePreserved:true,rotatedAndZoomed:true,
+    return {ratios:[0,50,100,0],fullyExpanded,canvasReused:true,doorPosePreserved:true,rotatedAndZoomed:true,
         restoredFace:"right",restoredDraft:draft,restoredRatio:50};
 }
 
 async function doubleDoor(page, mesh, positionModel) {
     await btn(page,"零件").click();
     const fitted = positionModel(mesh), part = id => fitted.parts.find(part=>part.id===id);
-    assert.deepEqual(part("door").explode,[-120,-120,0]);
-    assert.deepEqual(part("door_right").explode,[120,-120,0]);
-    assert.deepEqual(part("top").explode.map(Math.round),[0,0,98]);
-    assert.deepEqual(part("bottom").explode.map(Math.round),[0,0,-98]);
-    assert.deepEqual(part("mount").explode,[0,-186,0]);
     assert.deepEqual(part("stud_0").explode,part("wrap").explode);
     assert.deepEqual(part("hinge_top_right").explode,part("door_right").explode);
     await openControls(page);
     await setEndpoint(page,100);
-    for (const id of ["door","door_right","mount"]) {
-        await place(page,mesh,id,part(id).explode,id==="mount"?[.39,.65]:[.37,.65]);
-        assert.equal(await btn(page,"选择"+part(id).name).getAttribute("aria-pressed"),"true",part(id).name);
+    const fullyExpanded = await visibleAssemblyGroups(page,6);
+    const picked = ["door","door_right","right","top","bottom","mount"];
+    for (const face of picked) {
+        await place(page,fitted,face,true);
+        const name = part(fitted.faces.find(item=>item.id===face).part).name;
+        assert.equal(await btn(page,"选择"+name).getAttribute("aria-pressed"),"true",name);
     }
-    await btn(page,"复位视角").click();
     await openControls(page);
     await screenshot(page,"AE-202-双门拆解与安装板选中");
     const expanded = await modelImage(page);
@@ -193,7 +236,7 @@ async function doubleDoor(page, mesh, positionModel) {
     assert.equal(await during(page).getAttribute("data-face"),"mount","拆解选中的安装板未带入开孔");
     await btn(page,"二维").click();
     assert.equal(await btn(page,"拆解").count(),0);
-    return {independentDoorOffsets:[part("door").explode,part("door_right").explode],picked:["door","door_right","mount"],
+    return {fullyExpanded,independentDoorOffsets:[part("door").explode,part("door_right").explode],picked,
         locatedAndToggled:true,drillFace:"mount"};
 }
 
@@ -289,7 +332,6 @@ async function historicalExplosion(page, positionModel) {
     await openControls(page);
     await setEndpoint(page,100);
     assert(!assembled.equals(await modelImage(page)));
-    await btn(page,"复位视角").click();
     await screenshot(page,"AE-303-装配附件拆解");
 
     await btn(page,"图纸与版本").click();
@@ -310,7 +352,6 @@ async function historicalExplosion(page, positionModel) {
         const revision = "V"+String(info.version).padStart(2,"0");
         await page.getByText(revision+" · 本版本三维",{exact:true}).waitFor();
         if (info.id===latest.id) {
-            await btn(page,"复位视角").click();
             await screenshot(page,"AE-303-V02-本版本三维拆解");
         }
         archives.push({revision,job:info.id,sha256:digest(disk)});

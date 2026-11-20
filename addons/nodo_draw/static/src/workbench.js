@@ -410,6 +410,7 @@ export class Workbench extends Component {
         this.drilling.set(true);
         if (board) this.selectBoard(board.id);
         else this.drillFace.set(this.holeDraft().active ? this.face() : null);
+        if (this.explosion()) this.fitView();
     }
     leaveDrilling() {
         if (!this.drilling()) return;
@@ -418,6 +419,7 @@ export class Workbench extends Component {
         this.drillFace.set(null);
         this.drillNotice.set("");
         this.endHoleInput();
+        if (this.explosion()) this.fitView();
     }
     selectBoard(id) {
         if (this.drilling()) {

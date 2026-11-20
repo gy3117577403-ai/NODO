@@ -17,21 +17,24 @@ const meshResponse = r => /\/nodo\/draw\/file\/\d+\/mesh$/.test(r.url()) && r.ok
 const meshFrom = async (p, r) => (await p.request.get(r.url())).json();
 const near = (a, b, tolerance) => assert.ok(Math.abs(a - b) <= tolerance, a + " 与 " + b + " 超差");
 
-// Independent pinhole projection of a CAD face point into the original ISO view.
+// Independent pinhole projection of a CAD face point into the fitted ISO view.
 // Round to an actual browser pixel, then intersect its ray with the known plane.
-function target(model, face, box, uv = [face.width*.37, face.height*.65], doorAngle = 0) {
-    const all = model.parts.map(p => p.bounds);
+function target(model, face, box, uv = [face.width*.37, face.height*.65], doorAngle = 0, spread = false) {
+    const all = model.parts.map(part => spread ? part.bounds.map(point => plus(point,part.explode)) : part.bounds);
     const lo = [0,1,2].map(i => Math.min(...all.map(b => b[0][i])));
     const hi = [0,1,2].map(i => Math.max(...all.map(b => b[1][i])));
     const center = lo.map((n,i) => (n + hi[i])/2);
-    const dir = unit([.85,-1.35,.8]), right = unit(cross([0,0,1],dir)), up = cross(dir,right);
+    const dir = unit(spread ? [.7,-1.55,.72] : [.85,-1.35,.8]);
+    const right = unit(cross([0,0,1],dir)), up = cross(dir,right);
     const tanV = Math.tan(34 * Math.PI / 360), tanH = tanV * box.width / box.height;
     let distance = 200;
-    for (const x of [lo[0],hi[0]]) for (const y of [lo[1],hi[1]]) for (const z of [lo[2],hi[2]]) {
-        const v = sub([x,y,z], center);
-        distance = Math.max(distance, Math.abs(dot(v,right))/tanH + dot(v,dir), Math.abs(dot(v,up))/tanV + dot(v,dir));
+    for (const [min,max] of spread ? all : [[lo,hi]]) {
+        for (const x of [min[0],max[0]]) for (const y of [min[1],max[1]]) for (const z of [min[2],max[2]]) {
+            const v = sub([x,y,z], center);
+            distance = Math.max(distance, Math.abs(dot(v,right))/tanH + dot(v,dir), Math.abs(dot(v,up))/tanV + dot(v,dir));
+        }
     }
-    const camera = plus(center,dir,distance * 1.2);
+    const camera = plus(center,dir,distance*(spread ? 1.13 : 1.2));
     let aim = plus(plus(face.origin,face.uAxis,uv[0]),face.vAxis,uv[1]);
     let normal = face.normal, uAxis = face.uAxis, vAxis = face.vAxis, origin = face.origin;
     const group = model.parts.find(part => part.id === face.part).group;
