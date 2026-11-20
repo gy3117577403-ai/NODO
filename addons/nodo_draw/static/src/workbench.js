@@ -1,4 +1,4 @@
-import {Component, signal, onWillStart, onWillUnmount, untrack, useEffect, useProps} from "@odoo/owl";
+import {Component, Portal, signal, onWillStart, onWillUnmount, untrack, useEffect, useListener, useProps} from "@odoo/owl";
 import {registry} from "@web/core/registry";
 import {useService} from "@web/core/utils/hooks";
 import {loadBundle} from "@web/core/assets";
@@ -19,7 +19,7 @@ const maxPanel = 440;
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
-    static components = {ArchivedCabinet, DrawingViewport, SheetSettings};
+    static components = {ArchivedCabinet, DrawingViewport, Portal, SheetSettings};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
@@ -46,6 +46,8 @@ export class Workbench extends Component {
         this.views=[["top","俯视"],["left","左视"],["door","正视"],["right","右视"],["back","后视"],["bottom","仰视"]];
         this.downloads=[["bundle","整套图包"],["step","整柜 STEP"],["bom","零件清单"],["holes","孔位表"]];
         useSetupAction({beforeLeave:()=>!this.dirty()||window.confirm("离开并放弃未保存的设计修改？")});
+        useListener(document, "click", event => this.dismissArchiveMenu(event));
+        useListener(document, "keydown", event => this.keyArchiveMenu(event));
         onWillStart(async()=>{
             try {
                 await loadBundle("nodo_draw.assets_ae");
@@ -280,10 +282,12 @@ export class Workbench extends Component {
     rememberDrawingView(key, view) { this.drawingViews.set(key, view); }
     toggleArchiveMenu(menu) { this.archiveMenu.set(this.archiveMenu() === menu ? null : menu); }
     dismissArchiveMenu(event) {
-        if (this.archiveMenu() && !event.target.closest(".nd-menu")) this.archiveMenu.set(null);
+        if (this.archiveMenu() && !event.target.closest?.(".nd-workbar .nd-menu")) this.archiveMenu.set(null);
     }
     keyArchiveMenu(event) {
-        if (event.key === "Escape") this.archiveMenu.set(null);
+        if (event.key !== "Escape" || !this.archiveMenu()) return;
+        document.querySelector('.nd-workbar .nd-menu > button[aria-expanded="true"]')?.focus();
+        this.archiveMenu.set(null);
     }
     flatPointerDown(ev){
         if (ev.button !== 0 || this.tab() !== "holes") return;

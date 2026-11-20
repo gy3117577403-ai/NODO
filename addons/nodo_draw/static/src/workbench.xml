@@ -1,37 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
+<t t-name="nodo_draw.WorkbenchNavigation" t-inherit="web.NavBar" t-inherit-mode="extension">
+    <xpath expr="//div[hasclass('o_menu_systray')]" position="before">
+        <div class="nd-workbar-slot"/>
+    </xpath>
+</t>
 <t t-name="nodo_draw.Workbench">
-<main class="nd-work" aria-label="柜体设计" t-on-click="this.dismissArchiveMenu" t-on-keydown="this.keyArchiveMenu">
+<main class="nd-work" aria-label="柜体设计">
     <div t-if="!this.doc()" class="nd-empty">暂无已交接的柜体 BOM</div>
     <t t-else="">
     <t t-set="doc" t-value="this.doc()"/><t t-set="form" t-value="this.form()"/>
     <t t-set="job" t-value="this.showFiles() ? this.selectedBuild() : null"/>
     <t t-set="sheet" t-value="job?.state==='done' ? this.selectedSheet(job) : null"/>
-    <header class="nd-workbar" t-att-class="{'nd-review-bar':this.showFiles()}">
-        <nav aria-label="工作台视图">
-            <button type="button" t-att-class="!this.showFiles()?'active':''" t-on-click="this.openDesign">设计视图</button>
-            <button type="button" t-if="!this.showFiles()" t-on-click="this.openArchive">图纸与版本</button>
-        </nav>
+    <Portal target="'.nd-workbar-slot'">
+    <t t-set="doc" t-value="this.doc()"/>
+    <t t-set="job" t-value="this.showFiles() ? this.selectedBuild() : null"/>
+    <t t-set="sheet" t-value="job?.state==='done' ? this.selectedSheet(job) : null"/>
+    <div class="nd-workbar" role="toolbar" aria-label="柜体设计工具栏">
         <div class="nd-context">
-            <select aria-label="选择设计" t-on-change="this.selectDesign">
+            <select class="nd-design-choice" aria-label="选择设计" t-on-change="this.selectDesign"
+                    t-att-title="'交接版 '+doc.bom.source_version+' · '+doc.bom.quantity+' 台'">
                 <option t-foreach="this.docs()" t-as="d" t-key="d.id" t-att-value="d.id" t-att-selected="d.id===doc.id" t-out="this.designLabel(d)"/>
             </select>
-            <select t-if="job" aria-label="图纸版本" t-on-change="ev => this.setBuild(+ev.target.value)">
+            <select t-if="job" class="nd-version-choice" aria-label="图纸版本" t-on-change="ev => this.setBuild(+ev.target.value)">
                 <option t-foreach="this.builds()" t-as="j" t-key="j.id" t-att-value="j.id" t-att-selected="j.id===job.id">V<t t-out="this.version(j.version)"/> · <t t-out="this.jobState(j)"/></option>
             </select>
             <span t-if="job?.state==='done'" class="nd-tag">待工艺校核</span>
+            <button t-if="!this.showFiles()" type="button" class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')">一键出图</button>
+            <span t-if="!this.showFiles() &amp;&amp; !doc.online" class="nd-offline" role="status" title="计算服务离线" aria-label="计算服务离线">
+                <i class="fa fa-exclamation-circle" aria-hidden="true"/>
+            </span>
         </div>
-        <div t-if="!this.showFiles()" class="nd-bar-actions">
-            <span t-att-title="doc.online?'计算服务在线':'计算服务离线'" t-att-aria-label="doc.online?'计算服务在线':'计算服务离线'" t-att-class="doc.online?'nd-dot':'nd-offline'"/>
-            <button type="button" class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')">一键出图</button>
+        <div class="nd-workbar-views" role="group" aria-label="工作台视图">
+            <button type="button" t-att-aria-pressed="!this.showFiles()?'true':'false'" t-on-click="this.openDesign">设计视图</button>
+            <button type="button" t-if="!this.showFiles()" t-on-click="this.openArchive">图纸与版本</button>
+        </div>
+        <div class="nd-workbar-views" role="group" aria-label="设计视口" t-if="!this.showFiles()">
+            <button type="button" t-att-aria-pressed="this.mode()==='3d'?'true':'false'" t-on-click="() => this.mode.set('3d')">三维</button>
+            <button type="button" t-att-aria-pressed="this.mode()==='2d'?'true':'false'" t-on-click="() => this.selectTab('holes')">二维</button>
         </div>
         <div t-elif="job?.state==='done'" class="nd-bar-actions">
-            <div class="nd-segment" role="group" aria-label="成果视图">
-                <button type="button" t-att-class="this.archiveMode()==='drawing'?'active':''" t-att-aria-pressed="this.archiveMode()==='drawing'?'true':'false'" t-on-click="() => this.archiveMode.set('drawing')">图纸</button>
-                <button type="button" t-att-class="this.archiveMode()==='3d'?'active':''" t-att-aria-pressed="this.archiveMode()==='3d'?'true':'false'" t-on-click="() => this.archiveMode.set('3d')">本版本三维</button>
+            <div class="nd-workbar-views" role="group" aria-label="成果视图">
+                <button type="button" t-att-aria-pressed="this.archiveMode()==='drawing'?'true':'false'" t-on-click="() => this.archiveMode.set('drawing')">图纸</button>
+                <button type="button" t-att-aria-pressed="this.archiveMode()==='3d'?'true':'false'" t-on-click="() => this.archiveMode.set('3d')">本版本三维</button>
             </div>
-            <button type="button" t-if="this.archiveMode()==='drawing' &amp;&amp; sheet" t-att-aria-expanded="this.directoryHidden()?'false':'true'"
-                    t-on-click="() => this.directoryHidden.set(!this.directoryHidden())" t-out="this.directoryHidden()?'展开目录':'收起目录'"/>
+            <t t-set="directoryLabel" t-value="this.directoryHidden()?'展开目录':'收起目录'"/>
+            <button type="button" class="nd-directory-toggle" t-if="this.archiveMode()==='drawing' &amp;&amp; sheet" t-att-aria-expanded="this.directoryHidden()?'false':'true'"
+                    t-att-title="directoryLabel" t-att-aria-label="directoryLabel" t-on-click="() => this.directoryHidden.set(!this.directoryHidden())">
+                <i class="fa fa-list-ul" aria-hidden="true"/><span>目录</span>
+            </button>
             <div class="nd-menu">
                 <button type="button" t-att-aria-expanded="this.archiveMenu()==='downloads'?'true':'false'" t-on-click="() => this.toggleArchiveMenu('downloads')">下载</button>
                 <div class="nd-popover nd-downloads" t-if="this.archiveMenu()==='downloads'" aria-label="下载文件" t-on-click="() => this.archiveMenu.set(null)">
@@ -51,7 +68,8 @@
                 </section>
             </div>
         </div>
-    </header>
+    </div>
+    </Portal>
     <div class="nd-error" role="alert" t-if="!this.showFiles() &amp;&amp; this.issue()"><t t-out="this.issue()"/></div>
     <div class="nd-layout" t-att-class="{'nd-archive-layout':this.showFiles(),'nd-layout-folded':this.panelHidden() &amp;&amp; !this.showFiles()}"
             t-att-style="'--nd-panel-width:'+this.panelWidth()+'px'">
@@ -156,14 +174,10 @@
         <section class="nd-panel nd-stage">
             <t t-if="!this.showFiles()">
                 <div class="nd-viewport">
-                    <div class="nd-viewport-head nd-design-view-tools">
-                        <div class="nd-board-caption" t-if="this.mode()==='2d' &amp;&amp; this.board()">
+                    <div class="nd-viewport-head" t-if="this.mode()==='2d' &amp;&amp; this.board()">
+                        <div class="nd-board-caption">
                             <b><t t-out="this.faceName(this.face())"/> · <t t-out="this.board().width.toFixed(1)"/> × <t t-out="this.board().height.toFixed(1)"/> mm</b>
                             <small t-if="this.tab()!=='holes'">查看孔位</small>
-                        </div>
-                        <div class="nd-segment" role="group" aria-label="设计视口">
-                            <button type="button" t-att-class="this.mode()==='3d'?'active':''" t-att-aria-pressed="this.mode()==='3d'?'true':'false'" t-on-click="() => this.mode.set('3d')">三维</button>
-                            <button type="button" t-att-class="this.mode()==='2d'?'active':''" t-att-aria-pressed="this.mode()==='2d'?'true':'false'" t-on-click="() => this.selectTab('holes')">二维</button>
                         </div>
                     </div>
                     <div class="nd-three-host" t-att-hidden="this.mode()!=='3d'" t-ref="this.threeHost"/>

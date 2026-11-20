@@ -10,7 +10,7 @@ const workbench = origin + "/odoo/technical-workbench";
 const navigation = {waitUntil:"domcontentloaded", timeout:30000};
 const destination = path.resolve(process.argv[2] || path.join(root, ".nodo-draw/output/playwright/workspace-layout"));
 const mode = process.argv[3] || "all";
-assert(["all", "layout", "materials"].includes(mode), "选择 layout、materials 或 all");
+assert(["all", "layout", "materials", "toolbar"].includes(mode), "选择 layout、materials、toolbar 或 all");
 const exact = (page, name) => page.getByRole("button", {name, exact:true});
 const tool = (page, name) => page.getByRole("group", {name:"设计工具", exact:true}).getByRole("button", {name, exact:true});
 const rpc = params => ({jsonrpc:"2.0", method:"call", id:1, params});
@@ -43,6 +43,29 @@ async function chooseDesign(page, label) {
     await selector.locator("option:checked").filter({hasText: label}).waitFor({state:"attached"});
 }
 
+async function measureToolbar(page) {
+    const toolbar = page.locator(".o_main_navbar > .nd-workbar-slot > .nd-workbar");
+    await toolbar.waitFor();
+    assert.equal(await page.locator(".nd-work .nd-workbar").count(), 0);
+    assert.equal(await page.locator(".o_main_navbar > .o_menu_brand").isVisible(), false);
+    assert.equal(await page.locator(".o_main_navbar > .o_menu_sections").isVisible(), false);
+    return toolbar.evaluate(element => {
+        const bar = element.getBoundingClientRect();
+        const navbar = element.closest(".o_main_navbar").getBoundingClientRect();
+        const tray = document.querySelector(".o_main_navbar > .o_menu_systray").getBoundingClientRect();
+        const controls = [...element.querySelectorAll("button, select, .nd-tag")].map(node => node.getBoundingClientRect());
+        return {
+            height:bar.height, navbarHeight:navbar.height,
+            oneRow:controls.every(control => Math.abs(control.top + control.height / 2 - (bar.top + bar.height / 2)) < 1),
+            fits:controls.every(control => {
+                const alignsWithTray = control.top < tray.bottom - 1 && control.bottom > tray.top + 1;
+                return control.left >= bar.left - 1 && control.right <= navbar.right + 1 &&
+                    (!alignsWithTray || control.right <= tray.left + 1);
+            }),
+        };
+    });
+}
+
 async function checkLayout(page) {
     await page.goto(workbench, navigation);
     await page.locator(".nd-viewport canvas").waitFor();
@@ -52,8 +75,11 @@ async function checkLayout(page) {
         await page.setViewportSize({width, height:871});
         await settleCanvas(page);
         assert.equal(await page.locator(".nd-work h1").count(), 0);
-        const designBar = await page.locator(".nd-workbar").boundingBox();
-        assert(designBar.height <= 52, "设计工具栏应为一行");
+        assert.equal(await page.locator(".nd-inspector h2").count(), 0);
+        const designBar = await measureToolbar(page);
+        assert(designBar.oneRow && designBar.fits, `设计工具栏应为一行且避开系统区 ${width}`);
+        const stage = await page.locator(".nd-stage").boundingBox();
+        assert(stage.y - designBar.navbarHeight <= 12, `主视口应紧接顶栏 ${width}`);
         const chooser = await field(page, "选择设计").boundingBox();
         const generate = await exact(page, "一键出图").boundingBox();
         const gap = generate.x - (chooser.x + chooser.width);
@@ -67,8 +93,9 @@ async function checkLayout(page) {
         assert.equal(await page.getByRole("heading", {name:"图纸成果",exact:true}).count(), 0);
         const graphics = page.locator(".nd-drawing-surface");
         const before = await graphics.boundingBox();
-        const archiveBar = await page.locator(".nd-workbar").boundingBox();
-        assert(archiveBar.height <= 52 && before.y < 170 && before.y + before.height <= 871, "图纸应在首屏获得完整视口");
+        const archiveBar = await measureToolbar(page);
+        assert(archiveBar.oneRow && archiveBar.fits, `阅图工具栏应为一行且避开系统区 ${width}`);
+        assert(before.y <= 110 && before.y + before.height <= 871, "图纸应在首屏获得完整视口");
         await screenshot(page, "after-"+width+"-图纸");
         await exact(page, "收起目录").click();
         await page.locator(".nd-sheet-list").waitFor({state:"detached"});
@@ -81,8 +108,7 @@ async function checkLayout(page) {
         await page.locator(".nd-version-details").getByText(/18 张 DWG/).waitFor();
         await page.keyboard.press("Escape");
         await page.locator(".nd-version-details").waitFor({state:"detached"});
-        report.push({width, height:871, designBarHeight:designBar.height, drawingSurface:before,
-            archiveBarHeight:archiveBar.height, directoryClosedWidth:full.width});
+        report.push({width, height:871, designBar, stage, drawingSurface:before, archiveBar, directoryClosedWidth:full.width});
         await exact(page, "设计视图").click();
     }
     const panel = page.locator(".nd-inspector");
@@ -102,6 +128,81 @@ async function checkLayout(page) {
     await exact(page, "展开设计栏").click();
     assert.equal((await panel.boundingBox()).width, wider.width, "重新展开应恢复宽度");
     return {viewports:report, inspector:{initial:initial.width, wider:wider.width, folded:folded.width}};
+}
+
+async function checkToolbarActions(page) {
+    const toolbar = page.getByRole("toolbar", {name:"柜体设计工具栏"});
+    const button = name => toolbar.getByRole("button", {name, exact:true});
+    const sideButton = name => page.locator(".o_nodo_app_sidebar").getByRole("button", {name, exact:true});
+    await button("二维").click();
+    await activeFace(page).waitFor();
+    assert.equal(await page.locator(".nd-face-tile").count(), 7);
+    await screenshot(page, "after-1173-二维");
+    await page.setViewportSize({width:1651, height:871});
+    await tool(page, "材料").click();
+    await exact(page, "按零件").click();
+    await field(page, "顶板独立厚度").waitFor();
+    await screenshot(page, "after-1651-按零件材料");
+    await button("三维").click();
+    await page.locator(".nd-three-host canvas").waitFor();
+    await chooseDesign(page, "AE-202 · 双门配电箱");
+    await page.locator(".nd-foot").getByText("AE 双开门", {exact:true}).waitFor();
+    await button("二维").click();
+    await board(page, "door_right").click();
+    assert.equal(await activeFace(page).getAttribute("data-face"), "door_right");
+    await screenshot(page, "after-1651-双门右板");
+    await chooseDesign(page, "AE-101 · 壁挂控制箱");
+    await page.locator(".nd-foot").getByText("AE 单开门", {exact:true}).waitFor();
+    await page.setViewportSize({width:1173, height:871});
+    const cabinet = field(page, "选择设计");
+    const current = await cabinet.inputValue();
+    const width = field(page, "柜宽");
+    await width.fill("0");
+    const response = page.waitForResponse(item => item.request().method() === "POST" &&
+        item.url().endsWith("/nodo.draw.design/apply_design"));
+    await button("一键出图").click();
+    const request = await response;
+    assert.equal(request.request().postDataJSON().params.args.at(-1), "generate");
+    assert.match((await request.json()).error?.data?.message ?? "", /柜宽须在/);
+    await page.getByRole("alert").filter({hasText:"柜宽须在"}).waitFor();
+
+    const switchPrompt = page.waitForEvent("dialog");
+    const switching = cabinet.selectOption({label:"AE-202 · 双门配电箱"});
+    const switchDialog = await switchPrompt;
+    assert.match(switchDialog.message(), /切换柜体/);
+    await switchDialog.dismiss();
+    await switching;
+    assert.equal(await cabinet.inputValue(), current);
+    assert.equal(await width.inputValue(), "0");
+
+    const leavePrompt = page.waitForEvent("dialog");
+    const leaving = sideButton("讨论").click();
+    const leaveDialog = await leavePrompt;
+    assert.match(leaveDialog.message(), /放弃未保存/);
+    await leaveDialog.dismiss();
+    await leaving;
+    assert.equal(await width.inputValue(), "0");
+    const discardPrompt = page.waitForEvent("dialog");
+    const discarding = sideButton("讨论").click();
+    await (await discardPrompt).accept();
+    await discarding;
+    await toolbar.waitFor({state:"detached"});
+    await page.locator(".o_main_navbar > .o_menu_brand").filter({hasText:"讨论"}).waitFor();
+    await sideButton("技术工作台").click();
+    await toolbar.waitFor();
+    assert((await measureToolbar(page)).oneRow);
+    await button("图纸与版本").click();
+    await page.locator(".nd-drawing-surface img").waitFor();
+    for (const width of [820, 412]) {
+        await page.setViewportSize({width, height:871});
+        await settleCanvas(page);
+        assert((await measureToolbar(page)).fits, `窄视窗 ${width} 的控件应位于顶栏内`);
+        await button("下载").click();
+        await page.getByRole("link", {name:"整柜 STEP", exact:true}).waitFor();
+        await page.keyboard.press("Escape");
+        await page.getByRole("link", {name:"整柜 STEP", exact:true}).waitFor({state:"detached"});
+    }
+    return {designSwitch:true, viewSwitch:true, generateValidated:true, draftPreserved:true, otherAppRestored:true, narrowWidths:[820,412]};
 }
 
 async function checkFaces(page, label, ids, keepDraft) {
@@ -299,6 +400,9 @@ async function main() {
         if (mode !== "materials") {
             const layout = await page();
             result.layout = await checkLayout(layout);
+            if (mode === "toolbar") result.actions = await checkToolbarActions(layout);
+        }
+        if (mode === "all" || mode === "layout") {
             const single = await page();
             result.single = await checkFaces(single, "AE-101 · 壁挂控制箱", ["door","mount","top","bottom","back","left","right"], true);
             const double = await page();
@@ -307,7 +411,7 @@ async function main() {
             result.double = await checkFaces(double, "AE-202 · 双门配电箱",
                 ["door","door_right","mount","top","bottom","back","left","right"], false);
         }
-        if (mode !== "layout") result.materials = await checkMaterials(await page());
+        if (mode === "all" || mode === "materials") result.materials = await checkMaterials(await page());
         assert.deepEqual(errors,[]);
         const json = JSON.stringify(result,null,2)+"\n";
         fs.writeFileSync(path.join(destination, `验收-${mode}.json`),json);
