@@ -216,6 +216,13 @@
     .nd-drill-stage .ae-hole-label:not(.ae-hole-label-center){padding:2px 5px;border-radius:5px;background:#fff9ed;white-space:nowrap;}
     .ae-error{position:absolute;top:40%;left:8%;right:8%;text-align:center;color:#784617;}
     .nd-vtools{position:absolute;bottom:15px;right:14px;display:flex;gap:6px;}.nd-vtools button{font-size:12px;box-shadow:0 2px 5px #1d3c2410;}
+    .nd-explosion{position:relative;white-space:nowrap;}
+    .nd-explosion-slider{position:absolute;inset-inline-end:0;inset-block-end:calc(100% + 6px);width:224px;max-width:calc(100vw - 34px);
+        display:grid;gap:8px;padding:10px;border:1px solid var(--stroke);border-radius:10px;background:#fff;box-shadow:0 6px 20px #203a3324;}
+    .nd-explosion-value,.nd-explosion-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+    .nd-explosion-value input[type=range]{flex:1;min-width:0;margin:0;padding:0;border:0;accent-color:var(--forest);cursor:pointer;}
+    .nd-explosion-value output{min-width:39px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;}
+    .nd-explosion-actions button{flex:1;padding:4px 6px;box-shadow:none;}
     .nd-overlay,.nd-empty{text-align:center;color:var(--muted);padding:32px 12px;}.nd-overlay{position:absolute;inset:38% 14px auto;pointer-events:none;}.nd-overlay small{display:block;margin-top:6px;}
     .nd-preview-progress{width:104px;height:5px;margin-top:10px;}
     .nd-foot,.nd-progress{padding:6px 10px;font-size:12px;border-top:1px solid var(--stroke);}.nd-progress{background:#edf6f0;}progress{accent-color:var(--forest);flex:1;max-width:250px;}

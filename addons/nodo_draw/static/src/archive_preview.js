@@ -1,4 +1,5 @@
 import {Component, onMounted, onWillUnmount, signal, untrack, useEffect, useProps} from "@odoo/owl";
+import {ExplosionControls} from "./explosion_controls";
 
 export const fitView = {zoom: 1, x: 0, y: 0};
 const maxZoom = 8;
@@ -92,12 +93,14 @@ export class DrawingViewport extends Component {
 
 export class ArchivedCabinet extends Component {
     static template = "nodo_draw.ArchivedCabinet";
+    static components = {ExplosionControls};
     props = useProps({src: String, revision: String});
     host = signal.ref();
     mesh = signal(null);
     error = signal("");
     opened = signal(false);
     reset = signal(0);
+    explosion = signal(0);
 
     setup() {
         const request = new AbortController();
@@ -126,7 +129,7 @@ export class ArchivedCabinet extends Component {
     }
 
     updateViewer() {
-        const mesh = this.mesh(), opened = this.opened(), reset = this.reset();
-        this.viewer?.update(mesh, opened, false, reset);
+        const mesh = this.mesh(), opened = this.opened(), reset = this.reset(), explode = this.explosion();
+        this.viewer?.update(mesh, opened, false, reset, {explode});
     }
 }

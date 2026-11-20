@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_draw.ExplosionControls">
+        <div class="nd-explosion" t-ref="this.root">
+            <button type="button" aria-label="拆解" t-ref="this.trigger" t-att-aria-expanded="this.opened()?'true':'false'"
+                    t-att-class="{'nd-soft':this.props.value>0}" t-on-click="this.toggle">
+                拆解<t t-if="this.props.value"> <t t-out="this.props.value"/>%</t>
+            </button>
+            <div t-if="this.opened()" class="nd-explosion-slider" role="group" aria-label="模型拆解">
+                <div class="nd-explosion-value">
+                    <input type="range" aria-label="拆解比例" min="0" max="100" step="1" t-att-value="this.props.value"
+                           t-on-input="event => this.props.change(+event.target.value)"/>
+                    <output aria-label="当前拆解比例"><t t-out="this.props.value"/>%</output>
+                </div>
+                <div class="nd-explosion-actions">
+                    <button type="button" t-on-click="() => this.props.change(0)">收拢</button>
+                    <button type="button" t-on-click="() => this.props.change(100)">完全展开</button>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

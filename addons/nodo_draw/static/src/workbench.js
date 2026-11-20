@@ -6,6 +6,7 @@ import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas, containsMaterial, faceSurface} from "./mesh";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
+import {ExplosionControls} from "./explosion_controls";
 import {conflictsWithPlate, holeCoordinate, holeDimensionsReady, holeRecord, linkedHole, openingAt, sameHole, sameThickness} from "./hole_editing";
 import {PartsPanel} from "./parts_panel";
 import {SheetSettings} from "./sheet_settings";
@@ -26,7 +27,7 @@ const noParts = [];
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
-    static components = {ArchivedCabinet, DrawingViewport, PartsPanel, Portal, SheetSettings};
+    static components = {ArchivedCabinet, DrawingViewport, ExplosionControls, PartsPanel, Portal, SheetSettings};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     settingsDirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
@@ -34,6 +35,7 @@ export class Workbench extends Component {
     referenceDrawings=signal({});
     referenceKind=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
+    explosion=signal(0);
     holeDraft=signal(freshHoleDraft("door"));
     holeHistory=signal({undo: [], redo: []});
     holeBases=signal({});
@@ -136,14 +138,15 @@ export class Workbench extends Component {
     updateThree(){
         const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
         const boardView = this.boardView(), drillFace = this.drillFace();
-        let parts = this.tab() === "parts" ? {
-            selected: this.selectedParts(), hidden: this.hiddenParts(), focus: this.partFocus(),
-            pick: id => this.selectParts([id]), clear: () => this.selectParts(noParts),
-        } : {
-            selected: this.inspectedPart() ? [this.inspectedPart()] : noParts,
-            pick: id => this.inspectedPart.set(id), clear: () => this.inspectedPart.set(null),
+        const picked = this.inspectedPart()?.id, showParts = this.tab() === "parts";
+        const explode = this.drilling() ? 0 : this.explosion();
+        let parts = {
+            selected:showParts ? this.selectedParts() : picked ? [picked] : noParts,
+            hidden:showParts ? this.hiddenParts() : noParts,
+            focus:showParts ? this.partFocus() : null,
+            pick:(id, face) => this.inspectPart(id, face), clear:() => this.inspectPart(null),
         };
-        const overlay = paused ? null : this.holeOverlay(mesh);
+        const overlay = paused || explode ? null : this.holeOverlay(mesh);
         const drill = !paused && this.drilling() && !this.busy() && this.holeGeometryReady(mesh) ? {
             snap:this.drillSnap(),
             pick:(plane, surface, obstructed) => this.pickDrill(plane, surface, obstructed),
@@ -155,12 +158,19 @@ export class Workbench extends Component {
             parts = {selected:part ? [part] : noParts, hidden:boardView && part
                 ? mesh.parts.filter(item => item.id !== part).map(item => item.id) : noParts};
         }
-        this.threeView?.update(mesh, !boardView && open, paused, reset, parts, overlay, drill,
-            {view:boardView ? boardViews[boardView.face] : "iso", restore:this.cameraRestore()});
+        const orientation = {view:boardView ? boardViews[boardView.face] : "iso", restore:this.cameraRestore()};
+        this.threeView?.update(mesh, !boardView && open, paused, reset,
+            {parts, holePreview:overlay, drilling:drill, orientation, explode});
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
+    inspectPart(id, face = null) {
+        this.inspectedPart.set(id ? {id, face} : null);
+        if (this.tab() === "parts") this.selectParts(id ? [id] : noParts);
+    }
     selectParts(ids, locate = false) {
         this.selectedParts.set(ids);
+        if (ids.length !== 1) this.inspectedPart.set(null);
+        else if (ids[0] !== this.inspectedPart()?.id) this.inspectedPart.set({id:ids[0], face:null});
         this.hiddenParts.set(this.hiddenParts().filter(id => !ids.includes(id)));
         if (locate) this.partFocus.set({ids, nonce: ++this.focusSequence});
     }
@@ -188,7 +198,7 @@ export class Workbench extends Component {
         return mesh;
     }
     previewNote() {
-        if (this.tab() === "holes" && this.mode() === "3d" && this.holeGeometryReady() &&
+        if (this.tab() === "holes" && this.mode() === "3d" && (this.drilling() || !this.explosion()) && this.holeGeometryReady() &&
                 (this.holeDraft().active || this.form().holes !== this.savedHoles)) {
             return "孔位轮廓预览 · 实体待更新";
         }
@@ -243,6 +253,7 @@ export class Workbench extends Component {
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
         this.leaveDrilling();
+        this.explosion.set(0);
         this.cameraRestore.set(null);
         this.resetDraftPreview();
         this.resetParts();
@@ -311,6 +322,7 @@ export class Workbench extends Component {
         if (current.kind === kind && preview?.snapshot === current && !preview.error) return;
         if (current.kind !== kind) {
             this.patch({kind});
+            this.explosion.set(0);
             this.resetParts();
             this.resetHoleHistory();
             this.setFace("door");
@@ -367,6 +379,9 @@ export class Workbench extends Component {
         if (id !== "holes" || !in3d) this.leaveDrilling();
         this.partFocus.set(null);
         if (id === "holes") this.holeAssembly.set(scope === "design");
+        if (id === "parts" && this.tab() !== "parts" && this.inspectedPart()) {
+            this.selectedParts.set([this.inspectedPart().id]);
+        }
         this.tab.set(id);
         this.showFiles.set(false);
         this.panelHidden.set(false);
@@ -381,11 +396,20 @@ export class Workbench extends Component {
         this.leaveDrilling();
         this.mode.set("3d");
     }
+    beginExplosion() {
+        const board = this.drilling() && this.board(this.drillFace());
+        if (board) this.inspectPart(board.part, board.id);
+        this.showThree();
+    }
     startDrilling() {
         if (this.drilling()) return;
+        const picked = this.explosion() && this.inspectedPart();
+        const boards = picked ? this.boards().filter(board => board.part === picked.id) : noParts;
+        const board = boards.find(board => board.id === picked?.face) ?? (boards.length === 1 ? boards[0] : null);
         this.selectTab("holes", true);
         this.drilling.set(true);
-        this.drillFace.set(this.holeDraft().active ? this.face() : null);
+        if (board) this.selectBoard(board.id);
+        else this.drillFace.set(this.holeDraft().active ? this.face() : null);
     }
     leaveDrilling() {
         if (!this.drilling()) return;

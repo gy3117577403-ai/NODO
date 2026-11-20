@@ -2,6 +2,7 @@ import React from "react";
 import {createRoot} from "react-dom/client";
 import Viewer from "@jingneng/Viewer";
 import {locateFace} from "@jingneng/coordinates";
+import {withExplosionVectors} from "./explosion_model.mjs";
 export {checkHolePlacement, holeContains} from "@jingneng/holePlacement";
 export {cutPoints, segmentsCross} from "@jingneng/holeShape";
 
@@ -15,18 +16,23 @@ const drillingDisplay = {...display, dimensions: true};
 export function mount(host) {
     const root = createRoot(host);
     let camera = null;
+    let sourceModel = null, viewModel = null;
     const readCamera = value => { camera = value; };
     return {
         camera() { return camera; },
-        update(model, open, paused, reset, parts, holePreview, drilling, orientation) {
+        update(model, open, paused, reset, {parts, holePreview, drilling, orientation, explode = 0} = {}) {
             if (!model) {
                 root.render(null);
                 return;
             }
+            if (sourceModel !== model) {
+                sourceModel = model;
+                viewModel = withExplosionVectors(model);
+            }
             const drill = drilling && {
                 pick: ({plane, surface, obstructed}) => drilling.pick(plane, surface && locateFace(surface, model.faces), obstructed),
             };
-            root.render(<Viewer model={model} angle={open ? 70 : 0} explode={0}
+            root.render(<Viewer model={viewModel} angle={open ? 70 : 0} explode={explode}
                 view={orientation?.view ?? "iso"} reset={reset} restoreRequest={orientation?.restore} onCamera={readCamera}
                 paused={paused} selected={parts?.selected[0] ?? ""}
                 hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}
@@ -36,7 +42,7 @@ export function mount(host) {
                 editing={holePreview?.editing ?? null} holeIssue={holePreview?.issue ?? null}
                 onHoleMove={drilling?.move ?? noop} onHoleMoveEnd={drilling?.end ?? noop}
                 onClearSelection={parts?.clear} onEditHole={drilling?.edit ?? (() => false)}
-                onPick={hit => parts?.pick?.(hit.id)} />);
+                onPick={hit => parts?.pick?.(hit.id, locateFace(hit, model.faces)?.face)} />);
         },
         dispose() {
             root.unmount();
