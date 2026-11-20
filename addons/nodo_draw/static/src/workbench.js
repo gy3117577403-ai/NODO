@@ -14,6 +14,7 @@ const docTypes={assembly:"总装",formed:"成形",flat:"展开",weld:"焊接",bo
 const clone=value=>JSON.parse(JSON.stringify(value));
 const fieldNumber=(v)=>v===""?null:Number(v);
 const defaultHole = face => ({type:"circle", face, u:95, v:110, diameter:18, width:40, height:24});
+const meshKind = mesh => mesh?.parameters?.configuration?.kind;
 const minPanel = 270;
 const maxPanel = 440;
 
@@ -23,6 +24,7 @@ export class Workbench extends Component {
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
+    draftPreview=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
     hole=signal(defaultHole("door"));
     editing=signal(null); batch=signal(null); sheet=signal(null); showFiles=signal(false);
@@ -74,17 +76,23 @@ export class Workbench extends Component {
             if (!canvas) return;
             const view = new FaceCanvas(canvas);
             this.faceView = view;
-            untrack(() => view.set(this.mesh(), this.flatDisplay()));
+            untrack(() => view.set(this.displayMesh(), this.flatDisplay()));
             return () => { this.faceView = null; view.dispose(); };
         });
         useEffect(() => {
             this.updateThree();
         });
         useEffect(()=>{
-            const data=this.mesh(), display=this.flatDisplay();
+            const data=this.displayMesh(), display=this.flatDisplay();
             this.faceView?.set(data,display);
         });
-        onWillUnmount(()=>{this.epoch++;clearTimeout(this.poll);this.aborter?.abort();});
+        onWillUnmount(() => {
+            this.epoch++;
+            clearTimeout(this.poll);
+            this.aborter?.abort();
+            clearTimeout(this.draftPreviewPoll);
+            this.draftPreviewAbort?.abort();
+        });
     }
     flatDisplay(){return {face:this.face(),holes:this.form()?.holes||[]};}
     designLabel(design){
@@ -92,9 +100,14 @@ export class Workbench extends Component {
         return design.source + " · " + design.name + (versions.length > 1 ? " · 交接版 " + design.source_version : "");
     }
     updateThree(){
-        const mesh = this.mesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
+        const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
         this.threeView?.update(mesh, open, paused, reset);
     }
+    displayMesh() {
+        const mesh = this.draftPreview()?.mesh || this.mesh();
+        return meshKind(mesh) === this.form()?.kind ? mesh : null;
+    }
+    kindName(kind) { return kind === "double" ? "双开门" : "单开门"; }
     fitView(){
         if (this.mode() === "3d") this.viewReset.set(this.viewReset() + 1);
         else this.faceView?.fit();
@@ -103,11 +116,10 @@ export class Workbench extends Component {
     version(value){return String(value).padStart(2,"0");}
     jobState(job){return {done:"已生成",failed:"生成失败",queued:"等待计算",running:"计算中"}[job.state];}
     faceName(id) {
-        const kind = this.mesh()?.parameters?.configuration?.kind ?? this.form()?.kind;
-        return id === "door" && kind === "double" ? "左门板" : faceNames[id];
+        return id === "door" && this.form()?.kind === "double" ? "左门板" : faceNames[id];
     }
     board(id = this.face()) {
-        return this.mesh()?.faces.find(face => face.id === id);
+        return this.displayMesh()?.faces.find(face => face.id === id);
     }
     boards() {
         return Object.keys(faceNames).map(id => this.board(id)).filter(Boolean);
@@ -116,7 +128,7 @@ export class Workbench extends Component {
         return this.form().holes.filter(hole => hole.face === id);
     }
     linkedHoles(id) {
-        return (this.mesh()?.parameters?.holes || []).filter(hole => hole.face === id && hole.ownerAccessory).length;
+        return (this.displayMesh()?.parameters?.holes || []).filter(hole => hole.face === id && hole.ownerAccessory).length;
     }
     mountingFaces(model){
         return (model.faces||[model.face]).filter(face=>face!=="door_right"||this.form().kind==="double");
@@ -130,6 +142,7 @@ export class Workbench extends Component {
     }
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
+        this.resetDraftPreview();
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
         this.showFiles.set(false);this.batch.set(null);this.editing.set(null);this.face.set("door");
@@ -156,7 +169,7 @@ export class Workbench extends Component {
                 const mesh=await response.json();
                 if(epoch===this.epoch&&this.meshRequest===current.id){
                     this.mesh.set(mesh);this.modelJob.set(current);
-                    if (!this.board()) this.setFace("door");
+                    if (this.displayMesh() === mesh && !this.board()) this.setFace("door");
                 }
             }).catch(err=>{if(err.name!=="AbortError"&&epoch===this.epoch){this.issue.set(err.message);this.meshRequest=null;}});
         }
@@ -168,6 +181,59 @@ export class Workbench extends Component {
         }
     }
     patch(p){this.form.set({...this.form(),...p});this.dirty.set(true);this.issue.set("");}
+    resetDraftPreview() {
+        clearTimeout(this.draftPreviewPoll);
+        this.draftPreviewAbort?.abort();
+        this.draftPreview.set(null);
+    }
+    selectKind(kind) {
+        if (this.busy()) return;
+        const current = this.form();
+        const preview = this.draftPreview();
+        if (current.kind === kind && preview?.snapshot === current && !preview.error) return;
+        if (current.kind !== kind) {
+            this.patch({kind});
+            this.setFace("door");
+            this.opened.set(false);
+        }
+        this.resetDraftPreview();
+        if (this.displayMesh()) return;
+        const snapshot = this.form();
+        const id = this.doc().id;
+        const expected = this.localEdit;
+        const request = this.draftPreviewAbort = new AbortController();
+        this.draftPreview.set({snapshot, stage:"等待计算"});
+        this.draftPreviewPoll = setTimeout(async () => {
+            try {
+                const job = await this.orm.call(MODEL, "preview_cabinet", [[id], expected, snapshot]);
+                await this.readDraftPreview(id, job, request.signal);
+            } catch (error) {
+                this.failDraftPreview(error, request.signal);
+            }
+        }, 160);
+    }
+    async readDraftPreview(id, jobId, signal) {
+        if (signal.aborted) return;
+        const job = await this.orm.call(MODEL, "cabinet_preview_status", [[id], jobId]);
+        if (signal.aborted) return;
+        if (job.state === "failed") throw Error(job.error);
+        if (job.state === "done") {
+            const response = await fetch(this.url(jobId, "mesh"), {signal});
+            if (!response.ok) throw Error("三维模型读取失败");
+            const mesh = await response.json();
+            if (signal.aborted) return;
+            if (meshKind(mesh) !== this.form().kind) throw Error("返回的模型与所选柜型不符，请重试。");
+            this.draftPreview.set({...this.draftPreview(), mesh, issues:job.issues});
+            return;
+        }
+        this.draftPreview.set({...this.draftPreview(), stage:job.stage});
+        this.draftPreviewPoll = setTimeout(() => {
+            this.readDraftPreview(id, jobId, signal).catch(error => this.failDraftPreview(error, signal));
+        }, 650);
+    }
+    failDraftPreview(error, signal) {
+        if (!signal.aborted) this.draftPreview.set({...this.draftPreview(), error:error.data?.message || error.message});
+    }
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
     selectTab(id) {
         this.tab.set(id);
@@ -203,6 +269,7 @@ export class Workbench extends Component {
         try{
             const out=await this.orm.call(MODEL,"apply_design",[[doc.id],this.localEdit,this.form(),operation]);
             if(epoch!==this.epoch)return;
+            this.resetDraftPreview();
             await this.refresh(doc.id,epoch,true);
             if(epoch!==this.epoch)return;
             if(out.issues.length)this.issue.set(out.issues.join(" · "));

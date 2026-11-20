@@ -138,6 +138,38 @@ class TestDrawWorkbench(TransactionCase):
         settings['kind'] = 'double'
         self.assertTrue(spec.match_row(settings, bom['lines'], spec.LIBRARY, 0)['issue'])
 
+    def test_draft_preview_keeps_saved_design_and_history(self):
+        original = self.design.settings
+        edited = {**original, 'kind': 'double', 'width': 420}
+        edit_number = self.design.edit_number
+        other_engineer = new_test_user(self.env, login='cad.colleague@nodo.test',
+                                       groups='nodo_base.group_role_engineering')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
+                patch.object(workbench, 'online', return_value=True):
+            preview_id = self.design.preview_cabinet(edit_number, edited)
+            self.assertEqual(self.design.preview_cabinet(edit_number, edited), preview_id)
+            preview = self.env['nodo.draw.job'].browse(preview_id).with_user(self.engineer)
+            params = preview.payload['parameters']
+            self.assertEqual((params['configuration']['kind'], params['width']), ('double', 420))
+            self.assertEqual(preview.preview_user_id, self.engineer)
+            self.assertFalse(self.design.workspace()['jobs'])
+            self.env['nodo.draw.job']._dispatch_queued()
+            self.assertFalse(list(Path(tmp).glob('*/request.json')))
+            self.assertEqual(self.design.cabinet_preview_status(preview_id)['state'], 'queued')
+            self.assertTrue((preview._folder() / 'request.json').is_file())
+            with self.assertRaises(AccessError):
+                preview.with_user(other_engineer).read(['payload'])
+            with self.assertRaises(AccessError):
+                self.design.with_user(other_engineer).cabinet_preview_status(preview_id)
+            with self.assertRaisesRegex(UserError, '柜宽须在'):
+                self.design.preview_cabinet(edit_number, {**edited, 'width': 0})
+            workspace = self.design.workspace()
+            self.assertEqual(workspace['settings'], original)
+            self.assertEqual(workspace['edit_number'], edit_number)
+            saved = self.design.apply_design(edit_number, original, 'save')
+            self.assertNotEqual(saved['job_id'], preview_id)
+            self.assertEqual([job['id'] for job in self.design.workspace()['jobs']], [saved['job_id']])
+
     def test_snapshot_conflict_delivery_and_retry(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(workbench,'EXCHANGE',Path(tmp)), patch.object(workbench,'online',return_value=True):
             settings = copy.deepcopy(self.design.settings)

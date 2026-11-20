@@ -70,7 +70,9 @@
         </div>
     </div>
     </Portal>
-    <div class="nd-error" role="alert" t-if="!this.showFiles() &amp;&amp; this.issue()"><t t-out="this.issue()"/></div>
+    <t t-set="draft" t-value="this.draftPreview()"/>
+    <t t-set="warning" t-value="this.issue() || (draft?.snapshot===form ? draft.issues?.join(' · ') : '')"/>
+    <div class="nd-error" role="alert" t-if="!this.showFiles() &amp;&amp; warning" t-out="warning"/>
     <div class="nd-layout" t-att-class="{'nd-archive-layout':this.showFiles(),'nd-layout-folded':this.panelHidden() &amp;&amp; !this.showFiles()}"
             t-att-style="'--nd-panel-width:'+this.panelWidth()+'px'">
         <aside class="nd-panel nd-inspector" t-if="!this.showFiles()">
@@ -85,9 +87,10 @@
             </div>
             <div class="nd-fields" t-if="!this.panelHidden() &amp;&amp; this.tab()==='cabinet'">
                 <h3>基础柜体</h3>
-                <div class="nd-switch" aria-label="选择柜型">
-                    <button t-att-class="form.kind==='single'?'active':''" t-on-click="() => this.patch({kind:'single'})">单开门</button>
-                    <button t-att-class="form.kind==='double'?'active':''" t-on-click="() => this.patch({kind:'double'})">双开门</button>
+                <div class="nd-switch" role="group" aria-label="选择柜型">
+                    <button type="button" t-foreach="['single','double']" t-as="kind" t-key="kind" t-att-disabled="this.busy()"
+                            t-att-class="form.kind===kind?'active':''" t-att-aria-pressed="form.kind===kind?'true':'false'"
+                            t-on-click="() => this.selectKind(kind)" t-out="this.kindName(kind)"/>
                 </div>
                 <h3>箱体尺寸 <small>mm</small></h3>
                 <div class="nd-trio"><label t-foreach="this.dims" t-as="row" t-key="row[0]"><t t-out="row[1]"/><input type="number" min="1" step="any" t-att-aria-label="'柜'+row[1]" t-att-value="form[row[0]]" t-on-input="ev => this.changeField(row[0],ev,true)"/></label></div>
@@ -173,6 +176,7 @@
              t-on-pointercancel="this.endPanelResize" t-on-lostpointercapture="this.endPanelResize" t-on-keydown="this.keyPanelResize"/>
         <section class="nd-panel nd-stage">
             <t t-if="!this.showFiles()">
+                <t t-set="visual" t-value="this.displayMesh()"/>
                 <div class="nd-viewport">
                     <div class="nd-viewport-head" t-if="this.mode()==='2d' &amp;&amp; this.board()">
                         <div class="nd-board-caption">
@@ -180,13 +184,26 @@
                             <small t-if="this.tab()!=='holes'">查看孔位</small>
                         </div>
                     </div>
-                    <div class="nd-three-host" t-att-hidden="this.mode()!=='3d'" t-ref="this.threeHost"/>
-                    <div t-if="this.mode()==='3d' &amp;&amp; this.viewerError()" class="nd-overlay" role="alert" t-out="this.viewerError()"/>
+                    <div class="nd-three-host" t-att-hidden="this.mode()!=='3d' || !visual" t-ref="this.threeHost"/>
                     <canvas t-if="this.mode()==='2d'" aria-label="板面开孔定位" t-ref="this.canvas" t-on-pointerdown="this.flatPointerDown" t-on-pointerup="this.flatPointerUp" t-on-pointercancel="() => { this.flatPress=null; }" t-on-wheel.prevent="ev => this.faceView?.scale(ev.deltaY)"/>
-                    <div class="nd-overlay" t-if="!this.mesh()"><b t-out="doc.jobs[0]?.state==='failed'?'模型生成失败':doc.jobs.length?'正在准备模型':'尚未生成柜体预览'"/><small t-if="!doc.jobs.length">选择柜型和规格后点击「保存并预览柜体」</small></div>
-                    <div class="nd-vtools"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="this.fitView" t-out="this.mode()==='2d'?'适应板面':'复位视角'"/></div>
+                    <div t-if="this.mode()==='3d' &amp;&amp; this.viewerError()" class="nd-overlay" role="alert" t-out="this.viewerError()"/>
+                    <div t-elif="!visual" class="nd-overlay" t-att-role="draft?.error?'alert':'status'">
+                        <t t-if="draft">
+                            <b t-out="draft.error ? this.kindName(form.kind)+'预览失败' : '正在生成'+this.kindName(form.kind)+'预览'"/>
+                            <small t-out="draft.error || draft.stage"/>
+                            <progress t-if="!draft.error" class="nd-preview-progress" aria-label="正在计算柜体预览"/>
+                        </t>
+                        <t t-else="">
+                            <b t-out="doc.jobs[0]?.state==='failed'?'模型生成失败':doc.jobs.length?'正在准备模型':'尚未生成柜体预览'"/>
+                            <small t-if="!doc.jobs.length">选择柜型和规格后点击「保存并预览柜体」</small>
+                        </t>
+                    </div>
+                    <div class="nd-vtools" t-if="visual"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="this.fitView" t-out="this.mode()==='2d'?'适应板面':'复位视角'"/></div>
                 </div>
-                <div class="nd-foot"><span t-if="form.kind"><b t-out="form.kind==='single'?'AE 单开门':'AE 双开门'"/> · 宽 <t t-out="form.width"/> / 高 <t t-out="form.height"/> / 深 <t t-out="form.depth"/> mm</span><small t-out="this.dirty()?'有未保存修改':(this.modelJob() &amp;&amp; this.modelJob().edit_number!==doc.edit_number?'显示上一版模型':'')"/></div>
+                <div class="nd-foot">
+                    <span><t t-if="visual"><b t-out="'AE '+this.kindName(visual.parameters.configuration.kind)"/> · 宽 <t t-out="visual.dimensions.width"/> / 高 <t t-out="visual.dimensions.height"/> / 深 <t t-out="visual.dimensions.depth"/> mm</t></span>
+                    <small t-out="draft?.mesh ? (draft.snapshot===form?'草稿预览 · 未保存':'草稿已修改，预览待更新') : (this.dirty()?'有未保存修改':(this.modelJob() &amp;&amp; this.modelJob().edit_number!==doc.edit_number?'显示上一版模型':''))"/>
+                </div>
             </t>
             <div t-else="" class="nd-files">
                 <div class="nd-empty" t-if="!job">尚无图纸版本</div>

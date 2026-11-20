@@ -84,21 +84,69 @@ class DrawDesign(models.Model):
 
     def workspace(self):
         self._check_read()
-        jobs = self.env['nodo.draw.job'].search([('design_id','=',self.id)],order='id desc')
+        jobs = self.env['nodo.draw.job'].search([
+            ('design_id', '=', self.id), ('preview_user_id', '=', False),
+        ], order='id desc')
         # Dispatch only on a separate request or by cron after the design transaction commits.
         jobs.filtered(lambda j: not j.final_state)._dispatch()
         return dict(id=self.id,name=self.name,bom=self.bom,library=self.library,
                     settings=sheet_settings.for_editor(self.settings),sheet_catalog=sheet_settings.CATALOG,
                     edit_number=self.edit_number,online=online(),jobs=[j._info() for j in jobs])
 
-    def apply_design(self, expected, values, operation):
+    def _lock_editor(self, expected):
         self._check_read()
-        if operation not in ('save','assemble','generate'):
-            raise UserError('无效的设计操作。')
         self.env.cr.execute('SELECT id FROM nodo_draw_design WHERE id=%s FOR UPDATE', [self.id])
         self.invalidate_recordset(['settings','edit_number'])
         if self.edit_number != expected:
             raise UserError('另一窗口已修改此设计，请重新载入，核对后再保存。')
+
+    def _job_payload(self, settings, operation, version):
+        return dict(operation=operation, parameters=spec.parameters(settings, self.library, version),
+                    drawing_format=DRAWING_FORMAT, quantity=self.bom['quantity'], source=self.source,
+                    source_version=self.source_version)
+
+    def _new_job(self, payload, version, preview_user_id=False):
+        if not online():
+            raise UserError('CAD 计算服务尚未就绪，请启动本机技术工作台服务后重试。')
+        return self.env['nodo.draw.job'].sudo().create(dict(
+            design_id=self.id, company_id=self.company_id.id, operation=payload['operation'],
+            edit_number=self.edit_number, version=version, payload=payload, preview_user_id=preview_user_id,
+        ))
+
+    def preview_cabinet(self, expected, values):
+        self._lock_editor(expected)
+        try:
+            settings = spec.edit(self.settings, values, self.bom['lines'], self.library)
+            payload = self._job_payload(settings, 'preview', 0)
+        except ValueError as exc:
+            raise UserError(str(exc)) from exc
+        owner = self.env.uid
+        recent = self.env['nodo.draw.job'].search([
+            ('design_id', '=', self.id), ('edit_number', '=', self.edit_number), ('preview_user_id', '=', owner),
+        ], order='id desc', limit=1)
+        if recent and recent.payload == payload and recent._info()['state'] != 'failed':
+            return recent.id
+        return self._new_job(payload, 0, owner).id
+
+    def cabinet_preview_status(self, job_id):
+        self._check_read()
+        job = self.env['nodo.draw.job'].search([
+            ('id', '=', job_id), ('design_id', '=', self.id), ('preview_user_id', '=', self.env.uid),
+        ], limit=1)
+        if not job:
+            raise AccessError('此柜体预览不属于当前会话。')
+        if not job.final_state:
+            job._dispatch()
+        result = job._info()
+        if result['state'] in ('queued', 'running') and not online():
+            raise UserError('CAD 计算服务已离线，请恢复后重试预览。')
+        return result
+
+    def apply_design(self, expected, values, operation):
+        if operation not in ('save','assemble','generate'):
+            self._check_read()
+            raise UserError('无效的设计操作。')
+        self._lock_editor(expected)
         issues = []
         try:
             new = spec.edit(self.settings, values, self.bom['lines'], self.library)
@@ -117,19 +165,13 @@ class DrawDesign(models.Model):
         jobs = self.env['nodo.draw.job'].sudo()
         kind = 'build' if operation == 'generate' else 'preview'
         current = jobs.search([('design_id','=',self.id),('edit_number','=',self.edit_number),
-                               ('operation','=',kind)],order='id desc',limit=1)
+                               ('operation','=',kind),('preview_user_id','=',False)],order='id desc',limit=1)
         compatible = current and (kind == 'preview' or current.payload.get('drawing_format') == DRAWING_FORMAT)
         if compatible and current._info()['state'] != 'failed':
             return {'job_id':current.id, 'issues':issues}
-        if not online():
-            raise UserError('CAD 计算服务尚未就绪，请启动本机技术工作台服务后重试。')
         previous = jobs.search([('design_id','=',self.id),('operation','=','build')],order='version desc',limit=1)
         version = (previous.version or 0) + 1
-        p = spec.parameters(new, self.library, version)
-        job = jobs.create(dict(design_id=self.id,company_id=self.company_id.id,operation=kind,
-                               edit_number=self.edit_number,version=version,
-                               payload={'operation':kind,'parameters':p,'drawing_format':DRAWING_FORMAT,'quantity':self.bom['quantity'],
-                                        'source':self.source,'source_version':self.source_version}))
+        job = self._new_job(self._job_payload(new, kind, version), version)
         return {'job_id':job.id,'issues':issues}
 
 
@@ -139,6 +181,7 @@ class DrawJob(models.Model):
     design_id = fields.Many2one('nodo.draw.design', required=True, index=True, ondelete='cascade')
     company_id = fields.Many2one('res.company', required=True, index=True)
     operation = fields.Selection([('preview','模型预览'),('build','一键出图')],required=True)
+    preview_user_id = fields.Many2one('res.users', string='草稿预览人', index=True, ondelete='cascade')
     edit_number = fields.Integer(required=True)
     version = fields.Integer(required=True)
     token = fields.Char(required=True, default=lambda self: uuid.uuid4().hex, copy=False)
@@ -151,7 +194,8 @@ class DrawJob(models.Model):
 
     @api.model
     def _dispatch_queued(self):
-        self.sudo().search([('final_state','=',False)],order='id',limit=200)._dispatch()
+        # Draft requests are dispatched when their caller starts polling.
+        self.sudo().search([('final_state','=',False),('preview_user_id','=',False)],order='id',limit=200)._dispatch()
 
     def _dispatch(self):
         for job in self:
