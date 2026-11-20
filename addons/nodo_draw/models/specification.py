@@ -90,6 +90,7 @@ def edit(old, raw, lines, library):
         raise ValueError('单柜自定义孔最多 300 个')
     new['holes'] = []
     seen = set()
+    footprints = {}
     for h in holes:
         if not isinstance(h, dict):
             raise ValueError('孔记录无效')
@@ -105,8 +106,13 @@ def edit(old, raw, lines, library):
         row = dict(id=ident, face=face, type=shape, anchor='left', anchorV='bottom')
         for axis in ('u', 'v'):
             row[axis] = number(h.get(axis), '距边尺寸', 0, 10000)
-        for field in (('diameter',) if shape == 'circle' else ('width', 'height')):
+        size_fields = ('diameter',) if shape == 'circle' else ('width', 'height')
+        for field in size_fields:
             row[field] = number(h.get(field), '孔尺寸', 2, 200 if shape == 'circle' else 250)
+        footprint = (face, shape, row['u'], row['v'], *(row[field] for field in size_fields))
+        if footprint in footprints:
+            raise ValueError(f'{ident} 与 {footprints[footprint]} 位置、孔型和尺寸相同，请调整孔位。')
+        footprints[footprint] = ident
         new['holes'].append(row)
     requested = raw.get('positions', {})
     existing = {a['id'] for a in old['instances']}

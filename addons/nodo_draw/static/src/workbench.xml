@@ -153,14 +153,63 @@
                     </details>
                 </div>
                 <div class="nd-empty" t-else="">保存并预览柜体后可选加工板面</div>
-                <t t-if="this.board()">
-                <label>孔型<select aria-label="孔型" t-on-change="ev => this.setHole('type',ev.target.value)"><option t-foreach="[['circle','圆孔'],['rectangle','矩形孔'],['slot','长圆孔']]" t-as="kv" t-key="kv[0]" t-att-value="kv[0]" t-att-selected="this.hole().type===kv[0]" t-out="kv[1]"/></select></label>
-                <div class="nd-duo"><label t-foreach="[['u','横向 U'],['v','纵向 V']]" t-as="kv" t-key="kv[0]"><t t-out="kv[1]"/><input type="number" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-on-input="ev => this.setHole(kv[0],+ev.target.value)"/></label></div>
-                <div class="nd-duo"><label t-foreach="this.hole().type==='circle'?[['diameter','直径']]:[['width','孔宽'],['height','孔高']]" t-as="kv" t-key="kv[0]"><t t-out="kv[1]"/><input type="number" min="2" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-on-input="ev => this.setHole(kv[0],+ev.target.value)"/></label></div>
-                <button class="nd-wide nd-soft" t-on-click="() => this.addHole()" t-out="this.editing()?'应用孔位修改':'添加孔位'"/>
-                <div class="nd-bomrow" t-foreach="this.boardHoles(this.face())" t-as="r" t-key="r.id"><button class="nd-link" t-on-click="() => this.editHole(r)"><b t-out="r.id"/><small><t t-out="r.u"/>，<t t-out="r.v"/> mm</small></button><button class="nd-icon" t-att-aria-label="'移除 '+r.id" t-on-click="() => this.removeHole(r.id)">×</button></div>
-                <button class="nd-wide" t-att-disabled="this.busy()" t-on-click="() => this.apply('save')">保存并预览开孔</button>
+                <t t-if="this.board() &amp;&amp; this.holeGeometryReady()">
+                    <t t-set="holeIssue" t-value="this.holeIssue()"/>
+                    <div class="nd-hole-history" role="group" aria-label="孔位历史">
+                        <button type="button" aria-label="撤销孔位" t-att-disabled="this.busy() || !this.holeHistory().undo.length"
+                                t-on-click="() => this.travelHoleHistory('undo')">撤销</button>
+                        <button type="button" aria-label="重做孔位" t-att-disabled="this.busy() || !this.holeHistory().redo.length"
+                                t-on-click="() => this.travelHoleHistory('redo')">重做</button>
+                    </div>
+                    <small t-if="this.holeDraft().copiedFrom" class="nd-hole-copy-note" role="status">复制自 <t t-out="this.holeDraft().copiedFrom"/>，调整位置后确认</small>
+                    <label>孔型
+                        <select aria-label="孔型" t-att-disabled="this.busy()" t-on-change="ev => this.setHole('type',ev.target.value)">
+                            <option t-foreach="[['circle','圆孔'],['rectangle','矩形孔'],['slot','长圆孔']]" t-as="kv" t-key="kv[0]"
+                                    t-att-value="kv[0]" t-att-selected="this.hole().type===kv[0]" t-out="kv[1]"/>
+                        </select>
+                    </label>
+                    <div class="nd-duo">
+                        <div class="nd-hole-axis" t-foreach="this.holeAxes" t-as="axis" t-key="axis[0]">
+                            <t t-set="letter" t-value="axis[0].toUpperCase()"/>
+                            <label><t t-out="axis[1]"/>
+                                <input type="number" step="any" t-att-aria-label="axis[1]" t-att-value="this.holeValue(axis[0])"
+                                       t-att-disabled="this.busy()" t-on-input="ev => this.setHoleValue(axis[0],ev.target.value)" t-on-blur="this.endHoleInput"/>
+                            </label>
+                            <div class="nd-hole-basis">
+                                <select t-att-aria-label="letter+' 坐标基准'" t-att-disabled="this.busy()" t-on-change="ev => this.setHoleBasis(axis[0],ev.target.value)">
+                                    <option t-foreach="this.holeBasisOptions" t-as="basis" t-key="basis[0]" t-att-value="basis[0]"
+                                            t-att-selected="this.holeBasis(axis[0])===basis[0]" t-out="basis[1]"/>
+                                </select>
+                                <button type="button" t-att-aria-label="letter+' 向居中'" t-att-title="letter+' 向居中'"
+                                        t-att-disabled="this.busy()" t-on-click="() => this.centerHole(axis[0])">居中</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nd-duo">
+                        <label t-foreach="this.hole().type==='circle'?[['diameter','直径']]:[['width','孔宽'],['height','孔高']]" t-as="kv" t-key="kv[0]">
+                            <t t-out="kv[1]"/>
+                            <input type="number" min="2" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-att-disabled="this.busy()"
+                                   t-on-input="ev => this.setHole(kv[0],ev.target.value===''?null:Number(ev.target.value),kv[0])" t-on-blur="this.endHoleInput"/>
+                        </label>
+                    </div>
+                    <small t-if="holeIssue &amp;&amp; this.holeDraft().active" class="nd-hole-issue" role="alert" t-out="holeIssue"/>
+                    <div class="nd-hole-actions">
+                        <button type="button" class="nd-wide nd-soft" t-att-disabled="this.busy() || !!holeIssue" t-on-click="this.addHole"
+                                t-out="this.editing()?'应用孔位修改':this.holeDraft().copiedFrom?'确认复制孔':'添加孔位'"/>
+                        <button type="button" t-if="this.holeDraft().active" t-att-disabled="this.busy()" t-on-click="this.cancelHoleDraft">取消</button>
+                    </div>
+                    <div class="nd-bomrow" t-foreach="this.boardHoles()" t-as="r" t-key="r.id">
+                        <button type="button" class="nd-link" t-att-disabled="this.busy()" t-att-aria-pressed="this.editing()===r.id?'true':'false'" t-on-click="() => this.editHole(r)">
+                            <b t-out="r.id"/><small><t t-out="r.u"/>，<t t-out="r.v"/> mm</small>
+                        </button>
+                        <div class="nd-hole-row-actions">
+                            <button type="button" class="nd-link" t-att-aria-label="'复制 '+r.id" t-att-disabled="this.busy()" t-on-click="() => this.editHole(r,true)">复制</button>
+                            <button type="button" class="nd-icon" t-att-aria-label="'移除 '+r.id" t-att-disabled="this.busy()" t-on-click="() => this.removeHole(r.id)">×</button>
+                        </div>
+                    </div>
+                    <button class="nd-wide" t-att-disabled="this.busy()" t-on-click="() => this.apply('save')">保存并预览开孔</button>
                 </t>
+                <small t-elif="this.board()" class="nd-hole-issue" role="status">请先保存并预览当前规格。</small>
             </div>
         </aside>
         <div t-if="!this.showFiles() &amp;&amp; !assembly &amp;&amp; !this.panelHidden()" class="nd-splitter" role="separator" tabindex="0"

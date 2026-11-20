@@ -6,6 +6,7 @@ import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas} from "./mesh";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
+import {holeCoordinate, holeDimensionsReady, holeRecord, sameHole, sameThickness} from "./hole_editing";
 import {PartsPanel} from "./parts_panel";
 import {SheetSettings} from "./sheet_settings";
 
@@ -15,6 +16,7 @@ const docTypes={assembly:"总装",formed:"成形",flat:"展开",weld:"焊接",bo
 const clone=value=>JSON.parse(JSON.stringify(value));
 const fieldNumber=(v)=>v===""?null:Number(v);
 const defaultHole = face => ({type:"circle", face, u:95, v:110, diameter:18, width:40, height:24});
+const freshHoleDraft = face => ({values: defaultHole(face), editing: null, copiedFrom: null, active: false});
 const meshKind = mesh => mesh?.parameters?.configuration?.kind;
 const minPanel = 270;
 const maxPanel = 440;
@@ -25,13 +27,15 @@ export class Workbench extends Component {
     static components = {ArchivedCabinet, DrawingViewport, PartsPanel, Portal, SheetSettings};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
-    dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
+    settingsDirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
     draftPreview=signal(null);
     referenceDrawings=signal({});
     referenceKind=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
-    hole=signal(defaultHole("door"));
-    editing=signal(null); batch=signal(null); sheet=signal(null); showFiles=signal(false);
+    holeDraft=signal(freshHoleDraft("door"));
+    holeHistory=signal({undo: [], redo: []});
+    holeBases=signal({});
+    batch=signal(null); sheet=signal(null); showFiles=signal(false);
     archiveMode=signal("drawing");
     archiveMenu=signal(null);
     directoryHidden=signal(false);
@@ -49,8 +53,12 @@ export class Workbench extends Component {
         this.orm=useService("orm"); this.notification=useService("notification");
         this.drawingViews = new Map();
         this.holeDrafts = new Map();
+        this.savedHoles = null;
+        this.holeInput = null;
         this.epoch=0;this.docTypes=docTypes;
         this.dims=[["width","宽"],["height","高"],["depth","深"]];
+        this.holeAxes = [["u", "横向 U"], ["v", "纵向 V"]];
+        this.holeBasisOptions = [["start", "从起边"], ["end", "从终边"], ["center", "从中心线"]];
         this.tabs=[["cabinet","规格"],["materials","材料"],["parts","零件"],["holes","孔位"]];
         this.assemblyReturn = "cabinet";
         this.focusSequence = 0;
@@ -106,7 +114,10 @@ export class Workbench extends Component {
             this.draftPreviewAbort?.abort();
         });
     }
-    flatDisplay(){return {face:this.face(),holes:this.form()?.holes||[]};}
+    flatDisplay(){
+        const overlay = this.holeOverlay();
+        return {face:this.face(), holes:this.form()?.holes || [], active:overlay?.active, editing:overlay?.editing, issue:overlay?.issue};
+    }
     designLabel(design){
         const versions = this.docs().filter(item => item.source === design.source);
         return design.source + " · " + design.name + (versions.length > 1 ? " · 交接版 " + design.source_version : "");
@@ -117,7 +128,7 @@ export class Workbench extends Component {
             selected: this.selectedParts(), hidden: this.hiddenParts(), focus: this.partFocus(),
             pick: id => this.selectParts([id]), clear: () => this.selectParts(noParts),
         } : undefined;
-        this.threeView?.update(mesh, open, paused, reset, parts);
+        this.threeView?.update(mesh, open, paused, reset, parts, paused ? undefined : this.holeOverlay(mesh));
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
     selectParts(ids, locate = false) {
@@ -145,6 +156,10 @@ export class Workbench extends Component {
         return mesh;
     }
     previewNote() {
+        if (this.tab() === "holes" && this.mode() === "3d" && this.holeGeometryReady() &&
+                (this.holeDraft().active || this.form().holes !== this.savedHoles)) {
+            return "孔位轮廓预览 · 实体待更新";
+        }
         const draft = this.draftPreview();
         if (draft?.mesh && draft.snapshot !== this.form()) return "草稿已修改，预览待更新";
         if (this.displayMesh() && this.previewScope() === "base") {
@@ -171,7 +186,7 @@ export class Workbench extends Component {
     boards() {
         return Object.keys(faceNames).map(id => this.board(id)).filter(Boolean);
     }
-    boardHoles(id) {
+    boardHoles(id = this.face()) {
         return this.form().holes.filter(hole => hole.face === id);
     }
     linkedHoles(id) {
@@ -196,12 +211,14 @@ export class Workbench extends Component {
         this.resetDraftPreview();
         this.resetParts();
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
-        this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
-        this.showFiles.set(false);this.batch.set(null);this.referenceKind.set(null);this.editing.set(null);this.face.set("door");
+        this.meshRequest=null;this.issue.set("");this.settingsDirty.set(false);this.sheet.set(null);
+        this.showFiles.set(false);this.batch.set(null);this.referenceKind.set(null);this.face.set("door");
         this.drawingViews.clear();this.archiveMode.set("drawing");this.archiveMenu.set(null);
         this.holeDrafts.clear();this.frontFacesOpen.set(false);
+        this.holeBases.set({});
+        this.resetHoleHistory();
         this.mode.set("3d");this.opened.set(false);this.tab.set("cabinet");
-        this.hole.set(defaultHole("door"));this.busy.set(false);
+        this.holeDraft.set(freshHoleDraft("door"));this.busy.set(false);
         const epoch=++this.epoch;
         await this.refresh(id,epoch,true);
         return epoch === this.epoch;
@@ -211,7 +228,14 @@ export class Workbench extends Component {
         const data=await this.orm.call(MODEL,"workspace",[[id]]);
         if(epoch!==this.epoch)return;
         this.doc.set(data);
-        if(replace){this.form.set({...clone(data.settings),positions:{}});this.localEdit=data.edit_number;this.dirty.set(false);}
+        if (replace) {
+            const form = {...clone(data.settings), positions:{}};
+            this.savedHoles = form.holes;
+            this.form.set(form);
+            this.localEdit = data.edit_number;
+            this.settingsDirty.set(false);
+            this.resetHoleHistory();
+        }
         const current=data.jobs.find(j=>j.state==="done"&&j.files?.includes("mesh"));
         if(current&&this.modelJob()?.id!==current.id&&this.meshRequest!==current.id){
             this.meshRequest=current.id;
@@ -235,7 +259,8 @@ export class Workbench extends Component {
             this.poll=setTimeout(()=>this.refresh(id,epoch).catch(e=>this.issue.set(e.message)),1600);
         }
     }
-    patch(p){this.form.set({...this.form(),...p});this.dirty.set(true);this.issue.set("");}
+    dirty() { return this.settingsDirty() || !!this.form() && this.form().holes !== this.savedHoles; }
+    patch(p){this.form.set({...this.form(),...p});this.settingsDirty.set(true);this.issue.set("");}
     resetDraftPreview() {
         clearTimeout(this.draftPreviewPoll);
         this.draftPreviewAbort?.abort();
@@ -249,6 +274,7 @@ export class Workbench extends Component {
         if (current.kind !== kind) {
             this.patch({kind});
             this.resetParts();
+            this.resetHoleHistory();
             this.setFace("door");
             this.opened.set(false);
         }
@@ -382,27 +408,129 @@ export class Workbench extends Component {
     }
     setFace(value) {
         if (value === this.face()) return;
-        this.holeDrafts.set(this.face(), {hole: this.hole(), editing: this.editing()});
-        const draft = this.holeDrafts.get(value);
+        this.endHoleInput();
+        this.holeDrafts.set(this.face(), this.holeDraft());
         this.face.set(value);
-        this.hole.set(draft?.hole ?? defaultHole(value));
-        this.editing.set(draft?.editing ?? null);
+        this.holeDraft.set(this.holeDrafts.get(value) ?? freshHoleDraft(value));
         this.frontFacesOpen.set(false);
         this.faceView?.fit();
     }
-    setHole(key,value){this.hole.set({...this.hole(),[key]:value});}
-    addHole(){
-        const item=this.hole(),holes=clone(this.form().holes);
-        const index=holes.findIndex(row=>row.id===this.editing() && row.face===item.face);
-        const edit=index<0?null:holes[index].id;
-        const id=edit||"H"+(Math.max(0,...holes.map(h=>Number(h.id.slice(1))))+1);
-        const row={...item,id};
-        if(edit)holes[index]=row;
-        else holes.push(row);
-        this.patch({holes});this.editing.set(null);this.mode.set("2d");
+    hole() { return this.holeDraft().values; }
+    editing() { return this.holeDraft().editing; }
+    holeGeometryReady(mesh = this.displayMesh()) {
+        return !!mesh && this.dims.every(([key]) => mesh.dimensions[key] === this.form()[key]) &&
+            sameThickness(mesh.parameters.thickness ?? {}, this.form().thickness ?? {});
     }
-    editHole(row){this.setFace(row.face);this.editing.set(row.id);this.hole.set({...row});}
-    removeHole(id){this.patch({holes:this.form().holes.filter(h=>h.id!==id)});if(this.editing()===id)this.editing.set(null);}
+    holeBasis(axis) { return this.holeBases()[this.face()]?.[axis] ?? "start"; }
+    setHoleBasis(axis, basis) {
+        this.endHoleInput();
+        const face = this.face(), bases = this.holeBases();
+        this.holeBases.set({...bases, [face]: {...bases[face], [axis]:basis}});
+    }
+    holeValue(axis) { return holeCoordinate(this.hole()[axis], this.board(), axis, this.holeBasis(axis)); }
+    setHoleValue(axis, text) {
+        this.setHole(axis, holeCoordinate(fieldNumber(text), this.board(), axis, this.holeBasis(axis), true), axis);
+    }
+    centerHole(axis) {
+        if (!this.holeGeometryReady()) return;
+        const size = axis === "u" ? this.board().width : this.board().height;
+        this.setHole(axis, size / 2);
+    }
+    setHole(key, value, input = null) {
+        if (this.busy() || this.hole()[key] === value) return;
+        this.recordHoleChange(() => this.changeHoleDraft({[key]:value}), input);
+    }
+    changeHoleDraft(values, fromModel = false) {
+        const draft = this.holeDraft();
+        this.holeDraft.set({...draft, values:{...draft.values,...values}, active:true,
+            editing:fromModel ? null : draft.editing});
+    }
+    holeIssue() {
+        if (!this.holeGeometryReady() || !this.board()) return "请先保存并预览当前规格。";
+        const hole = this.hole(), editing = this.editing(), rows = this.boardHoles();
+        if (!holeDimensionsReady(hole)) return "请输入完整的孔中心坐标和有效尺寸。";
+        if (!editing && this.form().holes.length >= 300) return "单柜自定义孔已达 300 个。";
+        const duplicate = rows.find(row => row.id !== editing && sameHole(row, hole));
+        if (duplicate) return `与 ${duplicate.id} 位置、孔型和尺寸相同，请调整孔位。`;
+        const linked = (this.displayMesh().parameters.holes ?? []).filter(row => row.face === hole.face && row.ownerAccessory);
+        return window.nodoDrawAE0573?.checkHolePlacement?.(hole, this.board(), [...rows, ...linked], editing) ?? "";
+    }
+    holeOverlay(mesh) {
+        if (this.tab() !== "holes" || !this.holeGeometryReady(mesh) || !this.board()) return null;
+        const draft = this.holeDraft();
+        const active = draft.active && holeDimensionsReady(draft.values)
+            ? {...draft.values, id:draft.editing ?? "preview"} : null;
+        return {holes:this.boardHoles(), active, editing:draft.editing, issue:active ? this.holeIssue() : ""};
+    }
+    setHoleRecords(holes) {
+        if (holes !== this.form().holes) this.form.set({...this.form(), holes});
+        this.issue.set("");
+    }
+    captureHoles() {
+        return {face:this.face(), draft:this.holeDraft(), drafts:new Map(this.holeDrafts), holes:this.form().holes};
+    }
+    endHoleInput() { this.holeInput = null; }
+    resetHoleHistory() {
+        this.endHoleInput();
+        this.holeHistory.set({undo:[], redo:[]});
+    }
+    recordHoleChange(change, input = null) {
+        const before = this.captureHoles();
+        const {undo} = this.holeHistory();
+        const coalesce = input !== null && input === this.holeInput && undo.length;
+        change();
+        const entry = {before:coalesce ? undo.at(-1).before : before, after:this.captureHoles()};
+        this.holeHistory.set({undo:[...(coalesce ? undo.slice(0, -1) : undo), entry], redo:[]});
+        this.holeInput = input;
+    }
+    travelHoleHistory(direction) {
+        if (this.busy()) return;
+        const history = this.holeHistory(), entry = history[direction].at(-1);
+        if (!entry) return;
+        const undoing = direction === "undo", other = undoing ? "redo" : "undo";
+        const target = undoing ? entry.before : entry.after;
+        const switchFace = target.face !== this.face();
+        this.setHoleRecords(target.holes);
+        this.face.set(target.face);
+        this.holeDraft.set(target.draft);
+        this.holeDrafts = new Map(target.drafts);
+        this.holeHistory.set({[direction]:history[direction].slice(0, -1), [other]:[...history[other], entry]});
+        this.endHoleInput();
+        if (switchFace) this.faceView?.fit();
+    }
+    addHole() {
+        if (this.busy() || this.holeIssue()) return;
+        const values = this.hole(), draft = this.holeDraft(), holes = this.form().holes;
+        const original = holes.find(row => row.id === draft.editing);
+        const id = original?.id ?? "H" + (Math.max(0, ...holes.map(row => Number(row.id.slice(1)))) + 1);
+        const row = holeRecord(values, id);
+        this.recordHoleChange(() => {
+            if (!original || !sameHole(original, row)) {
+                this.setHoleRecords(original ? holes.map(item => item.id === id ? row : item) : [...holes, row]);
+            }
+            this.holeDraft.set({...draft, editing:null, copiedFrom:null, active:false});
+        });
+    }
+    editHole(row, asCopy = false) {
+        if (this.busy()) return;
+        const select = () => {
+            this.setFace(row.face);
+            this.holeDraft.set({values:{...defaultHole(row.face), ...row}, active:true,
+                editing:asCopy ? null : row.id, copiedFrom:asCopy ? row.id : null});
+        };
+        if (asCopy) this.recordHoleChange(select);
+        else { this.endHoleInput(); select(); }
+    }
+    cancelHoleDraft() {
+        if (!this.busy()) this.recordHoleChange(() => this.holeDraft.set(freshHoleDraft(this.face())));
+    }
+    removeHole(id) {
+        if (this.busy()) return;
+        this.recordHoleChange(() => {
+            this.setHoleRecords(this.form().holes.filter(hole => hole.id !== id));
+            if (this.editing() === id) this.holeDraft.set(freshHoleDraft(this.face()));
+        });
+    }
     builds(){return (this.doc()?.jobs||[]).filter(j=>j.operation==="build");}
     selectedBuild() {
         const builds = this.builds(), id = this.batch();
@@ -479,10 +607,12 @@ export class Workbench extends Component {
         if (point) this.selectPoint(point, false);
     }
     selectPoint(point, fromModel){
+        if (this.busy() || !this.holeGeometryReady()) return;
         this.selectTab("holes");
-        this.setFace(point.face);
-        if (fromModel) this.editing.set(null);
-        this.hole.set({...this.hole(), face: point.face, u: point.u, v: point.v});
+        this.recordHoleChange(() => {
+            this.setFace(point.face);
+            this.changeHoleDraft(point, fromModel);
+        });
     }
 }
 registry.category("actions").add("nodo_draw.workbench",Workbench);

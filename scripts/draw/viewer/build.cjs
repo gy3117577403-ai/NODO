@@ -38,9 +38,10 @@ function readSource(file) {
     return data;
 }
 const sources = {name: "jingneng-release", setup(build) {
-    build.onResolve({filter: /^@jingneng\/(Viewer|coordinates)$/}, ({path: name}) => ({
-        path: name.endsWith("/Viewer") ? "src/ae-cabinet/Viewer.tsx" : "src/ae-cabinet/coordinates.ts", namespace: "ae",
-    }));
+    build.onResolve({filter: /^@jingneng\/(Viewer|coordinates|holePlacement)$/}, ({path: name}) => {
+        const file = name.slice("@jingneng/".length);
+        return {path: "src/ae-cabinet/" + file + (file === "Viewer" ? ".tsx" : ".ts"), namespace: "ae"};
+    });
     build.onResolve({filter: /^\./, namespace: "ae"}, args => {
         const base = path.posix.join(path.posix.dirname(args.importer), args.path);
         const file = [base, base + ".ts", base + ".tsx"].find(key => paths.has(key));

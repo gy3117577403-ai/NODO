@@ -68,6 +68,21 @@ class TestDrawWorkbench(TransactionCase):
         with self.assertRaises(ValueError):
             spec.edit(settings, {**settings,'width':float('nan')},lines,spec.LIBRARY)
 
+    def test_hole_copy_rejects_identical_footprint_on_same_face(self):
+        saved = self.design.workspace()
+        first = dict(id='H1', face='door', type='circle', u=122.98, v=169.56, diameter=22)
+        copied = {**first, 'id': 'H2'}
+        values = {**saved['settings'], 'holes': [first, copied]}
+        with self.assertRaisesRegex(UserError, 'H2 与 H1 .*相同'):
+            self.design.apply_design(saved['edit_number'], values, 'save')
+        self.assertEqual(self.design.workspace()['settings'], saved['settings'])
+
+        right_door = {**copied, 'face': 'door_right'}
+        valid = {**values, 'kind': 'double', 'holes': [first, right_door]}
+        edited = spec.edit(saved['settings'], valid, self.design.bom['lines'], self.design.library)
+        self.assertEqual([(h['face'], h['u'], h['v'], h['anchor'], h['anchorV']) for h in edited['holes']],
+                         [('door', 122.98, 169.56, 'left', 'bottom'), ('door_right', 122.98, 169.56, 'left', 'bottom')])
+
     def test_legacy_sheet_settings_keep_saved_values(self):
         original = self.design.settings
         legacy = {key: value for key, value in original.items() if key not in ('materials', 'thickness')}

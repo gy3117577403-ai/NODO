@@ -46,15 +46,13 @@ export class FaceCanvas {
         this.zoom = Math.max(.5, Math.min(1.4, this.zoom * Math.exp(-delta * .0013)));
         this.schedule();
     }
-    paintFace(w,h) {
-        const ctx=this.context,f=this.mesh.faces.find(x=>x.id===this.display.face);
-        this.flat=null;
-        if (!f) return;
-        const s=Math.min((w-88)/f.width,(h-92)/f.height)*Math.min(1.4,this.zoom);
-        const x=(w-f.width*s)/2,y=(h+f.height*s)/2;
-        this.flat={x,y,s,face:f};
+    projectFace(f,x,y,s) {
+        const cached = this.projection;
+        if (cached?.mesh === this.mesh && cached.face === f && cached.x === x && cached.y === y && cached.scale === s) {
+            return cached;
+        }
         const part=this.mesh.parts.find(p=>p.id===f.part);
-        const surface=new Path2D(), edges=new Map();
+        const surface=new Path2D(), boundary=new Path2D(), edges=new Map();
         let triangles=0;
         if(part){
             const projected=part.vertices.map(vertex=>{
@@ -75,16 +73,25 @@ export class FaceCanvas {
                 triangles++;
             }
         }
+        for (const {start,end,count} of edges.values()) {
+            if (count !== 1) continue;
+            boundary.moveTo(start.x,start.y);
+            boundary.lineTo(end.x,end.y);
+        }
+        return this.projection = {mesh:this.mesh, face:f, x, y, scale:s, surface, boundary, triangles};
+    }
+    paintFace(w,h) {
+        const ctx=this.context,f=this.mesh.faces.find(x=>x.id===this.display.face);
+        this.flat=null;
+        if (!f) return;
+        const s=Math.min((w-88)/f.width,(h-92)/f.height)*Math.min(1.4,this.zoom);
+        const x=(w-f.width*s)/2,y=(h+f.height*s)/2;
+        this.flat={x,y,s,face:f};
+        const {surface,boundary,triangles}=this.projectFace(f,x,y,s);
         const steel="#fff";
         ctx.fillStyle=steel;
         if(triangles){
             ctx.fill(surface);
-            const boundary = new Path2D();
-            for (const {start,end,count} of edges.values()) {
-                if (count !== 1) continue;
-                boundary.moveTo(start.x,start.y);
-                boundary.lineTo(end.x,end.y);
-            }
             ctx.strokeStyle="#53665f";ctx.lineWidth=1;
             ctx.stroke(boundary);
         }
@@ -106,9 +113,21 @@ export class FaceCanvas {
         }
         const holes=[...(this.mesh.parameters.holes||[]).filter(h=>h.ownerAccessory),...this.display.holes];
         for (const hole of holes.filter(h=>h.face===f.id)) {
+            if (this.display.active && hole.id === this.display.editing) continue;
             ctx.strokeStyle=hole.ownerAccessory?"#a36732":"#116857";ctx.fillStyle="#f8fbf9";
             outline(hole);
             ctx.fill();ctx.stroke();
+        }
+        const active = this.display.active;
+        if (active?.face === f.id) {
+            ctx.strokeStyle = this.display.issue ? "#a13530" : "#a56614";
+            ctx.fillStyle = this.display.issue ? "#f8d9d480" : "#fbe4b780";
+            ctx.setLineDash([4,3]);
+            outline(active);
+            ctx.fill();ctx.stroke();
+            ctx.setLineDash([]);
+            const [u,v] = facePoint(active,f), px=x+u*s, py=y-v*s;
+            ctx.beginPath();ctx.moveTo(px-5,py);ctx.lineTo(px+5,py);ctx.moveTo(px,py-5);ctx.lineTo(px,py+5);ctx.stroke();
         }
         const ax=x-12, ay=y+12;
         ctx.beginPath();

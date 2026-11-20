@@ -11,8 +11,8 @@ const workbench = origin + "/odoo/technical-workbench";
 const navigation = {waitUntil:"domcontentloaded", timeout:30000};
 const destination = path.resolve(process.argv[2] || path.join(root, ".nodo-draw/output/playwright/workspace-layout"));
 const mode = process.argv[3] || "all";
-assert(["all", "layout", "materials", "toolbar", "cabinet-preview", "reference-output", "parts"].includes(mode),
-    "选择 layout、materials、toolbar、cabinet-preview、reference-output、parts 或 all");
+assert(["all", "layout", "materials", "toolbar", "cabinet-preview", "reference-output", "parts", "hole-editing"].includes(mode),
+    "选择 layout、materials、toolbar、cabinet-preview、reference-output、parts、hole-editing 或 all");
 const exact = (page, name) => page.getByRole("button", {name, exact:true});
 const tool = (page, name) => page.getByRole("group", {name:"设计工具", exact:true}).getByRole("button", {name, exact:true});
 const rpc = params => ({jsonrpc:"2.0", method:"call", id:1, params});
@@ -535,6 +535,154 @@ async function checkParts(page) {
         visiblePixelsChanged:true, cameraMoved:true, separatedAssemblyRows:2, workspaceUnchanged:true};
 }
 
+async function checkHoleEditing(page) {
+    await page.setViewportSize({width:1655, height:881});
+    const writes = [];
+    page.on("request", request => {
+        if (request.url().endsWith("/nodo.draw.design/apply_design")) writes.push(request.url());
+    });
+    await page.goto(workbench, navigation);
+    const selector = field(page, "选择设计");
+    await selector.waitFor();
+    const workspace = async () => rpcResult(page.request, "nodo.draw.design", "workspace", [[Number(await selector.inputValue())]]);
+    const geometry = async (data, face) => {
+        const job = data.jobs.find(item => item.state === "done" && item.files?.includes("mesh"));
+        assert(job, "缺少样例柜体模型");
+        const response = await page.request.get(origin + `/nodo/draw/file/${job.id}/mesh`);
+        assert(response.ok());
+        return (await response.json()).faces.find(item => item.id === face);
+    };
+    const read = async () => Promise.all(["横向 U", "纵向 V"].map(async label => Number(await field(page,label).inputValue())));
+    const equivalent = async (expected, message) => (await read()).forEach((value, index) =>
+        assert(Math.abs(value - expected[index]) < 1e-8, `${message} ${value} 与 ${expected[index]} 不符`));
+    const undo = exact(page, "撤销孔位"), redo = exact(page, "重做孔位");
+    const uBasis = field(page, "U 坐标基准"), vBasis = field(page, "V 坐标基准");
+    const single = await workspace();
+    assert.equal(single.bom.source, "AE-101");
+    const singleFace = await geometry(single, "door");
+    const original = single.settings.holes.find(row => row.id === "H1" && row.face === "door");
+    assert(original);
+    await exact(page, "二维").click();
+    await field(page, "横向 U").waitFor({timeout:75000});
+    await page.locator(".nd-bomrow").getByRole("button", {name:/^H1/}).click();
+    assert.equal(await undo.isEnabled(), false);
+    await uBasis.selectOption("end");
+    await vBasis.selectOption("center");
+    await equivalent([singleFace.width-original.u, original.v-singleFace.height/2], "切换坐标基准");
+    assert.equal(await undo.isEnabled(), false, "显示基准切换不应写入孔位历史");
+
+    await exact(page, "复制 H1").click();
+    await page.getByText("复制自 H1，调整位置后确认", {exact:true}).waitFor();
+    assert.equal(await field(page, "孔型").inputValue(), original.type);
+    assert.equal(Number(await field(page, "直径").inputValue()), original.diameter);
+    const confirm = exact(page, "确认复制孔");
+    await page.getByRole("alert").filter({hasText:"与 H1 位置、孔型和尺寸相同"}).waitFor();
+    assert.equal(await confirm.isEnabled(), false);
+    assert.equal(await exact(page,"移除 H2").count(), 0);
+    await exact(page, "取消").click();
+    assert.equal(await confirm.count(), 0);
+    assert.equal(await page.locator(".nd-bomrow").count(), 1);
+    await exact(page, "复制 H1").click();
+
+    const target = [135.25, 134.75];
+    const display = [singleFace.width-target[0], target[1]-singleFace.height/2];
+    await field(page,"横向 U").fill(String(display[0]));
+    await field(page,"纵向 V").fill(String(display[1]));
+    await equivalent(display, "从终边和中心线输入");
+    await exact(page, "U 向居中").click();
+    await equivalent([singleFace.width/2, display[1]], "U 向居中");
+    await undo.click();
+    await equivalent(display, "撤销 U 向居中");
+    await redo.click();
+    await equivalent([singleFace.width/2, display[1]], "重做 U 向居中");
+    await undo.click();
+    await exact(page, "V 向居中").click();
+    await equivalent([display[0], 0], "V 向居中");
+    assert.equal(await redo.isEnabled(), false, "新的编辑应结束旧的重做分支");
+    await undo.click();
+    await equivalent(display, "撤销 V 向居中");
+    assert(await confirm.isEnabled());
+    await screenshot(page, "AE-101-二维复制孔");
+
+    await exact(page, "三维").click();
+    const handle = page.locator('[data-testid="hole-preview-center"][data-u="135.25"][data-v="134.75"]');
+    await handle.waitFor();
+    await equivalent(display, "切换三维保留当前草稿");
+    await screenshot(page, "AE-101-三维孔位草稿");
+    await confirm.click();
+    assert.equal(await exact(page, "三维").getAttribute("aria-pressed"), "true");
+    await exact(page, "移除 H2").waitFor();
+    await undo.click();
+    assert.equal(await exact(page,"移除 H2").count(), 0);
+    await handle.waitFor();
+    await redo.click();
+    await exact(page, "移除 H2").waitFor();
+
+    await exact(page, "二维").click();
+    await page.locator(".nd-bomrow").getByRole("button", {name:/^H2/}).click();
+    await uBasis.selectOption("start");
+    await vBasis.selectOption("start");
+    await equivalent(target, "复制孔保存到草稿的标准坐标");
+    const u = field(page, "横向 U");
+    await u.fill("13");
+    await u.fill("137");
+    await u.fill("137.25");
+    await undo.click();
+    await equivalent(target, "一次撤销同一输入框中的连续键入");
+    await redo.click();
+    await equivalent([137.25,target[1]], "重做精确输入");
+    await exact(page, "应用孔位修改").click();
+    assert.equal(await page.locator(".nd-bomrow").count(), 2);
+    const holePosition = text => page.locator(".nd-bomrow").getByText(text,{exact:true});
+    await holePosition("137.25，134.75 mm").waitFor();
+    await undo.click();
+    await holePosition("135.25，134.75 mm").waitFor();
+    await redo.click();
+    await holePosition("137.25，134.75 mm").waitFor();
+    await exact(page,"移除 H2").click();
+    assert.equal(await exact(page,"移除 H2").count(), 0);
+    await undo.click();
+    await exact(page, "移除 H2").waitFor();
+    await redo.click();
+    assert.equal(await exact(page,"移除 H2").count(), 0);
+    await undo.click();
+    await exact(page, "移除 H2").waitFor();
+
+    await tool(page, "规格").click();
+    await field(page, "柜宽").fill(String(single.settings.width+1));
+    await exact(page, "二维").click();
+    await page.getByRole("status").filter({hasText:"请先保存并预览当前规格"}).waitFor();
+    assert.equal(await u.count(),0);
+    const afterSingle = await workspace();
+    assert.deepEqual(afterSingle.settings, single.settings);
+    assert.equal(afterSingle.edit_number, single.edit_number);
+    assert.deepEqual(afterSingle.jobs, single.jobs);
+
+    page.once("dialog", dialog => dialog.accept());
+    await chooseDesign(page, "AE-202 · 双门配电箱");
+    const double = await workspace();
+    const right = await geometry(double,"door_right");
+    const rightHole = double.settings.holes.find(row => row.face === "door_right");
+    assert(rightHole);
+    await exact(page,"二维").click();
+    await board(page, "door_right").click();
+    await page.locator(".nd-bomrow").getByRole("button",{name:new RegExp(`^${rightHole.id}`)}).click();
+    assert.equal(await undo.isEnabled(),false,"切换柜体后孔位历史应独立");
+    await uBasis.selectOption("end");
+    await equivalent([right.width-rightHole.u,rightHole.v], "右门从终边量");
+    await exact(page,"U 向居中").click();
+    await equivalent([right.width/2,rightHole.v], "右门单轴居中");
+    await undo.click();
+    await equivalent([right.width-rightHole.u,rightHole.v], "右门撤销居中");
+    await screenshot(page,"AE-202-右门坐标基准");
+    assert.deepEqual((await workspace()).settings,double.settings);
+    assert.deepEqual(writes,[]);
+    return {single:{source:"AE-101",board:[singleFace.width,singleFace.height],original:[original.u,original.v],
+        copyCenter:target,duplicateBlocked:true,undoRedo:true,fromOtherBases:display},
+        double:{source:"AE-202",board:"door_right",endMeasurement:right.width-rightHole.u},
+        sameDraftIn3dAnd2d:true,staleGeometryBlocked:true,workspaceUnchanged:true};
+}
+
 async function checkReferenceOutput(page) {
     const model = "nodo.draw.design";
     const fixture = {source:"AE-305", source_version:"1", title:"基础壁挂箱", kind:"single", quantity:1,
@@ -722,6 +870,7 @@ async function main() {
         if (mode === "cabinet-preview") result.preview = await checkCabinetPreview(await page());
         if (mode === "reference-output") result.output = await checkReferenceOutput(await page());
         if (mode === "all" || mode === "parts") result.parts = await checkParts(await page());
+        if (mode === "all" || mode === "hole-editing") result.holes = await checkHoleEditing(await page());
         assert.deepEqual(errors,[]);
         const json = JSON.stringify(result,null,2)+"\n";
         fs.writeFileSync(path.join(destination, `验收-${mode}.json`),json);

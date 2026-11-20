@@ -2,6 +2,7 @@ import React from "react";
 import {createRoot} from "react-dom/client";
 import Viewer from "@jingneng/Viewer";
 import {locateFace} from "@jingneng/coordinates";
+export {checkHolePlacement} from "@jingneng/holePlacement";
 
 const empty = [];
 const noop = () => {};
@@ -12,7 +13,7 @@ const display = {edges: true, grid: false, transparent: false, dimensions: false
 export function mount(host, selectFace) {
     const root = createRoot(host);
     return {
-        update(model, open, paused, reset, parts) {
+        update(model, open, paused, reset, parts, holePreview) {
             if (!model) {
                 root.render(null);
                 return;
@@ -20,8 +21,10 @@ export function mount(host, selectFace) {
             root.render(<Viewer model={model} angle={open ? 70 : 0} explode={0}
                 view="iso" reset={reset} paused={paused} selected={parts?.selected[0] ?? ""}
                 hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}
-                display={display} holeMode={false} holes={empty} activeHole={null}
-                editing={null} holeIssue={null} onHoleMove={noop} onHoleMoveEnd={noop}
+                display={display} holeMode={false} holeOverlay={!!holePreview}
+                holes={holePreview?.holes ?? empty} activeHole={holePreview?.active ?? null}
+                editing={holePreview?.editing ?? null} holeIssue={holePreview?.issue ?? null}
+                onHoleMove={noop} onHoleMoveEnd={noop}
                 onClearSelection={parts?.clear}
                 onEditHole={() => false} onPick={hit => {
                     if (parts) return parts.pick(hit.id);

@@ -178,6 +178,17 @@
     .nd-face-overview,.nd-coordinate-note{font-size:12px;color:var(--muted);}
     summary{cursor:pointer;}
     .nd-coordinate-note p{margin:3px 0 0;}
+    .nd-hole-history,.nd-hole-row-actions,.nd-hole-actions{display:flex;align-items:center;gap:5px;}
+    .nd-hole-history button,.nd-hole-basis button{font-size:12px;padding:4px 7px;}
+    .nd-hole-history button:disabled,.nd-hole-actions button:disabled{cursor:default;}
+    .nd-hole-axis{display:grid;gap:4px;min-width:0;}
+    .nd-hole-basis{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;}
+    .nd-hole-basis select{appearance:auto;font-size:12px;padding:4px 3px;}
+    .nd-hole-actions button{white-space:nowrap;}
+    .nd-hole-copy-note{color:var(--forest);}
+    .nd-hole-issue{color:#8f3d22;}
+    .nd-hole-row-actions .nd-link{color:var(--forest);font-size:12px;}
+    .nd-bomrow > .nd-link[aria-pressed="true"]{background:var(--mint);}
     .nd-face-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
     .nd-face-tile{display:flex;align-items:center;justify-content:space-between;gap:3px;min-width:0;text-align:left;font-size:12px;padding:6px;}
     .nd-face-tile small{white-space:nowrap;font-size:10px;}
@@ -195,6 +206,10 @@
     .nd-board-caption{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:#ffffffed;font-size:12px;}
     canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;}canvas:active{cursor:grabbing;}
     .nd-three-host,.ae-viewport{position:absolute;inset:0;}
+    .ae-hole-overlay{position:absolute;inset:0;pointer-events:none;}
+    .ae-hole-label{position:absolute;top:0;left:0;font-size:12px;color:#806027;}
+    .ae-hole-label-center{font-size:22px;line-height:1;}
+    .ae-hole-overlay.invalid .ae-hole-label{color:#a13530;}
     .ae-error{position:absolute;top:40%;left:8%;right:8%;text-align:center;color:#784617;}
     .nd-vtools{position:absolute;bottom:15px;right:14px;display:flex;gap:6px;}.nd-vtools button{font-size:12px;box-shadow:0 2px 5px #1d3c2410;}
     .nd-overlay,.nd-empty{text-align:center;color:var(--muted);padding:32px 12px;}.nd-overlay{position:absolute;inset:38% 14px auto;pointer-events:none;}.nd-overlay small{display:block;margin-top:6px;}
