@@ -11,8 +11,8 @@ const workbench = origin + "/odoo/technical-workbench";
 const navigation = {waitUntil:"domcontentloaded", timeout:30000};
 const destination = path.resolve(process.argv[2] || path.join(root, ".nodo-draw/output/playwright/workspace-layout"));
 const mode = process.argv[3] || "all";
-assert(["all", "layout", "materials", "toolbar", "cabinet-preview", "reference-output"].includes(mode),
-    "选择 layout、materials、toolbar、cabinet-preview、reference-output 或 all");
+assert(["all", "layout", "materials", "toolbar", "cabinet-preview", "reference-output", "parts"].includes(mode),
+    "选择 layout、materials、toolbar、cabinet-preview、reference-output、parts 或 all");
 const exact = (page, name) => page.getByRole("button", {name, exact:true});
 const tool = (page, name) => page.getByRole("group", {name:"设计工具", exact:true}).getByRole("button", {name, exact:true});
 const rpc = params => ({jsonrpc:"2.0", method:"call", id:1, params});
@@ -353,7 +353,7 @@ async function checkCabinetPreview(page) {
     await screenshot(page, "AE-101-双门打开");
 
     const assembled = page.waitForResponse(meshResponse, {timeout:75000});
-    await tool(page, "附件").click();
+    await exact(page, "装配").click();
     const assemblyMesh = await (await assembled).json();
     assert.equal(assemblyMesh.parameters.configuration.kind, "double");
     assert.deepEqual(assemblyMesh.parameters.accessories.map(item => item.definition.code).sort(), ["EX-COVER", "T5-55"]);
@@ -420,6 +420,119 @@ async function checkCabinetPreview(page) {
         drawings:{single:singleOriginal, double:doubleOriginal}, elapsedMs, draftJob:jobId,
         historicalRevision:`V${String(historical.version).padStart(2,"0")}`, savedSettingsMatch:true,
         latePreviewIgnored:true, validationErrorShown:true};
+}
+
+async function checkParts(page) {
+    await page.setViewportSize({width:1655, height:881});
+    const waitForBase = kind => page.waitForResponse(async response => {
+        if (!meshResponse(response)) return false;
+        const {parameters} = await response.json();
+        return parameters.configuration.kind === kind && !parameters.accessories.length && !parameters.holes.length;
+    }, {timeout:75000});
+    const singleBase = waitForBase("single");
+    const writes = [];
+    page.on("request", request => {
+        if (request.url().endsWith("/nodo.draw.design/apply_design")) writes.push(request.url());
+    });
+    await page.goto(workbench, navigation);
+    const collapse = exact(page, "收起应用侧栏");
+    if (await collapse.isVisible()) await collapse.click();
+    const single = await (await singleBase).json();
+    const design = Number(await field(page, "选择设计").inputValue());
+    const workspace = () => rpcResult(page.request, "nodo.draw.design", "workspace", [[design]]);
+    const before = await workspace();
+    assert.equal(before.bom.source, "AE-101");
+    assert.equal(single.parts.length, 15);
+    await tool(page, "零件").click();
+    const region = page.getByRole("region", {name:"零件结构"});
+    const count = text => region.getByText(text, {exact:true});
+    await count("15 / 15 件").waitFor();
+    assert.deepEqual(await region.locator("summary span").allTextContents(), ["钣金件", "结构五金"]);
+    assert.deepEqual(await region.locator("summary small").allTextContents(), ["7 件", "8 件"]);
+    assert.equal(await region.getByText("附件库匹配").count(), 0);
+    const search = field(page, "搜索零件");
+    const topCode = single.parts.find(part => part.id === "top").code;
+    await search.fill(topCode.toLowerCase());
+    await count("1 / 15 件").waitFor();
+    assert.equal(await exact(page, "选择顶板").count(), 1);
+    await search.fill("门板");
+    await exact(page, "选择门板").waitFor();
+    await search.fill("没有这个零件");
+    await region.getByText("没有匹配的零件", {exact:true}).waitFor();
+    await search.fill("m8x32");
+    await count("4 / 15 件").waitFor();
+    await exact(page, "展开安装板焊接螺柱").click();
+    assert.equal(await region.locator(".nd-part-children .nd-part-row").count(), 4);
+    await exact(page, "隐藏安装板焊接螺柱").click();
+    assert.equal(await region.locator(".nd-part-children .nd-part-hidden").count(), 4);
+    await exact(page, "全部显示").click();
+    assert.equal(await region.locator(".nd-part-hidden").count(), 0);
+    await exact(page, "收起安装板焊接螺柱").click();
+    await search.fill("");
+    const canvas = page.locator(".nd-three-host canvas");
+    await canvas.waitFor();
+    const pixels = async () => {
+        await settleCanvas(page);
+        return canvas.screenshot();
+    };
+    const allVisible = await pixels();
+    await exact(page, "选择门板").click();
+    assert.equal(await exact(page, "选择门板").getAttribute("aria-pressed"), "true");
+    assert(!allVisible.equals(await pixels()), "选择门板应改变实际三维高亮");
+    await screenshot(page, "AE-101-单门零件");
+    await exact(page, "隐藏门板").click();
+    const hidden = await pixels();
+    assert(!hidden.equals(allVisible), "隐藏门板应改变实际三维画面");
+    await exact(page, "显示门板").click();
+    const shown = await pixels();
+    assert(!shown.equals(hidden), "显示门板应恢复实际三维画面");
+    await exact(page, "定位门板").click();
+    assert(!shown.equals(await pixels()), "定位同一零件应移动三维相机");
+    await exact(page, "复位视角").click();
+    await settleCanvas(page);
+    const box = await canvas.boundingBox();
+    await page.mouse.click(box.x + 12, box.y + 12);
+    await region.locator(".nd-part-selected").waitFor({state:"detached"});
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await region.locator(".nd-part-selected").waitFor();
+    assert.equal(await tool(page, "零件").getAttribute("aria-pressed"), "true");
+
+    const assembly = page.getByRole("complementary", {name:"装配"});
+    await exact(page, "装配").click();
+    await assembly.waitFor();
+    assert.equal(await region.count(), 0);
+    assert.deepEqual(await assembly.locator(".nd-match > .nd-between strong").allTextContents(), ["T5-55 × 1", "EX-COVER × 1"]);
+    assert.deepEqual([await field(page, "第1行安装面").inputValue(), await field(page, "第2行安装面").inputValue()], ["door", "top"]);
+    assert(await exact(page, "一键装配").isEnabled());
+    await canvas.waitFor();
+    assert((await assembly.boundingBox()).x > (await canvas.boundingBox()).x);
+    await screenshot(page, "AE-101-独立装配");
+    await exact(page, "关闭装配").click();
+    await count("15 / 15 件").waitFor({timeout:75000});
+
+    await tool(page, "规格").click();
+    const doubleBase = waitForBase("double");
+    await exact(page, "双开门").click();
+    await tool(page, "零件").click();
+    const double = await (await doubleBase).json();
+    assert.equal(double.parts.length, 24);
+    await count("24 / 24 件").waitFor();
+    assert.deepEqual(await region.locator("summary small").allTextContents(), ["10 件", "14 件"]);
+    assert.equal(await exact(page, "选择左门·门板").count(), 1);
+    await exact(page, "选择右门·门板").click();
+    assert.equal(await exact(page, "选择右门·门板").getAttribute("aria-pressed"), "true");
+    await screenshot(page, "AE-101-双门零件");
+    await page.setViewportSize({width:1173, height:871});
+    assert((await measureToolbar(page)).fits);
+    assert((await region.boundingBox()).x < (await canvas.boundingBox()).x);
+    const after = await workspace();
+    assert.deepEqual(after.settings, before.settings);
+    assert.equal(after.edit_number, before.edit_number);
+    assert.deepEqual(after.jobs, before.jobs);
+    assert.deepEqual(writes, []);
+    return {single:{sheet:7, hardware:8}, double:{sheet:10, hardware:14},
+        exactDrawingNumber:topCode, groupedStuds:4, selectedFromViewport:true,
+        visiblePixelsChanged:true, cameraMoved:true, separatedAssemblyRows:2, workspaceUnchanged:true};
 }
 
 async function checkReferenceOutput(page) {
@@ -608,6 +721,7 @@ async function main() {
         if (mode === "all" || mode === "materials") result.materials = await checkMaterials(await page());
         if (mode === "cabinet-preview") result.preview = await checkCabinetPreview(await page());
         if (mode === "reference-output") result.output = await checkReferenceOutput(await page());
+        if (mode === "all" || mode === "parts") result.parts = await checkParts(await page());
         assert.deepEqual(errors,[]);
         const json = JSON.stringify(result,null,2)+"\n";
         fs.writeFileSync(path.join(destination, `验收-${mode}.json`),json);

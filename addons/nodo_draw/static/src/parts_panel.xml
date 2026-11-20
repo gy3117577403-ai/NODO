@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="nodo_draw.PartsPanel">
+    <section class="nd-parts" aria-label="零件结构">
+        <t t-set="groups" t-value="this.visibleGroups()"/>
+        <div class="nd-parts-head">
+            <h3>零件结构</h3>
+            <label class="nd-part-search">
+                <svg class="nd-part-search-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="8.5" cy="8.5" r="4.5"/><path d="m12 12 3.5 3.5"/>
+                </svg>
+                <input type="search" aria-label="搜索零件" placeholder="名称或图号"
+                       t-on-input="ev => this.query.set(ev.target.value)"/>
+            </label>
+            <div class="nd-between nd-part-summary" t-if="this.props.parts.length">
+                <small aria-live="polite" class="nd-part-count"><t t-out="groups.reduce((sum, group) => sum + group.count, 0)"/> / <t t-out="this.props.parts.length"/> 件</small>
+                <button type="button" t-att-disabled="!this.props.hidden.length" t-on-click="() => this.props.showAll()">全部显示</button>
+            </div>
+        </div>
+        <div class="nd-parts-list">
+            <details open="" class="nd-part-group" t-foreach="groups" t-as="group" t-key="group.name">
+                <summary><span t-out="group.name"/><small><t t-out="group.count"/> 件</small></summary>
+                <t t-foreach="group.rows" t-as="item" t-key="item.id">
+                    <t t-call="nodo_draw.PartRow" entry="item"/>
+                    <div class="nd-part-children" t-if="this.expanded().includes(item.id)">
+                        <t t-foreach="item.children" t-as="child" t-key="child.id"
+                           t-call="nodo_draw.PartRow" entry="child"/>
+                    </div>
+                </t>
+            </details>
+            <p class="nd-empty" t-if="!this.props.parts.length">模型就绪后可选择零件</p>
+            <p class="nd-empty" t-elif="!groups.length">没有匹配的零件</p>
+        </div>
+    </section>
+</t>
+<t t-name="nodo_draw.PartRow">
+    <div class="nd-part-row" t-att-class="{'nd-part-selected':this.isSelected(entry),'nd-part-hidden':this.isHidden(entry),'nd-part-multiple':entry.children.length}"
+         t-att-data-part-id="entry.id">
+        <button t-if="entry.children.length" type="button" class="nd-part-button nd-part-expand"
+                t-att-aria-label="(this.expanded().includes(entry.id)?'收起':'展开')+entry.name" t-att-aria-expanded="this.expanded().includes(entry.id)?'true':'false'"
+                t-on-click="() => this.toggleGroup(entry.id)">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path t-att-d="this.expanded().includes(entry.id)?'m6 8 4 4 4-4':'m8 6 4 4-4 4'"/>
+            </svg>
+        </button>
+        <span t-else="" class="nd-part-swatch" t-att-style="entry.color ? 'background:rgb('+this.swatch(entry.color)+')' : ''"/>
+        <button type="button" class="nd-part-name" t-att-aria-label="'选择'+entry.name"
+                t-att-aria-pressed="this.isSelected(entry)?'true':'false'" t-on-click="() => this.props.select(entry.ids)">
+            <span t-out="entry.name"/><small t-if="entry.code" t-out="entry.code"/>
+        </button>
+        <small class="nd-part-quantity" t-if="entry.children.length">× <t t-out="entry.ids.length"/></small>
+        <button type="button" class="nd-part-button" t-att-aria-label="'定位'+entry.name" t-att-title="'定位'+entry.name"
+                t-on-click="() => this.props.select(entry.ids, true)">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+                <circle cx="10" cy="10" r="6"/><path d="M10 2v4m0 8v4M2 10h4m8 0h4"/>
+            </svg>
+        </button>
+        <button type="button" class="nd-part-button" t-att-aria-label="this.visibilityLabel(entry)" t-att-title="this.visibilityLabel(entry)"
+                t-on-click="() => this.props.toggle(entry.ids)">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2"/>
+                <path t-if="this.isHidden(entry)" d="m3 3 14 14"/>
+            </svg>
+        </button>
+    </div>
+</t>
+</templates>

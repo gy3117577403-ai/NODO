@@ -6,6 +6,7 @@ import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas} from "./mesh";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
+import {PartsPanel} from "./parts_panel";
 import {SheetSettings} from "./sheet_settings";
 
 const MODEL="nodo.draw.design";
@@ -17,10 +18,11 @@ const defaultHole = face => ({type:"circle", face, u:95, v:110, diameter:18, wid
 const meshKind = mesh => mesh?.parameters?.configuration?.kind;
 const minPanel = 270;
 const maxPanel = 440;
+const noParts = [];
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
-    static components = {ArchivedCabinet, DrawingViewport, Portal, SheetSettings};
+    static components = {ArchivedCabinet, DrawingViewport, PartsPanel, Portal, SheetSettings};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     dirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
@@ -35,6 +37,9 @@ export class Workbench extends Component {
     directoryHidden=signal(false);
     panelHidden=signal(false);
     panelWidth=signal(306);
+    selectedParts=signal(noParts);
+    hiddenParts=signal(noParts);
+    partFocus=signal(null);
     frontFacesOpen=signal(false);
     canvas=signal.ref();
     threeHost=signal.ref();
@@ -46,7 +51,9 @@ export class Workbench extends Component {
         this.holeDrafts = new Map();
         this.epoch=0;this.docTypes=docTypes;
         this.dims=[["width","宽"],["height","高"],["depth","深"]];
-        this.tabs=[["cabinet","规格"],["materials","材料"],["assembly","附件"],["holes","孔位"]];
+        this.tabs=[["cabinet","规格"],["materials","材料"],["parts","零件"],["holes","孔位"]];
+        this.assemblyReturn = "cabinet";
+        this.focusSequence = 0;
         this.views=[["top","俯视"],["left","左视"],["door","正视"],["right","右视"],["back","后视"],["bottom","仰视"]];
         this.downloads=[["bundle","整套图包"],["step","整柜 STEP"],["bom","零件清单"],["holes","孔位表"]];
         useSetupAction({beforeLeave:()=>!this.dirty()||window.confirm("离开并放弃未保存的设计修改？")});
@@ -106,9 +113,29 @@ export class Workbench extends Component {
     }
     updateThree(){
         const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
-        this.threeView?.update(mesh, open, paused, reset);
+        const parts = this.tab() === "parts" ? {
+            selected: this.selectedParts(), hidden: this.hiddenParts(), focus: this.partFocus(),
+            pick: id => this.selectParts([id]), clear: () => this.selectParts(noParts),
+        } : undefined;
+        this.threeView?.update(mesh, open, paused, reset, parts);
     }
-    previewScope() { return this.tab() === "cabinet" ? "base" : "design"; }
+    cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
+    selectParts(ids, locate = false) {
+        this.selectedParts.set(ids);
+        this.hiddenParts.set(this.hiddenParts().filter(id => !ids.includes(id)));
+        if (locate) this.partFocus.set({ids, nonce: ++this.focusSequence});
+    }
+    toggleParts(ids) {
+        const hidden = this.hiddenParts();
+        this.hiddenParts.set(ids.every(id => hidden.includes(id))
+            ? hidden.filter(id => !ids.includes(id)) : [...new Set([...hidden, ...ids])]);
+    }
+    resetParts() {
+        this.selectedParts.set(noParts);
+        this.hiddenParts.set(noParts);
+        this.partFocus.set(null);
+    }
+    previewScope() { return ["cabinet", "parts"].includes(this.tab()) ? "base" : "design"; }
     displayMesh() {
         const preview = this.draftPreview(), scope = this.previewScope(), kind = this.form()?.kind;
         if (preview?.scope === scope && meshKind(preview.mesh) === kind) return preview.mesh;
@@ -167,6 +194,7 @@ export class Workbench extends Component {
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
         this.resetDraftPreview();
+        this.resetParts();
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.dirty.set(false);this.sheet.set(null);
         this.showFiles.set(false);this.batch.set(null);this.referenceKind.set(null);this.editing.set(null);this.face.set("door");
@@ -220,6 +248,7 @@ export class Workbench extends Component {
         if (current.kind === kind && preview?.snapshot === current && !preview.error) return;
         if (current.kind !== kind) {
             this.patch({kind});
+            this.resetParts();
             this.setFace("door");
             this.opened.set(false);
         }
@@ -270,6 +299,7 @@ export class Workbench extends Component {
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
     selectTab(id) {
         const previous = this.previewScope();
+        this.partFocus.set(null);
         this.tab.set(id);
         this.showFiles.set(false);
         this.panelHidden.set(false);
@@ -278,6 +308,15 @@ export class Workbench extends Component {
         if (previous !== this.previewScope()) {
             this.resetDraftPreview();
             this.ensureDraftPreview();
+        }
+    }
+    assemblyOpen() { return !this.showFiles() && this.tab() === "assembly"; }
+    openAssembly() {
+        if (this.assemblyOpen()) {
+            this.selectTab(this.assemblyReturn);
+        } else {
+            this.assemblyReturn = this.tab();
+            this.selectTab("assembly");
         }
     }
     startPanelResize(event) {

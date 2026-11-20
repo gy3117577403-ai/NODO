@@ -74,14 +74,21 @@ async function examine(context, code, id) {
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     try {
-        let current = page.waitForResponse(meshResponse);
+        const waitForModel = () => page.waitForResponse(async response => {
+            if (!meshResponse(response)) return false;
+            if (!pickOnly) return true;
+            const {parameters} = await response.json();
+            return !parameters.accessories.length && !parameters.holes.length;
+        }, {timeout:75000});
+        let current = waitForModel();
         await page.goto(pageUrl);
         if (code === "AE-202") {
             await current;
-            current = page.waitForResponse(meshResponse);
+            current = waitForModel();
             await page.getByLabel("选择设计").selectOption({label:"AE-202 · 双门配电箱"});
         }
         const initial = await meshFrom(page, await current);
+        if (!pickOnly) await page.getByRole("button",{name:"装配",exact:true}).click();
         const face = initial.faces.find(f => f.id === id);
         const canvas = page.locator(glCanvas);
         await canvas.waitFor();
@@ -165,7 +172,7 @@ async function hardware(context) {
         assert.equal(check.status,"checked-samples");
         assert.deepEqual(check.issues,[]);
         assert.deepEqual(check.sampledAngles,Array.from({length:12},(_,i)=>i*10));
-        await page.getByRole("button",{name:"附件",exact:true}).click();
+        await page.getByRole("button",{name:"装配",exact:true}).click();
         assert.equal(await page.getByText("已装配",{exact:true}).count(),4);
         const view = page.locator(glCanvas);
         await view.waitFor();

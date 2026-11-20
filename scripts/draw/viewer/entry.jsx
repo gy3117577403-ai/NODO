@@ -12,16 +12,19 @@ const display = {edges: true, grid: false, transparent: false, dimensions: false
 export function mount(host, selectFace) {
     const root = createRoot(host);
     return {
-        update(model, open, paused, reset) {
+        update(model, open, paused, reset, parts) {
             if (!model) {
                 root.render(null);
                 return;
             }
             root.render(<Viewer model={model} angle={open ? 70 : 0} explode={0}
-                view="iso" reset={reset} paused={paused} selected="" hidden={empty}
+                view="iso" reset={reset} paused={paused} selected={parts?.selected[0] ?? ""}
+                hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}
                 display={display} holeMode={false} holes={empty} activeHole={null}
                 editing={null} holeIssue={null} onHoleMove={noop} onHoleMoveEnd={noop}
+                onClearSelection={parts?.clear}
                 onEditHole={() => false} onPick={hit => {
+                    if (parts) return parts.pick(hit.id);
                     const location = locateFace(hit, model.faces);
                     if (location) selectFace(location);
                 }} />);
