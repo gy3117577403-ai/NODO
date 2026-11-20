@@ -4,12 +4,13 @@ import json
 import math
 from pathlib import Path
 
+from . import sheet_settings
+
 DATA = Path(__file__).resolve().parents[1] / 'data'
 LIBRARY = json.loads((DATA / 'library.json').read_text('utf-8'))
 SAMPLES = json.loads((DATA / 'samples.json').read_text('utf-8'))
 FACES = {'door': '门板', 'door_right': '右门板', 'top': '顶板', 'bottom': '底板',
          'back': '围板背面', 'left': '左侧板', 'right': '右侧板', 'mount': '安装板'}
-MATERIALS = {'cold_rolled': '冷轧板', 'galvanized': '镀锌板', 'stainless': '不锈钢板'}
 
 
 def number(value, label, low, high):
@@ -58,25 +59,21 @@ def intake(raw):
 
 def initial(bom):
     return {**{k: bom[k] for k in ('kind', 'width', 'height', 'depth')},
-            'material': 'cold_rolled', 'body': 1.5, 'door': 2, 'mount': 2.5,
+            'materials': {}, 'thickness': {},
             'holes': [], 'matches': {}, 'instances': []}
 
 
 def edit(old, raw, lines, library):
     if not isinstance(raw, dict):
         raise ValueError('设计参数格式无效')
-    new = {**old}
+    new = sheet_settings.for_editor(old)
     kind = raw.get('kind')
     if kind not in ('single', 'double'):
         raise ValueError('请选择单开门或双开门')
     new['kind'] = kind
-    for key, title, low, high in [('width', '柜宽', 1, 10000), ('height', '柜高', 1, 10000),
-                                  ('depth', '柜深', 1, 10000), ('body', '箱体板厚', .8, 2),
-                                  ('door', '门板板厚', 1, 3), ('mount', '安装板板厚', 1, 4)]:
-        new[key] = number(raw.get(key), title, low, high)
-    if raw.get('material') not in MATERIALS:
-        raise ValueError('请选择材料')
-    new['material'] = raw['material']
+    for key, title in [('width', '柜宽'), ('height', '柜高'), ('depth', '柜深')]:
+        new[key] = number(raw.get(key), title, 1, 10000)
+    new.update(sheet_settings.edit(raw))
     matches = raw.get('matches', {})
     if not isinstance(matches, dict) or set(matches) - {str(i) for i in range(len(lines))}:
         raise ValueError('附件对应行无效')
@@ -181,8 +178,7 @@ def parameters(settings, library, revision):
     p = {k: settings[k] for k in ('width', 'height', 'depth')}
     p.update(revision=f'V{revision:02}', configuration={'kind': kind, 'version': 2, 'seam': 5,
              'templateId': 'AE-' + kind.upper() + '-02'}, holes=copy.deepcopy(settings['holes']),
-             thickness={k: settings[k] for k in ('body', 'door', 'mount')},
-             materials={k: {'category': settings['material']} for k in ('body', 'door', 'mount')},
+             **sheet_settings.for_design(settings),
              accessories=[])
     for item in settings['instances']:
         m = library[item['code']]

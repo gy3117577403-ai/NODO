@@ -68,6 +68,53 @@ class TestDrawWorkbench(TransactionCase):
         with self.assertRaises(ValueError):
             spec.edit(settings, {**settings,'width':float('nan')},lines,spec.LIBRARY)
 
+    def test_legacy_sheet_settings_keep_saved_values(self):
+        original = self.design.settings
+        legacy = {key: value for key, value in original.items() if key not in ('materials', 'thickness')}
+        legacy.update(material='stainless', body=1.2, door=2.1, mount=2.7)
+        self.design.sudo().write({'settings': legacy})
+        workspace = self.design.workspace()
+        self.assertEqual(workspace['settings']['thickness'], {'body': 1.2, 'door': 2.1, 'mount': 2.7})
+        self.assertEqual(workspace['settings']['materials'],
+                         {group: {'category': 'stainless'} for group in ('body', 'door', 'mount')})
+        self.assertEqual(workspace['sheet_catalog']['materials']['groups']['mount'], 'galvanized')
+        self.assertEqual(self.design.settings, legacy)
+        result = spec.parameters(legacy, self.design.library, 1)
+        self.assertEqual(result['materials'], workspace['settings']['materials'])
+        self.assertEqual(result['thickness'], workspace['settings']['thickness'])
+
+    def test_sheet_overrides_reach_the_design_snapshot(self):
+        original = self.design.settings
+        materials = {
+            'body': {'category': 'cold_rolled', 'finish': 'RAL7035'},
+            'parts': {'top': {'category': 'stainless', 'grade': '304'}},
+            'finishes': {'wrap': 'RAL7035'},
+        }
+        thickness = {'body': 1.6, 'parts': {'top': 1.8}}
+        new = spec.edit(original, {**original, 'materials': materials, 'thickness': thickness},
+                        self.design.bom['lines'], self.design.library)
+        payload = spec.parameters(new, self.design.library, 2)
+        self.assertEqual(payload['materials'], materials)
+        self.assertEqual(payload['thickness'], thickness)
+        cleared = spec.edit(new, {**new, 'thickness': {'body': 1.6}, 'materials': {'body': materials['body']}},
+                            self.design.bom['lines'], self.design.library)
+        reset = spec.parameters(cleared, self.design.library, 3)
+        self.assertEqual(reset['thickness'], {'body': 1.6})
+        self.assertEqual(reset['materials'], {'body': materials['body']})
+
+    def test_invalid_sheet_values_are_rejected(self):
+        original = self.design.settings
+        for patch in (
+            {'materials': {'parts': {'back': {'category': 'cold_rolled'}}}},
+            {'materials': {'body': {'category': ['cold_rolled']}}},
+            {'materials': {'body': {'category': 'cold_rolled', 'note': '第一行\n第二行'}}},
+            {'thickness': {'parts': {'top': 2.1}}},
+            {'thickness': {'parts': {'brace': True}}},
+            {'thickness': {'body': 3, 'parts': {'wrap': 1.4, 'top': 1.4, 'bottom': 1.4}}},
+        ):
+            with self.subTest(patch=patch), self.assertRaises(ValueError):
+                spec.edit(original, {**original, **patch}, self.design.bom['lines'], self.design.library)
+
     def test_square_lock_uses_the_single_door_cutout_datum(self):
         bom = spec.intake(next(row for row in spec.SAMPLES if row['source'] == 'AE-303'))
         settings = spec.initial(bom)

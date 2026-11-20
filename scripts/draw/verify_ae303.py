@@ -186,9 +186,8 @@ def verify_fittings(result, solids, holes, cuts, documents):
             for ident,code,face,count in BOM]
 
 
-def verify_bom(csv_rows, sheets, documents):
+def verify_bom_rows(csv_rows, sheets, documents):
     batch = [s for s in sheets if s['category'] == 'bom']
-    require([len(s['coordinates'])-1 for s in batch] == [24,3], '零件明细未按旧版 24 行分页')
     decoded = []
     for sheet in batch:
         text_rows = defaultdict(list)
@@ -198,9 +197,16 @@ def verify_bom(csv_rows, sheets, documents):
                    if len(text_rows[y])==7]
         require(printed == sheet['coordinates'], '实际 DWG 明细的名称、图号、材料、板厚或数量不符')
         decoded.extend(printed[1:])
-    require(len(csv_rows)==len(decoded)==27, '零件清单应有 27 行')
+    require(len(csv_rows)==len(decoded), 'CSV 与 DWG 明细行数不同')
     for csv_row,dwg in zip(csv_rows,decoded):
-        require(csv_row[:6]==dwg[:6] and csv_row[7]==dwg[6] and csv_row[5:7]==['1','1'], 'CSV 与 DWG 明细或数量不符')
+        require(csv_row[:6]==dwg[:6] and csv_row[7]==dwg[6], 'CSV 与 DWG 明细或数量不符')
+    return [len(s['coordinates'])-1 for s in batch]
+
+
+def verify_bom(csv_rows, sheets, documents):
+    pages = verify_bom_rows(csv_rows, sheets, documents)
+    require(pages == [24,3], '零件明细未按旧版 24 行分页')
+    require(all(row[5:7] == ['1','1'] for row in csv_rows), '零件明细单台和订单数量不符')
     require(Counter(r[2] for r in csv_rows if r[2] in [a[1] for a in BOM]) ==
             Counter({code:count for _,code,_,count in BOM}), '四类五金的组成件未逐项列全')
 

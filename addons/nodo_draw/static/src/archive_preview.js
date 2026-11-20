@@ -6,7 +6,7 @@ const zoomStep = 1.25;
 
 export class DrawingViewport extends Component {
     static template = "nodo_draw.DrawingViewport";
-    props = useProps({src: String, title: String, initialView: Object, remember: Function});
+    props = useProps({src: String, title: String, showTitle: Boolean, initialView: Object, remember: Function});
     surface = signal.ref();
     view = signal(fitView);
     status = signal("loading");

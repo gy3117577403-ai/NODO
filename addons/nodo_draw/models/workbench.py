@@ -7,7 +7,7 @@ from pathlib import Path
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from . import specification as spec
+from . import sheet_settings, specification as spec
 
 EXCHANGE = Path('/mnt/nodo-draw')
 DRAWING_FORMAT = 2
@@ -87,7 +87,8 @@ class DrawDesign(models.Model):
         jobs = self.env['nodo.draw.job'].search([('design_id','=',self.id)],order='id desc')
         # Dispatch only on a separate request or by cron after the design transaction commits.
         jobs.filtered(lambda j: not j.final_state)._dispatch()
-        return dict(id=self.id,name=self.name,bom=self.bom,library=self.library,settings=self.settings,
+        return dict(id=self.id,name=self.name,bom=self.bom,library=self.library,
+                    settings=sheet_settings.for_editor(self.settings),sheet_catalog=sheet_settings.CATALOG,
                     edit_number=self.edit_number,online=online(),jobs=[j._info() for j in jobs])
 
     def apply_design(self, expected, values, operation):
@@ -111,7 +112,7 @@ class DrawDesign(models.Model):
                     raise ValueError('请先完成一键装配。' + '、'.join(problems))
         except ValueError as exc:
             raise UserError(str(exc)) from exc
-        if new != self.settings:
+        if new != sheet_settings.for_editor(self.settings):
             self.sudo().write({'settings':new,'edit_number':self.edit_number+1})
         jobs = self.env['nodo.draw.job'].sudo()
         kind = 'build' if operation == 'generate' else 'preview'

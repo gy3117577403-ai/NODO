@@ -102,7 +102,7 @@ async function main() {
                 await page.getByLabel("选择设计").selectOption({label: code + " · " + title});
             }
             const response = await responsePromise;
-            await page.getByRole("heading", {name: title}).waitFor();
+            await page.getByLabel("选择设计").locator("option:checked").filter({hasText:title}).waitFor({state:"attached"});
             await page.locator(".nd-overlay").waitFor({state: "detached"});
             await page.waitForFunction(() => window.viewportMeter.last > 0 &&
                 performance.now() - window.viewportMeter.last > 200 && !document.querySelector(".ae-error"));

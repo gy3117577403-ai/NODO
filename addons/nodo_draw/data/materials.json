@@ -1,0 +1,12 @@
+{
+  "version": "AE-MATERIAL-01",
+  "categories": {
+    "cold_rolled": {"name": "冷轧板"},
+    "stainless": {"name": "不锈钢板"},
+    "galvanized": {"name": "镀锌板"}
+  },
+  "groups": {"body": "cold_rolled", "door": "cold_rolled", "mount": "galvanized"},
+  "parts": {"wrap": "body", "top": "body", "bottom": "body", "door": "door", "mount": "mount", "brace": "body"},
+  "sourceFinish": {"wrap": "RAL7035"},
+  "basis": "原图各零件标题栏材料名称；具体牌号、来料状态及工艺适用性待确认"
+}

@@ -6,6 +6,7 @@ const path = require("node:path");
 const {chromium} = require("playwright");
 const dest = path.resolve(".nodo-draw/viewport-check");
 const pageUrl = "http://127.0.0.1:8079/odoo/technical-workbench";
+const pickOnly = process.argv.includes("--pick-only");
 const glCanvas = ".nd-three-host canvas";
 const dot = (a, b) => a.reduce((sum, n, i) => sum + n * b[i], 0);
 const sub = (a, b) => a.map((n, i) => n - b[i]);
@@ -88,11 +89,16 @@ async function examine(context, code, id) {
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const point = target(initial,face,await canvas.boundingBox());
         await page.mouse.click(point.x,point.y);
-        await page.getByLabel("加工板面").waitFor({timeout:4000});
-        assert.equal(await page.getByLabel("加工板面").inputValue(),id);
+        const selected = page.locator('.nd-face-tiles button[aria-pressed="true"]');
+        await selected.waitFor({timeout:4000});
+        assert.equal(await selected.getAttribute("data-face"),id);
         const u = Number(await page.getByLabel("横向 U").inputValue());
         const v = Number(await page.getByLabel("纵向 V").inputValue());
         near(u,point.u,.15); near(v,point.v,.15);
+        if (pickOnly) {
+            assert.deepEqual(errors, []);
+            return {code, face:id, pointMm:[u,v], independentMm:[+point.u.toFixed(3),+point.v.toFixed(3)]};
+        }
         const isDouble = id === "door_right";
         await page.getByLabel("孔型").selectOption(isDouble?"rectangle":"circle");
         if (isDouble) {
@@ -136,7 +142,7 @@ async function hardware(context) {
         const design = await option.getAttribute("value");
         const response = page.waitForResponse(meshResponse);
         await page.goto(pageUrl + "?design=" + design);
-        await page.getByRole("heading", {name:"五金装配柜"}).waitFor();
+        await page.getByLabel("选择设计").waitFor();
         const model = await meshFrom(page, await response);
         const occurrences = model.parameters.accessories;
         assert.deepEqual(occurrences.map(a=>[a.definition.code,a.face]),
@@ -159,7 +165,7 @@ async function hardware(context) {
         assert.equal(check.status,"checked-samples");
         assert.deepEqual(check.issues,[]);
         assert.deepEqual(check.sampledAngles,Array.from({length:12},(_,i)=>i*10));
-        await page.getByRole("button",{name:"附件装配",exact:true}).click();
+        await page.getByRole("button",{name:"附件",exact:true}).click();
         assert.equal(await page.getByText("已装配",{exact:true}).count(),4);
         const view = page.locator(glCanvas);
         await view.waitFor();
@@ -201,7 +207,7 @@ async function main() {
             const row = await examine(context,code,face);
             results.push(row);
             console.log(JSON.stringify(row));
-            fs.writeFileSync(path.join(dest,"selection.json"), JSON.stringify(results,null,2) + "\n");
+            fs.writeFileSync(path.join(dest,pickOnly ? "selection-pick.json" : "selection.json"), JSON.stringify(results,null,2) + "\n");
         }
     } finally { await browser.close(); }
 }

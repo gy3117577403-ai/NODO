@@ -1,0 +1,14 @@
+{
+  "version": "AE-SHEET-01",
+  "status": "pending",
+  "datum": "保持柜体外形；围板外表面、门板外表面及安装板背面为定位基准",
+  "parts": {
+    "wrap": {"name":"围板","default":1.5,"min":0.8,"max":2,"group":"body"},
+    "top": {"name":"顶板","default":1.5,"min":0.8,"max":2,"group":"body"},
+    "bottom": {"name":"底板","default":1.5,"min":0.8,"max":2,"group":"body"},
+    "door": {"name":"门板","default":2,"min":1,"max":3,"group":"door"},
+    "mount": {"name":"安装板","default":2.5,"min":1,"max":4,"group":"mount"},
+    "brace": {"name":"加强件（左右）","default":1.5,"min":0.8,"max":2,"group":"brace"}
+  },
+  "notes": ["厚度范围为本模板几何计算范围，不是车间标准规格。","变板厚后的折弯补偿、压型、角部接缝和五金配合均待确认。","围板背面及左右侧为同一张板；左右加强件采用同一零件规格。"]
+}

@@ -34,6 +34,12 @@ function archivedHash(build, key) {
     return digest(fs.readFileSync(path.join(build.run, build.status.files[key])));
 }
 
+async function chooseDesign(page, label) {
+    await page.getByLabel("选择设计").selectOption({label});
+    await page.waitForFunction(expected =>
+        document.querySelector('select[aria-label="选择设计"]')?.selectedOptions[0]?.textContent.trim() === expected, label);
+}
+
 async function chooseVersion(page, revision) {
     const select = page.getByLabel("图纸版本");
     const option = select.locator("option").filter({hasText: new RegExp(`^${revision} `)});
@@ -68,13 +74,17 @@ async function drawingPoint(image, x, y) {
 async function focusDrawing(page, image, u, v, scale, offsetY = 0) {
     const surface = await page.locator(".nd-drawing-surface").boundingBox();
     const before = await drawingPoint(image, u, v);
+    const cursor = {x:Math.round(before.x), y:Math.round(before.y)};
     const wheelDelta = Math.round(-Math.log(scale) / .0025);
     const zoom = `${Math.round(Math.exp(-wheelDelta * .0025) * 100)}%`;
-    await page.mouse.move(before.x, before.y);
+    await page.mouse.move(cursor.x, cursor.y);
     await page.mouse.wheel(0, wheelDelta);
     await page.locator(".nd-reader-tools output").filter({hasText: zoom}).waitFor();
     const after = await drawingPoint(image, u, v);
-    const anchorErrorPx = Math.hypot(after.x - before.x, after.y - before.y);
+    const ratio = after.width / before.width;
+    const expectedX = cursor.x + (before.x - cursor.x) * ratio;
+    const expectedY = cursor.y + (before.y - cursor.y) * ratio;
+    const anchorErrorPx = Math.hypot(after.x - expectedX, after.y - expectedY);
     assert(anchorErrorPx <= 2, "滚轮放大后鼠标所指图纸点发生偏移");
     const center = {x: surface.x + surface.width / 2, y: surface.y + surface.height / 2 + offsetY};
     await page.mouse.move(after.x, after.y);
@@ -100,6 +110,9 @@ async function showModel(page, id, build, revision, action) {
 }
 
 async function saveDownload(page, id, build, key, name) {
+    const sheet = build.status.sheets.find(item => item.key === key || item.key + "c" === key);
+    if (sheet) await openSheet(page, id, build, sheet.name);
+    await page.getByRole("button", {name:"下载", exact:true}).click();
     const download = page.waitForEvent("download");
     await page.locator(`a[href="${fileUrl(id, key)}"]`).click();
     const filename = path.join(downloads, name);
@@ -112,8 +125,7 @@ async function saveDownload(page, id, build, key, name) {
 
 async function checkAE303(page) {
     const build = archivedBuild("AE-303", "2", "V02");
-    await page.getByLabel("选择设计").selectOption({label: "AE-303 · 五金装配柜 · 交接版 2"});
-    await page.getByRole("heading", {name: "五金装配柜"}).waitFor();
+    await chooseDesign(page, "AE-303 · 五金装配柜 · 交接版 2");
     const design = Number(await page.getByLabel("选择设计").inputValue());
     await page.getByRole("button", {name: /图纸与版本/}).click();
     const id = await chooseVersion(page, "V02");
@@ -158,7 +170,8 @@ async function checkAE303(page) {
     fs.writeFileSync(path.join(downloads, "下载记录.json"), JSON.stringify(receipt, null, 2) + "\n");
     await chooseVersion(page, "V01");
     await page.locator(".nd-archive-state").getByText("生成失败", {exact: true}).waitFor();
-    assert.equal(await page.locator(".nd-drawing, .nd-archive-model canvas, .nd-downloads").count(), 0);
+    assert.equal(await page.locator(".nd-drawing, .nd-archive-model canvas").count(), 0);
+    assert.equal(await page.getByRole("button", {name:"下载", exact:true}).count(), 0);
     await chooseVersion(page, "V02");
     await showModel(page, id, build, "V02", () => page.getByRole("button", {name: "本版本三维"}).click());
     await chooseVersion(page, "V01");
@@ -172,8 +185,8 @@ async function checkAE303(page) {
 
 async function checkAE101(page) {
     const builds = new Map(["V05", "V06"].map(revision => [revision, archivedBuild("AE-101", "1", revision)]));
-    await page.getByLabel("选择设计").selectOption({label: "AE-101 · 壁挂控制箱"});
-    await page.getByRole("heading", {name: "壁挂控制箱"}).waitFor();
+    await chooseDesign(page, "AE-101 · 壁挂控制箱");
+    await page.getByRole("button", {name:"设计视图", exact:true}).click();
     const width = page.getByLabel("柜宽", {exact: true});
     const draft = String(Number(await width.inputValue()) + 1);
     await width.fill(draft);
@@ -229,7 +242,7 @@ async function main() {
         page.setDefaultTimeout(15000);
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
-        await page.goto(origin + "/odoo/technical-workbench");
+        await page.goto(origin + "/odoo/technical-workbench", {waitUntil:"domcontentloaded", timeout:30000});
         const data = {viewport, ae303: await checkAE303(page), ae101: await checkAE101(page)};
         assert.deepEqual(errors, []);
         const report = JSON.stringify(data, null, 2) + "\n";

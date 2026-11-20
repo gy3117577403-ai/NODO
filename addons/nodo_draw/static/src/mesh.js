@@ -54,23 +54,40 @@ export class FaceCanvas {
         const x=(w-f.width*s)/2,y=(h+f.height*s)/2;
         this.flat={x,y,s,face:f};
         const part=this.mesh.parts.find(p=>p.id===f.part);
-        const surface=new Path2D();
+        const surface=new Path2D(), edges=new Map();
         let triangles=0;
         if(part){
             const projected=part.vertices.map(vertex=>{
                 const delta=sub(vertex,f.origin);
-                return {x:x+dot(delta,f.uAxis)*s,y:y-dot(delta,f.vAxis)*s,height:dot(delta,f.normal)};
+                const u=dot(delta,f.uAxis), v=dot(delta,f.vAxis);
+                return {x:x+u*s,y:y-v*s,height:dot(delta,f.normal),
+                    key:Math.round(u*1000)+"/"+Math.round(v*1000)};
             });
             for(const indices of part.triangles){
                 const [a,b,c]=indices.map(i=>projected[i]);
                 if([a,b,c].some(p=>Math.abs(p.height)>.02))continue;
                 surface.moveTo(a.x,a.y);surface.lineTo(b.x,b.y);surface.lineTo(c.x,c.y);surface.closePath();
+                for (const [start,end] of [[a,b],[b,c],[c,a]]) {
+                    const key = start.key < end.key ? start.key+"|"+end.key : end.key+"|"+start.key;
+                    if (edges.has(key)) edges.get(key).count++;
+                    else edges.set(key,{start,end,count:1});
+                }
                 triangles++;
             }
         }
-        const steel="#c3d7cc";
+        const steel="#fff";
         ctx.fillStyle=steel;
-        if(triangles)ctx.fill(surface);
+        if(triangles){
+            ctx.fill(surface);
+            const boundary = new Path2D();
+            for (const {start,end,count} of edges.values()) {
+                if (count !== 1) continue;
+                boundary.moveTo(start.x,start.y);
+                boundary.lineTo(end.x,end.y);
+            }
+            ctx.strokeStyle="#53665f";ctx.lineWidth=1;
+            ctx.stroke(boundary);
+        }
         ctx.strokeStyle="#58816f";ctx.lineWidth=1;ctx.setLineDash([4,4]);
         ctx.strokeRect(x,y-f.height*s,f.width*s,f.height*s);ctx.setLineDash([]);
         const outline=(hole,pad=0)=>{
@@ -84,7 +101,7 @@ export class FaceCanvas {
         // Structural openings remain those of the actual planar CAD face.
         for(const cut of this.mesh.parameters.holes||[]){
             if(cut.face===f.id && !cut.ownerAccessory && /^H\d+$/.test(cut.id)){
-                outline(cut,.4);ctx.fill();
+                outline(cut,.8);ctx.fill();
             }
         }
         const holes=[...(this.mesh.parameters.holes||[]).filter(h=>h.ownerAccessory),...this.display.holes];
@@ -93,10 +110,14 @@ export class FaceCanvas {
             outline(hole);
             ctx.fill();ctx.stroke();
         }
-        ctx.fillStyle="#45635c";ctx.font="12px sans-serif";ctx.textAlign="center";
-        ctx.fillText(f.width.toFixed(1)+" mm",w/2,y+22);
-        ctx.textAlign="left";ctx.fillText("U →   V ↑",x,y-f.height*s-12);
-        ctx.fillText(f.height.toFixed(1)+" mm",x+4,y-7);
+        const ax=x-12, ay=y+12;
+        ctx.beginPath();
+        ctx.moveTo(ax,ay-22);ctx.lineTo(ax,ay);ctx.lineTo(ax+22,ay);
+        ctx.moveTo(ax-3,ay-17);ctx.lineTo(ax,ay-22);ctx.lineTo(ax+3,ay-17);
+        ctx.moveTo(ax+17,ay-3);ctx.lineTo(ax+22,ay);ctx.lineTo(ax+17,ay+3);
+        ctx.strokeStyle="#45635c";ctx.lineWidth=1;ctx.stroke();
+        ctx.fillStyle="#45635c";ctx.font="12px sans-serif";ctx.textAlign="left";
+        ctx.fillText("V",ax-4,ay-26);ctx.fillText("U",ax+27,ay+4);ctx.fillText("0",ax-10,ay+11);
     }
     pick(x, y) {
         if (!this.flat) return null;
