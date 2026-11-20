@@ -16,7 +16,7 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   update <模块>   在 nodo_dev 中升级模块
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   draw-start [refresh] 启动本机 CAD 计算进程；refresh 在空闲时重载工作进程
-  seed-draw       在开发库准备 AE 附件 BOM
+  seed-draw       在开发库准备 AE 单门、双门基础柜
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
   check-staff-pilot 核对试点库的人员来源、档案关系和界面版本

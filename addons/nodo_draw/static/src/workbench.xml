@@ -308,6 +308,7 @@
                 <button type="button" class="nd-inspector-toggle" aria-label="关闭装配" title="关闭装配" t-on-click="this.openAssembly">×</button>
             </div>
             <div class="nd-fields">
+                <small t-if="!doc.bom.lines.length">此柜体尚无附件。</small>
                 <div class="nd-match" t-foreach="doc.bom.lines" t-as="line" t-key="line_index">
                     <t t-set="row" t-value="this.rowInfo(line_index)"/>
                     <div class="nd-between"><strong><t t-out="line.code"/> × <t t-out="line.quantity"/></strong><span class="nd-tag" t-out="row.status"/></div>
@@ -320,7 +321,7 @@
                         <option t-foreach="this.mountingFaces(row.model)" t-as="id" t-key="id" t-att-value="id" t-att-selected="row.face===id" t-out="this.faceName(id)"/></select></label>
                     <small t-if="row.model">模型版本 <t t-out="row.model.version"/> · 已装 <t t-out="row.placed"/> / <t t-out="line.quantity"/></small>
                 </div>
-                <button class="nd-wide nd-soft" t-att-disabled="this.busy()" t-on-click="() => this.apply('assemble')">一键装配</button>
+                <button t-if="doc.bom.lines.length" class="nd-wide nd-soft" t-att-disabled="this.busy()" t-on-click="() => this.apply('assemble')">一键装配</button>
                 <t t-foreach="form.instances" t-as="a" t-key="a.id"><div class="nd-match" t-if="['step','lock'].includes(doc.library[a.code].kind)">
                     <h3 t-out="doc.library[a.code].name"/><small t-out="doc.library[a.code].placement?.anchor==='right'?'横向距板面右边，纵向相对板面中心（mm）':'相对板面中心定位（mm）'"/>
                     <div class="nd-trio"><label t-foreach="[['u','横向'],['v','纵向']]" t-as="k" t-key="k[0]"><t t-out="k[1]"/><input type="number" step="any" t-att-value="form.positions?.[a.id]?.[k[0]] ?? a[k[0]]" t-on-input="ev => this.position(a,k[0],ev)"/></label>

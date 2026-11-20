@@ -205,6 +205,11 @@ class TestDrawWorkbench(TransactionCase):
             full = jobs.browse(full_id).payload['parameters']
             self.assertEqual(len(full['accessories']), 2)
             self.assertEqual(full['holes'][0]['id'], 'H1')
+            cabinet_id = self.design.preview_cabinet(self.design.edit_number, saved, 'cabinet')
+            cabinet = jobs.browse(cabinet_id).payload['parameters']
+            self.assertEqual(cabinet['accessories'], [])
+            self.assertEqual(cabinet['holes'], full['holes'])
+            self.assertEqual(self.design.preview_cabinet(self.design.edit_number, saved, 'cabinet'), cabinet_id)
             self.assertEqual(self.design.preview_cabinet(self.design.edit_number, saved, 'base'), preview_ids['single'])
             self.assertEqual(self.design.settings, saved)
 

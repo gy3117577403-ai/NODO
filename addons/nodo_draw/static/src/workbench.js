@@ -37,6 +37,7 @@ export class Workbench extends Component {
     holeDraft=signal(freshHoleDraft("door"));
     holeHistory=signal({undo: [], redo: []});
     holeBases=signal({});
+    holeAssembly=signal(false);
     drilling=signal(false);
     drillFace=signal(null);
     drillNotice=signal("");
@@ -69,7 +70,7 @@ export class Workbench extends Component {
         this.holeAxes = [["u", "横向 U"], ["v", "纵向 V"]];
         this.holeBasisOptions = [["start", "从起边"], ["end", "从终边"], ["center", "从中心线"]];
         this.tabs=[["cabinet","规格"],["materials","材料"],["parts","零件"],["holes","孔位"]];
-        this.assemblyReturn = "cabinet";
+        this.assemblyReturn = null;
         this.focusSequence = 0;
         this.cameraSequence = 0;
         this.views=[["top","俯视"],["left","左视"],["door","正视"],["right","右视"],["back","后视"],["bottom","仰视"]];
@@ -174,13 +175,16 @@ export class Workbench extends Component {
         this.hiddenParts.set(noParts);
         this.partFocus.set(null);
     }
-    previewScope() { return ["cabinet", "parts"].includes(this.tab()) ? "base" : "design"; }
+    previewScope() {
+        if (this.tab() === "assembly" || (this.tab() === "holes" && this.holeAssembly())) return "design";
+        return this.form()?.kind === this.doc()?.settings.kind ? "cabinet" : "base";
+    }
     displayMesh() {
         const preview = this.draftPreview(), scope = this.previewScope(), kind = this.form()?.kind;
-        if (preview?.scope === scope && meshKind(preview.mesh) === kind) return preview.mesh;
-        const mesh = this.mesh();
+        const mesh = preview?.scope === scope && preview.mesh ? preview.mesh : this.mesh();
         if (!mesh || meshKind(mesh) !== kind) return null;
-        if (scope === "base" && (mesh.parameters.accessories?.length || mesh.parameters.holes?.length)) return null;
+        if (scope !== "design" && mesh.parameters.accessories?.length) return null;
+        if (scope === "base" && mesh.parameters.holes?.length) return null;
         return mesh;
     }
     previewNote() {
@@ -190,8 +194,10 @@ export class Workbench extends Component {
         }
         const draft = this.draftPreview();
         if (draft?.mesh && draft.snapshot !== this.form()) return "草稿已修改，预览待更新";
-        if (this.displayMesh() && this.previewScope() === "base") {
-            return this.dirty() ? "基础预览 · 未保存" : "基础预览";
+        const mesh = this.displayMesh();
+        if (mesh && this.previewScope() !== "design") {
+            const label = mesh.parameters.holes?.length ? "柜体预览" : "基础预览";
+            return this.dirty() ? `${label} · 未保存` : label;
         }
         if (draft?.mesh) return "草稿预览 · 未保存";
         if (this.dirty()) return "有未保存修改";
@@ -247,6 +253,8 @@ export class Workbench extends Component {
         this.holeDrafts.clear();this.frontFacesOpen.set(false);
         this.holeBases.set({});
         this.resetHoleHistory();
+        this.holeAssembly.set(false);
+        this.assemblyReturn = null;
         this.mode.set("3d");this.opened.set(false);this.tab.set("cabinet");
         this.holeDraft.set(freshHoleDraft("door"));this.busy.set(false);
         const epoch=++this.epoch;
@@ -354,10 +362,11 @@ export class Workbench extends Component {
         if (!signal.aborted) this.draftPreview.set({...this.draftPreview(), error:error.data?.message || error.message});
     }
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
-    selectTab(id, in3d = false) {
+    selectTab(id, in3d = false, scope = this.previewScope()) {
         const previous = this.previewScope();
         if (id !== "holes" || !in3d) this.leaveDrilling();
         this.partFocus.set(null);
+        if (id === "holes") this.holeAssembly.set(scope === "design");
         this.tab.set(id);
         this.showFiles.set(false);
         this.panelHidden.set(false);
@@ -416,9 +425,13 @@ export class Workbench extends Component {
     assemblyOpen() { return !this.showFiles() && this.tab() === "assembly"; }
     openAssembly() {
         if (this.assemblyOpen()) {
-            this.selectTab(this.assemblyReturn);
+            const previous = this.assemblyReturn;
+            this.selectTab(previous?.tab ?? "cabinet", previous?.in3d, previous?.scope);
+            if (previous?.drilling) this.startDrilling();
         } else {
-            this.assemblyReturn = this.tab();
+            this.assemblyReturn = {
+                tab:this.tab(), in3d:this.mode() === "3d", scope:this.previewScope(), drilling:this.drilling(),
+            };
             this.selectTab("assembly");
         }
     }

@@ -125,12 +125,14 @@ class DrawDesign(models.Model):
 
     def preview_cabinet(self, expected, values, scope='design'):
         self._lock_editor(expected)
-        if scope not in ('base', 'design'):
+        if scope not in ('base', 'cabinet', 'design'):
             raise UserError('柜体预览范围无效。')
         old, lines = self.settings, self.bom['lines']
-        if scope == 'base' and isinstance(values, dict):
+        if scope in ('base', 'cabinet') and isinstance(values, dict):
             old, lines = {**old, 'instances': []}, []
-            values = {**values, 'holes': [], 'matches': {}, 'positions': {}}
+            values = {**values, 'matches': {}, 'positions': {}}
+            if scope == 'base':
+                values['holes'] = []
         try:
             settings = spec.edit(old, values, lines, self.library)
             payload = self._job_payload(settings, 'preview', 0)
