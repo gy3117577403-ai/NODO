@@ -106,7 +106,7 @@ export class ArchivedCabinet extends Component {
         useEffect(() => {
             const host = this.host();
             if (!host) return;
-            const viewer = window.nodoDrawAE0573.mount(host, () => {});
+            const viewer = window.nodoDrawAE0573.mount(host);
             this.viewer = viewer;
             untrack(() => this.updateViewer());
             return () => { this.viewer = null; viewer.dispose(); };

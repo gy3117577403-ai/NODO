@@ -44,7 +44,8 @@
             <button type="button" t-if="!this.showFiles()" t-on-click="this.openArchive">图纸与版本</button>
         </div>
         <div class="nd-workbar-views" role="group" aria-label="设计视口" t-if="!this.showFiles()">
-            <button type="button" t-att-aria-pressed="this.mode()==='3d'?'true':'false'" t-on-click="() => this.mode.set('3d')">三维</button>
+            <button type="button" t-att-aria-pressed="this.mode()==='3d' &amp;&amp; !this.drilling()?'true':'false'" t-on-click="this.showThree">三维</button>
+            <button type="button" t-att-aria-pressed="this.drilling()?'true':'false'" t-on-click="this.startDrilling">三维开孔</button>
             <button type="button" t-att-aria-pressed="this.mode()==='2d'?'true':'false'" t-on-click="() => this.selectTab('holes')">二维</button>
             <button type="button" t-att-aria-expanded="this.assemblyOpen()?'true':'false'" t-on-click="this.openAssembly">装配</button>
         </div>
@@ -89,7 +90,8 @@
             <div class="nd-inspector-bar">
                 <div class="nd-tabs" role="group" aria-label="设计工具">
                     <button type="button" t-foreach="this.tabs" t-as="tup" t-key="tup[0]" t-att-class="this.tab()===tup[0]?'active':''"
-                            t-att-aria-pressed="this.tab()===tup[0]?'true':'false'" t-on-click="() => this.selectTab(tup[0])" t-out="tup[1]"/>
+                            t-att-aria-pressed="this.tab()===tup[0]?'true':'false'"
+                            t-on-click="() => this.selectTab(tup[0], tup[0]==='holes' &amp;&amp; this.mode()==='3d')" t-out="tup[1]"/>
                 </div>
                 <button type="button" class="nd-inspector-toggle" t-att-title="this.panelHidden()?'展开设计栏':'收起设计栏'"
                         t-att-aria-label="this.panelHidden()?'展开设计栏':'收起设计栏'" t-att-aria-expanded="this.panelHidden()?'false':'true'"
@@ -123,7 +125,7 @@
                                 <t t-set="face" t-value="this.board(view[0])"/>
                                 <button t-if="face" type="button" t-att-data-face="face.id" t-att-aria-label="view[1]+'选择板面'"
                                         t-att-class="face.id===this.face()?'active':''"
-                                        t-on-click="() => face.id==='door' ? this.frontFacesOpen.set(!this.frontFacesOpen()) : this.setFace(face.id)">
+                                        t-on-click="() => face.id==='door' ? this.frontFacesOpen.set(!this.frontFacesOpen()) : this.selectBoard(face.id)">
                                     <svg viewBox="0 0 36 26" aria-hidden="true"><rect x="3" y="3" width="30" height="20" rx="2"/>
                                         <path t-if="face.id==='door' &amp;&amp; this.board('door_right')" d="M18 3v20"/><path t-elif="face.id==='top' || face.id==='bottom'" d="M3 10h30"/></svg>
                                     <span t-out="view[1]"/>
@@ -132,14 +134,14 @@
                         </div>
                         <div class="nd-front-faces" t-if="this.frontFacesOpen()">
                             <button type="button" t-foreach="this.boards().filter(f => ['door','door_right','mount'].includes(f.id))"
-                                    t-as="face" t-key="face.id" t-on-click="() => { this.setFace(face.id); this.frontFacesOpen.set(false); }"
+                                    t-as="face" t-key="face.id" t-on-click="() => { this.selectBoard(face.id); this.frontFacesOpen.set(false); }"
                                     t-out="this.faceName(face.id)"/>
                         </div>
                     </details>
                     <div class="nd-face-tiles" role="group" aria-label="加工板面">
                         <button type="button" t-foreach="this.boards()" t-as="face" t-key="face.id" class="nd-face-tile"
                                 t-att-data-face="face.id" t-att-class="face.id===this.face()?'active':''"
-                                t-att-aria-pressed="face.id===this.face()?'true':'false'" t-on-click="() => this.setFace(face.id)">
+                                t-att-aria-pressed="face.id===this.face()?'true':'false'" t-on-click="() => this.selectBoard(face.id)">
                             <span t-out="this.faceName(face.id)"/>
                             <small t-att-title="this.boardHoles(face.id).length+' 个自定义孔，'+this.linkedHoles(face.id)+' 个附件孔'">
                                 <t t-out="this.boardHoles(face.id).length+this.linkedHoles(face.id)"/> 孔
@@ -160,6 +162,13 @@
                                 t-on-click="() => this.travelHoleHistory('undo')">撤销</button>
                         <button type="button" aria-label="重做孔位" t-att-disabled="this.busy() || !this.holeHistory().redo.length"
                                 t-on-click="() => this.travelHoleHistory('redo')">重做</button>
+                        <label class="nd-drill-snap" t-if="this.drilling()">吸附
+                            <select aria-label="拖动吸附" t-on-change="ev => this.drillSnap.set(+ev.target.value)">
+                                <option value="1" t-att-selected="this.drillSnap()===1">1 mm</option>
+                                <option value="0.1" t-att-selected="this.drillSnap()===0.1">0.1 mm</option>
+                                <option value="0" t-att-selected="this.drillSnap()===0">关闭</option>
+                            </select>
+                        </label>
                     </div>
                     <small t-if="this.holeDraft().copiedFrom" class="nd-hole-copy-note" role="status">复制自 <t t-out="this.holeDraft().copiedFrom"/>，调整位置后确认</small>
                     <label>孔型
@@ -189,20 +198,21 @@
                         <label t-foreach="this.hole().type==='circle'?[['diameter','直径']]:[['width','孔宽'],['height','孔高']]" t-as="kv" t-key="kv[0]">
                             <t t-out="kv[1]"/>
                             <input type="number" min="2" step="any" t-att-aria-label="kv[1]" t-att-value="this.hole()[kv[0]]" t-att-disabled="this.busy()"
-                                   t-on-input="ev => this.setHole(kv[0],ev.target.value===''?null:Number(ev.target.value),kv[0])" t-on-blur="this.endHoleInput"/>
+                                   t-on-input="ev => this.setHoleSize(kv[0],ev.target.value)" t-on-blur="this.endHoleInput"/>
                         </label>
                     </div>
                     <small t-if="holeIssue &amp;&amp; this.holeDraft().active" class="nd-hole-issue" role="alert" t-out="holeIssue"/>
                     <div class="nd-hole-actions">
                         <button type="button" class="nd-wide nd-soft" t-att-disabled="this.busy() || !!holeIssue" t-on-click="this.addHole"
-                                t-out="this.editing()?'应用孔位修改':this.holeDraft().copiedFrom?'确认复制孔':'添加孔位'"/>
+                                t-out="this.editing()?'应用孔位修改':this.holeDraft().copiedFrom?'确认复制孔':this.drilling()?'确认孔位':'添加孔位'"/>
                         <button type="button" t-if="this.holeDraft().active" t-att-disabled="this.busy()" t-on-click="this.cancelHoleDraft">取消</button>
                     </div>
                     <div class="nd-bomrow" t-foreach="this.boardHoles()" t-as="r" t-key="r.id">
-                        <button type="button" class="nd-link" t-att-disabled="this.busy()" t-att-aria-pressed="this.editing()===r.id?'true':'false'" t-on-click="() => this.editHole(r)">
+                        <button type="button" class="nd-link" t-att-disabled="this.busy() || this.attachmentHole(r.id)" t-att-aria-pressed="this.editing()===r.id?'true':'false'" t-on-click="() => this.editHole(r)">
                             <b t-out="r.id"/><small><t t-out="r.u"/>，<t t-out="r.v"/> mm</small>
                         </button>
-                        <div class="nd-hole-row-actions">
+                        <small t-if="this.attachmentHole(r.id)">附件关联</small>
+                        <div t-else="" class="nd-hole-row-actions">
                             <button type="button" class="nd-link" t-att-aria-label="'复制 '+r.id" t-att-disabled="this.busy()" t-on-click="() => this.editHole(r,true)">复制</button>
                             <button type="button" class="nd-icon" t-att-aria-label="'移除 '+r.id" t-att-disabled="this.busy()" t-on-click="() => this.removeHole(r.id)">×</button>
                         </div>
@@ -219,11 +229,17 @@
         <section class="nd-panel nd-stage">
             <t t-if="!this.showFiles()">
                 <t t-set="visual" t-value="this.displayMesh()"/>
-                <div class="nd-viewport">
+                <div class="nd-viewport" t-att-class="{'nd-drill-stage':this.drilling()}">
                     <div class="nd-viewport-head" t-if="this.mode()==='2d' &amp;&amp; this.board()">
                         <div class="nd-board-caption">
                             <b><t t-out="this.faceName(this.face())"/> · <t t-out="this.board().width.toFixed(1)"/> × <t t-out="this.board().height.toFixed(1)"/> mm</b>
                             <small t-if="this.tab()!=='holes'">查看孔位</small>
+                        </div>
+                    </div>
+                    <div class="nd-viewport-head" t-elif="this.drilling() &amp;&amp; this.holeGeometryReady(visual)" role="status">
+                        <div class="nd-board-caption nd-drill-caption">
+                            <b t-out="this.drillFace() ? this.faceName(this.drillFace()) : '点击板面定位'"/>
+                            <small t-if="this.drillNotice()" t-out="this.drillNotice()"/>
                         </div>
                     </div>
                     <div class="nd-three-host" t-att-hidden="this.mode()!=='3d' || !visual" t-ref="this.threeHost"/>
@@ -240,7 +256,12 @@
                             <small t-if="!doc.jobs.length">选择柜型和规格后点击「保存并预览柜体」</small>
                         </t>
                     </div>
-                    <div class="nd-vtools" t-if="visual"><button t-if="this.mode()==='3d'" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/><button t-on-click="this.fitView" t-out="this.mode()==='2d'?'适应板面':'复位视角'"/></div>
+                    <div class="nd-vtools" t-if="visual">
+                        <button t-if="this.drilling() &amp;&amp; this.holeGeometryReady(visual)" type="button" t-on-click="this.focusBoard"
+                                t-out="this.boardView()?'返回整柜':'正对板面'"/>
+                        <button t-if="this.mode()==='3d' &amp;&amp; !this.boardView()" t-on-click="() => this.opened.set(!this.opened())" t-out="this.opened()?'合上柜门':'打开柜门'"/>
+                        <button t-on-click="this.fitView" t-out="this.mode()==='2d'?'适应板面':'复位视角'"/>
+                    </div>
                 </div>
                 <div class="nd-foot">
                     <span><t t-if="visual"><b t-out="'AE '+this.kindName(visual.parameters.configuration.kind)"/> · 宽 <t t-out="visual.dimensions.width"/> / 高 <t t-out="visual.dimensions.height"/> / 深 <t t-out="visual.dimensions.depth"/> mm</t></span>

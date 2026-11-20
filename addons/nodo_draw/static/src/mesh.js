@@ -1,10 +1,48 @@
 /** Planar editor in CAD face coordinates (millimetres). */
 const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 const sub = (a, b) => a.map((value, index) => value - b[index]);
+const surfaces = new WeakMap();
 
 export function facePoint(h, face) {
     return [h.anchor==="center" ? face.width/2+h.u : h.anchor==="right" ? face.width-h.u : h.u,
         h.anchorV==="center" ? face.height/2+h.v : h.anchorV==="top" ? face.height-h.v : h.v];
+}
+
+export function faceSurface(mesh, face) {
+    if (!surfaces.has(mesh)) surfaces.set(mesh, new Map());
+    const cache = surfaces.get(mesh);
+    if (cache.has(face.id)) return cache.get(face.id);
+    const part = mesh.parts.find(item => item.id === face.part);
+    const projected = (part?.vertices ?? []).map(vertex => {
+        const delta = sub(vertex, face.origin);
+        const u = dot(delta, face.uAxis), v = dot(delta, face.vAxis);
+        return {uv: [u, v], depth: dot(delta, face.normal), key: `${Math.round(u*1000)}/${Math.round(v*1000)}`};
+    });
+    const triangles = [], edges = new Map();
+    for (const indices of part?.triangles ?? []) {
+        const [a,b,c] = indices.map(index => projected[index]);
+        if ([a,b,c].some(point => Math.abs(point.depth) > .02)) continue;
+        const [[ax,ay],[bx,by],[cx,cy]] = [a.uv,b.uv,c.uv];
+        if (Math.abs((bx-ax)*(cy-ay)-(by-ay)*(cx-ax)) < 1e-9) continue;
+        triangles.push([a.uv,b.uv,c.uv]);
+        for (const [start,end] of [[a,b],[b,c],[c,a]]) {
+            const key = start.key < end.key ? `${start.key}|${end.key}` : `${end.key}|${start.key}`;
+            if (!edges.has(key)) edges.set(key, {points:[start.uv,end.uv], count:0});
+            edges.get(key).count++;
+        }
+    }
+    const boundary = [...edges.values()].filter(edge => edge.count === 1).map(edge => edge.points);
+    const surface = {triangles, boundary};
+    cache.set(face.id, surface);
+    return surface;
+}
+
+export function containsMaterial(surface, [u,v]) {
+    const side = ([x1,y1], [x2,y2]) => (x2-x1)*(v-y1) - (y2-y1)*(u-x1);
+    return surface.triangles.some(([a,b,c]) => {
+        const areas = [side(a,b),side(b,c),side(c,a)];
+        return areas.every(area => area >= -1e-6) || areas.every(area => area <= 1e-6);
+    });
 }
 
 export class FaceCanvas {
@@ -51,34 +89,16 @@ export class FaceCanvas {
         if (cached?.mesh === this.mesh && cached.face === f && cached.x === x && cached.y === y && cached.scale === s) {
             return cached;
         }
-        const part=this.mesh.parts.find(p=>p.id===f.part);
-        const surface=new Path2D(), boundary=new Path2D(), edges=new Map();
-        let triangles=0;
-        if(part){
-            const projected=part.vertices.map(vertex=>{
-                const delta=sub(vertex,f.origin);
-                const u=dot(delta,f.uAxis), v=dot(delta,f.vAxis);
-                return {x:x+u*s,y:y-v*s,height:dot(delta,f.normal),
-                    key:Math.round(u*1000)+"/"+Math.round(v*1000)};
-            });
-            for(const indices of part.triangles){
-                const [a,b,c]=indices.map(i=>projected[i]);
-                if([a,b,c].some(p=>Math.abs(p.height)>.02))continue;
-                surface.moveTo(a.x,a.y);surface.lineTo(b.x,b.y);surface.lineTo(c.x,c.y);surface.closePath();
-                for (const [start,end] of [[a,b],[b,c],[c,a]]) {
-                    const key = start.key < end.key ? start.key+"|"+end.key : end.key+"|"+start.key;
-                    if (edges.has(key)) edges.get(key).count++;
-                    else edges.set(key,{start,end,count:1});
-                }
-                triangles++;
-            }
+        const surface=new Path2D(), boundary=new Path2D();
+        const geometry = faceSurface(this.mesh, f);
+        const pixel = ([u,v]) => [x+u*s,y-v*s];
+        for (const [a,b,c] of geometry.triangles) {
+            surface.moveTo(...pixel(a));surface.lineTo(...pixel(b));surface.lineTo(...pixel(c));surface.closePath();
         }
-        for (const {start,end,count} of edges.values()) {
-            if (count !== 1) continue;
-            boundary.moveTo(start.x,start.y);
-            boundary.lineTo(end.x,end.y);
+        for (const [start,end] of geometry.boundary) {
+            boundary.moveTo(...pixel(start));boundary.lineTo(...pixel(end));
         }
-        return this.projection = {mesh:this.mesh, face:f, x, y, scale:s, surface, boundary, triangles};
+        return this.projection = {mesh:this.mesh, face:f, x, y, scale:s, surface, boundary, triangles:geometry.triangles.length};
     }
     paintFace(w,h) {
         const ctx=this.context,f=this.mesh.faces.find(x=>x.id===this.display.face);

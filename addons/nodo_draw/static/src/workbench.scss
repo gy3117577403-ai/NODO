@@ -181,6 +181,8 @@
     .nd-hole-history,.nd-hole-row-actions,.nd-hole-actions{display:flex;align-items:center;gap:5px;}
     .nd-hole-history button,.nd-hole-basis button{font-size:12px;padding:4px 7px;}
     .nd-hole-history button:disabled,.nd-hole-actions button:disabled{cursor:default;}
+    .nd-drill-snap{margin-inline-start:auto;flex-direction:row;align-items:center;white-space:nowrap;}
+    .nd-drill-snap select{width:auto;appearance:auto;font-size:12px;padding:3px 4px;}
     .nd-hole-axis{display:grid;gap:4px;min-width:0;}
     .nd-hole-basis{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;}
     .nd-hole-basis select{appearance:auto;font-size:12px;padding:4px 3px;}
@@ -204,12 +206,14 @@
     .nd-viewport{position:relative;min-height:300px;flex:1;overflow:hidden;isolation:isolate;background-color:#edf3ef;background-image:radial-gradient(#95ad9f77 .8px,transparent .8px);background-size:17px 17px;}
     .nd-viewport-head{position:absolute;z-index:2;inset:13px 16px auto;pointer-events:none;}
     .nd-board-caption{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:#ffffffed;font-size:12px;}
+    .nd-drill-caption{max-width:100%;flex-wrap:wrap;}
     canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;}canvas:active{cursor:grabbing;}
     .nd-three-host,.ae-viewport{position:absolute;inset:0;}
     .ae-hole-overlay{position:absolute;inset:0;pointer-events:none;}
     .ae-hole-label{position:absolute;top:0;left:0;font-size:12px;color:#806027;}
     .ae-hole-label-center{font-size:22px;line-height:1;}
     .ae-hole-overlay.invalid .ae-hole-label{color:#a13530;}
+    .nd-drill-stage .ae-hole-label:not(.ae-hole-label-center){padding:2px 5px;border-radius:5px;background:#fff9ed;white-space:nowrap;}
     .ae-error{position:absolute;top:40%;left:8%;right:8%;text-align:center;color:#784617;}
     .nd-vtools{position:absolute;bottom:15px;right:14px;display:flex;gap:6px;}.nd-vtools button{font-size:12px;box-shadow:0 2px 5px #1d3c2410;}
     .nd-overlay,.nd-empty{text-align:center;color:var(--muted);padding:32px 12px;}.nd-overlay{position:absolute;inset:38% 14px auto;pointer-events:none;}.nd-overlay small{display:block;margin-top:6px;}

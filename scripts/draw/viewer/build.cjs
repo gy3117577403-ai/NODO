@@ -4,6 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const {execFileSync} = require("node:child_process");
 const {createRequire} = require("node:module");
+const extendViewer = require("./viewer_extension.cjs");
 const [, , checkout, packages] = process.argv;
 if (!checkout || !packages) throw Error("用法：node build.cjs 京能源码仓库 含node_modules的依赖目录");
 const revision = "cf8681fcf38e282f2fb2b8aa0c6a96ba5d96af24";
@@ -38,7 +39,8 @@ function readSource(file) {
     return data;
 }
 const sources = {name: "jingneng-release", setup(build) {
-    build.onResolve({filter: /^@jingneng\/(Viewer|coordinates|holePlacement)$/}, ({path: name}) => {
+    build.onResolve({filter: /^@nodo\/drill-pick$/}, () => ({path: path.join(__dirname, "drill_pick.js")}));
+    build.onResolve({filter: /^@jingneng\/(Viewer|coordinates|holePlacement|holeShape|HoleGizmo)$/}, ({path: name}) => {
         const file = name.slice("@jingneng/".length);
         return {path: "src/ae-cabinet/" + file + (file === "Viewer" ? ".tsx" : ".ts"), namespace: "ae"};
     });
@@ -48,9 +50,11 @@ const sources = {name: "jingneng-release", setup(build) {
         if (!file) throw Error("原版视口缺少引用 " + base);
         return {path: file, namespace: "ae"};
     });
-    build.onLoad({filter: /.*/, namespace: "ae"}, ({path: file}) => ({
-        contents: readSource(file), loader: path.extname(file).slice(1), resolveDir: deps,
-    }));
+    build.onLoad({filter: /.*/, namespace: "ae"}, ({path: file}) => {
+        const source = readSource(file);
+        return {contents: file === "src/ae-cabinet/Viewer.tsx" ? extendViewer(source) : source,
+            loader: path.extname(file).slice(1), resolveDir: deps};
+    });
 }};
 async function main() {
     const build = await local("esbuild").build({

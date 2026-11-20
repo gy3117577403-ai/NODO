@@ -4,9 +4,9 @@ import {useService} from "@web/core/utils/hooks";
 import {loadBundle} from "@web/core/assets";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
-import {FaceCanvas} from "./mesh";
+import {FaceCanvas, containsMaterial, faceSurface} from "./mesh";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
-import {holeCoordinate, holeDimensionsReady, holeRecord, sameHole, sameThickness} from "./hole_editing";
+import {conflictsWithPlate, holeCoordinate, holeDimensionsReady, holeRecord, linkedHole, openingAt, sameHole, sameThickness} from "./hole_editing";
 import {PartsPanel} from "./parts_panel";
 import {SheetSettings} from "./sheet_settings";
 
@@ -18,6 +18,8 @@ const fieldNumber=(v)=>v===""?null:Number(v);
 const defaultHole = face => ({type:"circle", face, u:95, v:110, diameter:18, width:40, height:24});
 const freshHoleDraft = face => ({values: defaultHole(face), editing: null, copiedFrom: null, active: false});
 const meshKind = mesh => mesh?.parameters?.configuration?.kind;
+const boardViews = {door:"front", door_right:"front", mount:"front", top:"top", bottom:"bottom", back:"rear", left:"left", right:"right"};
+const pendingHoleNotice = "请先确认或取消当前孔位。";
 const minPanel = 270;
 const maxPanel = 440;
 const noParts = [];
@@ -35,6 +37,13 @@ export class Workbench extends Component {
     holeDraft=signal(freshHoleDraft("door"));
     holeHistory=signal({undo: [], redo: []});
     holeBases=signal({});
+    drilling=signal(false);
+    drillFace=signal(null);
+    drillNotice=signal("");
+    drillSnap=signal(1);
+    boardView=signal(null);
+    cameraRestore=signal(null);
+    inspectedPart=signal(null);
     batch=signal(null); sheet=signal(null); showFiles=signal(false);
     archiveMode=signal("drawing");
     archiveMenu=signal(null);
@@ -62,6 +71,7 @@ export class Workbench extends Component {
         this.tabs=[["cabinet","规格"],["materials","材料"],["parts","零件"],["holes","孔位"]];
         this.assemblyReturn = "cabinet";
         this.focusSequence = 0;
+        this.cameraSequence = 0;
         this.views=[["top","俯视"],["left","左视"],["door","正视"],["right","右视"],["back","后视"],["bottom","仰视"]];
         this.downloads=[["bundle","整套图包"],["step","整柜 STEP"],["bom","零件清单"],["holes","孔位表"]];
         useSetupAction({beforeLeave:()=>!this.dirty()||window.confirm("离开并放弃未保存的设计修改？")});
@@ -86,7 +96,7 @@ export class Workbench extends Component {
         useEffect(()=>{
             const host = this.threeHost();
             if (!host || this.viewerError()) return;
-            const view = window.nodoDrawAE0573.mount(host, point => this.selectPoint(point, true));
+            const view = window.nodoDrawAE0573.mount(host);
             this.threeView = view;
             untrack(() => this.updateThree());
             return () => { this.threeView = null; view.dispose(); };
@@ -124,11 +134,28 @@ export class Workbench extends Component {
     }
     updateThree(){
         const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
-        const parts = this.tab() === "parts" ? {
+        const boardView = this.boardView(), drillFace = this.drillFace();
+        let parts = this.tab() === "parts" ? {
             selected: this.selectedParts(), hidden: this.hiddenParts(), focus: this.partFocus(),
             pick: id => this.selectParts([id]), clear: () => this.selectParts(noParts),
-        } : undefined;
-        this.threeView?.update(mesh, open, paused, reset, parts, paused ? undefined : this.holeOverlay(mesh));
+        } : {
+            selected: this.inspectedPart() ? [this.inspectedPart()] : noParts,
+            pick: id => this.inspectedPart.set(id), clear: () => this.inspectedPart.set(null),
+        };
+        const overlay = paused ? null : this.holeOverlay(mesh);
+        const drill = !paused && this.drilling() && !this.busy() && this.holeGeometryReady(mesh) ? {
+            face:drillFace, snap:this.drillSnap(),
+            pick:(plane, surface, obstructed) => this.pickDrill(plane, surface, obstructed),
+            move:(u,v) => this.moveDrill(u,v), end:() => this.endHoleInput(),
+            edit:id => this.pickExistingHole(id),
+        } : null;
+        if (this.drilling()) {
+            const part = this.board(drillFace)?.part;
+            parts = {selected:part ? [part] : noParts, hidden:boardView && part
+                ? mesh.parts.filter(item => item.id !== part).map(item => item.id) : noParts};
+        }
+        this.threeView?.update(mesh, !boardView && open, paused, reset, parts, overlay, drill,
+            {view:boardView ? boardViews[boardView.face] : "iso", restore:this.cameraRestore()});
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
     selectParts(ids, locate = false) {
@@ -142,6 +169,7 @@ export class Workbench extends Component {
             ? hidden.filter(id => !ids.includes(id)) : [...new Set([...hidden, ...ids])]);
     }
     resetParts() {
+        this.inspectedPart.set(null);
         this.selectedParts.set(noParts);
         this.hiddenParts.set(noParts);
         this.partFocus.set(null);
@@ -208,6 +236,8 @@ export class Workbench extends Component {
     }
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
+        this.leaveDrilling();
+        this.cameraRestore.set(null);
         this.resetDraftPreview();
         this.resetParts();
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
@@ -286,7 +316,8 @@ export class Workbench extends Component {
         if (!snapshot?.kind || this.showFiles() || this.draftPreview() || this.displayMesh()) return;
         if (this.dims.some(([key]) => snapshot[key] === null)) return;
         const scope = this.previewScope();
-        if (scope === "design" && snapshot.kind === this.doc().settings.kind) return;
+        if (scope === "design" && snapshot.kind === this.doc().settings.kind &&
+                this.doc().jobs.some(job => job.state !== "failed")) return;
         const id = this.doc().id;
         const expected = this.localEdit;
         const request = this.draftPreviewAbort = new AbortController();
@@ -323,18 +354,64 @@ export class Workbench extends Component {
         if (!signal.aborted) this.draftPreview.set({...this.draftPreview(), error:error.data?.message || error.message});
     }
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
-    selectTab(id) {
+    selectTab(id, in3d = false) {
         const previous = this.previewScope();
+        if (id !== "holes" || !in3d) this.leaveDrilling();
         this.partFocus.set(null);
         this.tab.set(id);
         this.showFiles.set(false);
         this.panelHidden.set(false);
-        if (id === "holes") this.mode.set("2d");
+        if (id === "holes") this.mode.set(in3d ? "3d" : "2d");
         else if (id !== "materials") this.mode.set("3d");
         if (previous !== this.previewScope()) {
             this.resetDraftPreview();
             this.ensureDraftPreview();
         }
+    }
+    showThree() {
+        this.leaveDrilling();
+        this.mode.set("3d");
+    }
+    startDrilling() {
+        if (this.drilling()) return;
+        this.selectTab("holes", true);
+        this.drilling.set(true);
+        this.drillFace.set(this.holeDraft().active ? this.face() : null);
+    }
+    leaveDrilling() {
+        if (!this.drilling()) return;
+        this.returnToCabinet();
+        this.drilling.set(false);
+        this.drillFace.set(null);
+        this.drillNotice.set("");
+        this.endHoleInput();
+    }
+    selectBoard(id) {
+        if (this.drilling()) {
+            if (this.boardView()?.face !== id) this.returnToCabinet();
+            this.drillFace.set(id);
+            this.drillNotice.set("");
+        }
+        this.setFace(id);
+    }
+    focusBoard() {
+        if (this.boardView()) {
+            this.returnToCabinet();
+            return;
+        }
+        if (!this.holeGeometryReady() || !this.board()) return;
+        this.selectBoard(this.face());
+        this.boardView.set({face:this.face(), original:this.threeView?.camera()});
+        this.cameraRestore.set(null);
+        this.viewReset.set(this.viewReset()+1);
+    }
+    returnToCabinet() {
+        const view = this.boardView();
+        if (!view) return;
+        this.boardView.set(null);
+        const reset = this.viewReset()+1;
+        if (view.original) this.cameraRestore.set({id:++this.cameraSequence, camera:{...view.original, view:"iso", reset}});
+        this.viewReset.set(reset);
     }
     assemblyOpen() { return !this.showFiles() && this.tab() === "assembly"; }
     openAssembly() {
@@ -367,6 +444,15 @@ export class Workbench extends Component {
     }
     async apply(operation){
         if(this.busy())return;
+        const pending = this.holeDraft().active ? this.face() :
+            [...this.holeDrafts].find(([face,draft]) => face !== this.face() && draft.active)?.[0];
+        if (pending) {
+            if (this.tab() !== "holes" || this.showFiles()) this.selectTab("holes", this.mode() === "3d");
+            this.selectBoard(pending);
+            if (this.drilling()) this.drillNotice.set(pendingHoleNotice);
+            else this.issue.set(pendingHoleNotice);
+            return;
+        }
         this.busy.set(true);this.issue.set("");
         const doc=this.doc(), epoch=this.epoch;
         try{
@@ -431,6 +517,9 @@ export class Workbench extends Component {
     setHoleValue(axis, text) {
         this.setHole(axis, holeCoordinate(fieldNumber(text), this.board(), axis, this.holeBasis(axis), true), axis);
     }
+    setHoleSize(key, text) {
+        this.setHole(key, fieldNumber(text), key);
+    }
     centerHole(axis) {
         if (!this.holeGeometryReady()) return;
         const size = axis === "u" ? this.board().width : this.board().height;
@@ -440,26 +529,35 @@ export class Workbench extends Component {
         if (this.busy() || this.hole()[key] === value) return;
         this.recordHoleChange(() => this.changeHoleDraft({[key]:value}), input);
     }
-    changeHoleDraft(values, fromModel = false) {
+    changeHoleDraft(values) {
         const draft = this.holeDraft();
-        this.holeDraft.set({...draft, values:{...draft.values,...values}, active:true,
-            editing:fromModel ? null : draft.editing});
+        if (this.drilling() && !this.drillFace()) this.drillFace.set(this.face());
+        this.holeDraft.set({...draft, values:{...draft.values,...values}, active:true});
+        this.drillNotice.set("");
     }
+    attachmentHole(id) { return (this.displayMesh()?.parameters?.holes ?? []).some(hole => hole.id === id && linkedHole(hole)); }
     holeIssue() {
         if (!this.holeGeometryReady() || !this.board()) return "请先保存并预览当前规格。";
+        if (this.drilling() && !this.holeDraft().active) return "请在板面定位孔位。";
         const hole = this.hole(), editing = this.editing(), rows = this.boardHoles();
+        if (editing && this.attachmentHole(editing)) return "此孔属于附件，请在装配中调整。";
         if (!holeDimensionsReady(hole)) return "请输入完整的孔中心坐标和有效尺寸。";
         if (!editing && this.form().holes.length >= 300) return "单柜自定义孔已达 300 个。";
         const duplicate = rows.find(row => row.id !== editing && sameHole(row, hole));
         if (duplicate) return `与 ${duplicate.id} 位置、孔型和尺寸相同，请调整孔位。`;
-        const linked = (this.displayMesh().parameters.holes ?? []).filter(row => row.face === hole.face && row.ownerAccessory);
-        return window.nodoDrawAE0573?.checkHolePlacement?.(hole, this.board(), [...rows, ...linked], editing) ?? "";
+        const mesh = this.displayMesh(), board = this.board();
+        const linked = (mesh.parameters.holes ?? []).filter(row => row.face === hole.face && linkedHole(row));
+        const shapes = window.nodoDrawAE0573;
+        const placement = shapes?.checkHolePlacement?.(hole, board, [...rows, ...linked], editing);
+        if (placement) return placement;
+        if (shapes?.cutPoints && conflictsWithPlate(mesh, board, hole, shapes)) return "孔轮廓与原图开孔或板件边界相交。";
+        return "";
     }
     holeOverlay(mesh) {
         if (this.tab() !== "holes" || !this.holeGeometryReady(mesh) || !this.board()) return null;
         const draft = this.holeDraft();
         const active = draft.active && holeDimensionsReady(draft.values)
-            ? {...draft.values, id:draft.editing ?? "preview"} : null;
+            ? {...draft.values, id:draft.editing ?? ""} : null;
         return {holes:this.boardHoles(), active, editing:draft.editing, issue:active ? this.holeIssue() : ""};
     }
     setHoleRecords(holes) {
@@ -467,7 +565,7 @@ export class Workbench extends Component {
         this.issue.set("");
     }
     captureHoles() {
-        return {face:this.face(), draft:this.holeDraft(), drafts:new Map(this.holeDrafts), holes:this.form().holes};
+        return {face:this.face(), drillFace:this.drillFace(), draft:this.holeDraft(), drafts:new Map(this.holeDrafts), holes:this.form().holes};
     }
     endHoleInput() { this.holeInput = null; }
     resetHoleHistory() {
@@ -491,6 +589,11 @@ export class Workbench extends Component {
         const target = undoing ? entry.before : entry.after;
         const switchFace = target.face !== this.face();
         this.setHoleRecords(target.holes);
+        if (this.drilling()) {
+            if (switchFace || this.boardView()?.face !== target.face) this.returnToCabinet();
+            this.drillFace.set(target.drillFace ?? (target.draft.active ? target.face : null));
+            this.drillNotice.set("");
+        }
         this.face.set(target.face);
         this.holeDraft.set(target.draft);
         this.holeDrafts = new Map(target.drafts);
@@ -510,9 +613,10 @@ export class Workbench extends Component {
             }
             this.holeDraft.set({...draft, editing:null, copiedFrom:null, active:false});
         });
+        this.clearHoleNotice();
     }
     editHole(row, asCopy = false) {
-        if (this.busy()) return;
+        if (this.busy() || this.attachmentHole(row.id)) return;
         const select = () => {
             this.setFace(row.face);
             this.holeDraft.set({values:{...defaultHole(row.face), ...row}, active:true,
@@ -522,14 +626,82 @@ export class Workbench extends Component {
         else { this.endHoleInput(); select(); }
     }
     cancelHoleDraft() {
-        if (!this.busy()) this.recordHoleChange(() => this.holeDraft.set(freshHoleDraft(this.face())));
+        if (this.busy()) return;
+        this.recordHoleChange(() => this.holeDraft.set(freshHoleDraft(this.face())));
+        this.clearHoleNotice();
+    }
+    clearHoleNotice() {
+        this.drillNotice.set("");
+        if (this.issue() === pendingHoleNotice) this.issue.set("");
     }
     removeHole(id) {
-        if (this.busy()) return;
+        if (this.busy() || this.attachmentHole(id)) return;
         this.recordHoleChange(() => {
             this.setHoleRecords(this.form().holes.filter(hole => hole.id !== id));
             if (this.editing() === id) this.holeDraft.set(freshHoleDraft(this.face()));
         });
+    }
+    pickExistingHole(id) {
+        if (this.busy() || !this.drilling()) return false;
+        const row = this.form().holes.find(hole => hole.id === id);
+        if (!row) return false;
+        if (this.attachmentHole(id)) {
+            this.drillNotice.set("此处是附件关联孔位，请在装配中调整。");
+            return false;
+        }
+        if (this.holeDraft().active && this.editing() !== id) {
+            this.drillNotice.set(pendingHoleNotice);
+            return false;
+        }
+        this.selectBoard(row.face);
+        if (this.editing() !== id) this.editHole(row);
+        return true;
+    }
+    pickDrill(plane, surface, obstructed) {
+        if (!this.drilling() || this.busy() || !this.holeGeometryReady()) return;
+        if (!plane) {
+            this.drillNotice.set(this.drillFace() ? "请点当前板面，或从左侧切换加工面。" : "请选择可加工的板件主面。");
+            return;
+        }
+        const face = this.board(plane.face), mesh = this.displayMesh(), shapes = window.nodoDrawAE0573;
+        const reserved = openingAt(mesh, face, plane, shapes);
+        if (reserved) {
+            this.selectBoard(face.id);
+            this.drillNotice.set(reserved);
+            return;
+        }
+        const onFace = surface?.face === face.id;
+        if (obstructed && !onFace) {
+            this.drillNotice.set("当前板面被遮挡，可旋转柜体或正对板面查看。");
+            return;
+        }
+        const point = onFace ? surface : plane;
+        const contains = hole => hole.face === face.id && shapes.holeContains(hole, face, point.u, point.v);
+        const existing = this.form().holes.find(contains);
+        if (existing) {
+            this.pickExistingHole(existing.id);
+            return;
+        }
+        const material = faceSurface(mesh, face);
+        const oldCut = (mesh.parameters.holes ?? []).some(hole => !linkedHole(hole) && /^H\d+$/.test(hole.id) && contains(hole));
+        if (!onFace && !oldCut) {
+            if (material.triangles.length && !containsMaterial(material, [point.u, point.v])) {
+                this.selectBoard(face.id);
+                this.drillNotice.set("此处是原图开孔或空白区域，请在有板材的位置开孔。");
+            } else {
+                this.drillNotice.set("请选择可加工的板件主面。");
+            }
+            return;
+        }
+        this.recordHoleChange(() => {
+            this.selectBoard(face.id);
+            this.changeHoleDraft({face:face.id, u:Number(point.u.toFixed(2)), v:Number(point.v.toFixed(2))});
+        });
+    }
+    moveDrill(u,v) {
+        if (!this.drilling() || this.busy() || !this.holeDraft().active || !this.holeGeometryReady() ||
+                !Number.isFinite(u) || !Number.isFinite(v) || (this.hole().u === u && this.hole().v === v)) return;
+        this.recordHoleChange(() => this.changeHoleDraft({u,v}), "3d-drag");
     }
     builds(){return (this.doc()?.jobs||[]).filter(j=>j.operation==="build");}
     selectedBuild() {
@@ -543,6 +715,7 @@ export class Workbench extends Component {
             state:reference.sheets.length ? "done" : "unavailable"};
     }
     openArchive() {
+        this.returnToCabinet();
         if (!this.selectedBuild()) {
             this.openReference();
             return;
@@ -553,6 +726,7 @@ export class Workbench extends Component {
         this.showFiles.set(true);
     }
     openReference(kind = this.form().kind || "single") {
+        this.returnToCabinet();
         this.referenceKind.set(kind);
         this.sheet.set(null);
         this.archiveMode.set("drawing");
@@ -604,15 +778,9 @@ export class Workbench extends Component {
         if (!start || start.id !== ev.pointerId || Math.hypot(ev.clientX-start.x, ev.clientY-start.y) > 5) return;
         const rect = ev.target.getBoundingClientRect();
         const point = this.faceView?.pick(ev.clientX - rect.left, ev.clientY - rect.top);
-        if (point) this.selectPoint(point, false);
-    }
-    selectPoint(point, fromModel){
-        if (this.busy() || !this.holeGeometryReady()) return;
-        this.selectTab("holes");
-        this.recordHoleChange(() => {
-            this.setFace(point.face);
-            this.changeHoleDraft(point, fromModel);
-        });
+        if (point && !this.busy() && this.holeGeometryReady()) {
+            this.recordHoleChange(() => this.changeHoleDraft(point));
+        }
     }
 }
 registry.category("actions").add("nodo_draw.workbench",Workbench);

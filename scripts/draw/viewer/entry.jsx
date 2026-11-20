@@ -2,35 +2,42 @@ import React from "react";
 import {createRoot} from "react-dom/client";
 import Viewer from "@jingneng/Viewer";
 import {locateFace} from "@jingneng/coordinates";
-export {checkHolePlacement} from "@jingneng/holePlacement";
+export {checkHolePlacement, holeContains} from "@jingneng/holePlacement";
+export {cutPoints, segmentsCross} from "@jingneng/holeShape";
 
 const empty = [];
 const noop = () => {};
 const display = {edges: true, grid: false, transparent: false, dimensions: false};
+const drillingDisplay = {...display, dimensions: true};
 
 // The released AE viewer owns its WebGL context, orbit controls, raycaster and
 // disposal. NODO owns the CAD model, hole form and the lifetime of this host.
-export function mount(host, selectFace) {
+export function mount(host) {
     const root = createRoot(host);
+    let camera = null;
+    const readCamera = value => { camera = value; };
     return {
-        update(model, open, paused, reset, parts, holePreview) {
+        camera() { return camera; },
+        update(model, open, paused, reset, parts, holePreview, drilling, orientation) {
             if (!model) {
                 root.render(null);
                 return;
             }
+            const drill = drilling && {
+                face: drilling.face,
+                pick: ({plane, surface, obstructed}) => drilling.pick(plane, surface && locateFace(surface, model.faces), obstructed),
+            };
             root.render(<Viewer model={model} angle={open ? 70 : 0} explode={0}
-                view="iso" reset={reset} paused={paused} selected={parts?.selected[0] ?? ""}
+                view={orientation?.view ?? "iso"} reset={reset} restoreRequest={orientation?.restore} onCamera={readCamera}
+                paused={paused} selected={parts?.selected[0] ?? ""}
                 hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}
-                display={display} holeMode={false} holeOverlay={!!holePreview}
+                display={drill ? drillingDisplay : display} drill={drill}
+                snapStep={drilling?.snap} holeMode={!!drill} holeOverlay={!!holePreview}
                 holes={holePreview?.holes ?? empty} activeHole={holePreview?.active ?? null}
                 editing={holePreview?.editing ?? null} holeIssue={holePreview?.issue ?? null}
-                onHoleMove={noop} onHoleMoveEnd={noop}
-                onClearSelection={parts?.clear}
-                onEditHole={() => false} onPick={hit => {
-                    if (parts) return parts.pick(hit.id);
-                    const location = locateFace(hit, model.faces);
-                    if (location) selectFace(location);
-                }} />);
+                onHoleMove={drilling?.move ?? noop} onHoleMoveEnd={drilling?.end ?? noop}
+                onClearSelection={parts?.clear} onEditHole={drilling?.edit ?? (() => false)}
+                onPick={hit => parts?.pick?.(hit.id)} />);
         },
         dispose() {
             root.unmount();

@@ -19,7 +19,7 @@ const near = (a, b, tolerance) => assert.ok(Math.abs(a - b) <= tolerance, a + " 
 
 // Independent pinhole projection of a CAD face point into the original ISO view.
 // Round to an actual browser pixel, then intersect its ray with the known plane.
-function target(model, face, box) {
+function target(model, face, box, uv = [face.width*.37, face.height*.65], doorAngle = 0) {
     const all = model.parts.map(p => p.bounds);
     const lo = [0,1,2].map(i => Math.min(...all.map(b => b[0][i])));
     const hi = [0,1,2].map(i => Math.max(...all.map(b => b[1][i])));
@@ -32,13 +32,39 @@ function target(model, face, box) {
         distance = Math.max(distance, Math.abs(dot(v,right))/tanH + dot(v,dir), Math.abs(dot(v,up))/tanV + dot(v,dir));
     }
     const camera = plus(center,dir,distance * 1.2);
-    const aim = plus(plus(face.origin,face.uAxis,face.width*.37),face.vAxis,face.height*.65);
+    let aim = plus(plus(face.origin,face.uAxis,uv[0]),face.vAxis,uv[1]);
+    let normal = face.normal, uAxis = face.uAxis, vAxis = face.vAxis, origin = face.origin;
+    const group = model.parts.find(part => part.id === face.part).group;
+    if (doorAngle && ["door", "door_right"].includes(group)) {
+        const pivot = [...model.hinge], handedness = group === "door_right" ? 1 : -1;
+        if (handedness > 0) pivot[0] = model.dimensions.width - pivot[0];
+        const angle = handedness*doorAngle*Math.PI/180, c = Math.cos(angle), s = Math.sin(angle);
+        const rotate = ([x,y,z]) => [c*x-s*y,s*x+c*y,z];
+        const swing = point => plus(pivot,rotate(sub(point,pivot)));
+        aim = swing(aim); origin = swing(origin); normal = rotate(normal);
+        uAxis = rotate(uAxis); vAxis = rotate(vAxis);
+    }
     const rel = sub(aim,camera), depth = -dot(rel,dir);
     const x = Math.round(box.x + box.width*(1+dot(rel,right)/(depth*tanH))/2);
     const y = Math.round(box.y + box.height*(1-dot(rel,up)/(depth*tanV))/2);
     const ray = plus(plus(dir.map(n=>-n),right,(2*(x-box.x)/box.width-1)*tanH),up,(1-2*(y-box.y)/box.height)*tanV);
-    const hit = plus(camera, ray, dot(sub(face.origin,camera),face.normal)/dot(ray,face.normal));
-    return {x,y,u:dot(sub(hit,face.origin),face.uAxis),v:dot(sub(hit,face.origin),face.vAxis)};
+    const hit = plus(camera, ray, dot(sub(origin,camera),normal)/dot(ray,normal));
+    return {x,y,u:dot(sub(hit,origin),uAxis),v:dot(sub(hit,origin),vAxis)};
+}
+
+async function drawWorkspace(page) {
+    const id = Number(await page.getByLabel("选择设计").inputValue());
+    const result = await page.request.post(new URL("/web/dataset/call_kw/nodo.draw.design/workspace",pageUrl).href,
+        {data:{jsonrpc:"2.0",method:"call",params:{model:"nodo.draw.design",method:"workspace",args:[[id]],kwargs:{}},id:1}});
+    const body = await result.json();
+    assert(body.result, body.error?.data?.message || "无法读取样例工作区");
+    return body.result;
+}
+
+async function latestMesh(page, workspace) {
+    const job = workspace.jobs.find(item => item.state === "done" && item.files?.includes("mesh"));
+    assert(job, "缺少已生成的样例模型");
+    return (await page.request.get(new URL(`/nodo/draw/file/${job.id}/mesh`,pageUrl).href)).json();
 }
 
 function faceSurface(model, id) {
@@ -74,25 +100,18 @@ async function examine(context, code, id) {
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     try {
-        const waitForModel = () => page.waitForResponse(async response => {
-            if (!meshResponse(response)) return false;
-            if (!pickOnly) return true;
-            const {parameters} = await response.json();
-            return !parameters.accessories.length && !parameters.holes.length;
-        }, {timeout:75000});
-        let current = waitForModel();
         await page.goto(pageUrl);
         if (code === "AE-202") {
-            await current;
-            current = waitForModel();
             await page.getByLabel("选择设计").selectOption({label:"AE-202 · 双门配电箱"});
+            await page.getByLabel("选择设计").locator("option:checked").filter({hasText:"AE-202"}).waitFor({state:"attached"});
         }
-        const initial = await meshFrom(page, await current);
-        if (!pickOnly) await page.getByRole("button",{name:"装配",exact:true}).click();
+        const initial = await latestMesh(page,await drawWorkspace(page));
+        await page.getByRole("button",{name:"三维开孔",exact:true}).click();
         const face = initial.faces.find(f => f.id === id);
         const canvas = page.locator(glCanvas);
         await canvas.waitFor();
         await page.locator(".nd-overlay").waitFor({state:"detached"});
+        await page.getByRole("button",{name:"复位视角",exact:true}).click();
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const point = target(initial,face,await canvas.boundingBox());
         await page.mouse.click(point.x,point.y);
@@ -116,7 +135,7 @@ async function examine(context, code, id) {
         const prior = await page.locator("button[aria-label^='移除 H']").evaluateAll(buttons=>buttons.map(b=>b.getAttribute("aria-label")));
         assert.deepEqual(prior, ["移除 H1"],"只接受原始开发样例");
         assert(faceSurface(initial,id)(u,v), "新增孔位原先应有板材");
-        await page.getByRole("button",{name:"添加孔位"}).click();
+        await page.getByRole("button",{name:"确认孔位",exact:true}).click();
         await page.screenshot({path:path.join(dest,code+"-选面开孔.png")});
         try {
             const changed = await saveMesh(page);
@@ -218,4 +237,5 @@ async function main() {
         }
     } finally { await browser.close(); }
 }
-main().catch(e=>{console.error(e);process.exitCode=1;});
+module.exports = {target, faceSurface, near, drawWorkspace, latestMesh};
+if (require.main === module) main().catch(e=>{console.error(e);process.exitCode=1;});
