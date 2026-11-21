@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nodo_quote_list" model="ir.ui.view">
+        <field name="name">sale.order.nodo.quote.list</field>
+        <field name="model">sale.order</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <list string="单柜报价" delete="0" duplicate="0">
+                <field name="name" string="报价编号"/>
+                <field name="partner_id" string="客户"/>
+                <field name="user_id" string="销售"/>
+                <field name="nodo_quote_stage" widget="badge"/>
+                <field name="nodo_version_number" optional="show"/>
+                <field name="commitment_date" string="交付日期" optional="show"/>
+                <field name="nodo_quote_ready" column_invisible="1"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_total" string="订单含税总额" invisible="not nodo_quote_ready"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="nodo_quote_form" model="ir.ui.view">
+        <field name="name">sale.order.nodo.quote.form</field>
+        <field name="model">sale.order</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <form string="单柜报价" duplicate="0" delete="0">
+                <header>
+                    <button name="action_nodo_submit_costing" string="提交核算" type="object" class="oe_highlight"
+                            groups="nodo_base.group_role_sales,base.group_system" invisible="not id or nodo_quote_stage != 'selection'"/>
+                    <button name="action_nodo_calculate" string="计算报价" type="object" class="oe_highlight"
+                            groups="nodo_base.group_role_costing,base.group_system" invisible="nodo_quote_stage != 'costing'"/>
+                    <button name="action_nodo_submit_approval" string="提交批准" type="object"
+                            groups="nodo_base.group_role_sales,nodo_base.group_role_costing,base.group_system"
+                            invisible="nodo_quote_stage != 'costing' or not nodo_quote_ready"/>
+                    <button name="action_nodo_approve" string="批准报价" type="object" class="oe_highlight"
+                            groups="nodo_base.group_role_approval,base.group_system" invisible="nodo_quote_stage != 'approval'"/>
+                    <button name="action_nodo_quote_pdf" string="客户 PDF" type="object"
+                            invisible="nodo_quote_stage not in ('approved','sent','accepted','sale')"/>
+                    <button name="action_nodo_quote_excel" string="客户 Excel" type="object"
+                            invisible="nodo_quote_stage not in ('approved','sent','accepted','sale')"/>
+                    <button name="action_nodo_mark_sent" string="登记已发出" type="object"
+                            groups="nodo_base.group_role_sales,base.group_system" invisible="nodo_quote_stage != 'approved'"
+                            confirm="确认当前批准版本已实际发送给客户？"/>
+                    <button name="action_nodo_accept" string="登记客户确认" type="object" class="oe_highlight"
+                            groups="nodo_base.group_role_sales,base.group_system" invisible="nodo_quote_stage != 'sent'"/>
+                    <button name="action_confirm" string="确认销售订单" type="object" class="oe_highlight"
+                            groups="nodo_base.group_role_approval,base.group_system" invisible="nodo_quote_stage != 'accepted'"/>
+                    <button name="action_nodo_return_selection" string="撤回到选型" type="object"
+                            groups="nodo_base.group_role_sales,nodo_base.group_role_costing,nodo_base.group_role_approval,base.group_system"
+                            invisible="nodo_quote_stage != 'costing'"/>
+                    <button name="action_nodo_return_selection" string="退回并重新选型" type="object"
+                            groups="nodo_base.group_role_approval,base.group_system"
+                            invisible="nodo_quote_stage not in ('approval','approved','sent','accepted')"
+                            confirm="确认退回当前版本？历史版本会保留，新报价需重新核算及批准。"/>
+                    <field name="nodo_quote_stage" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <field name="nodo_contract" invisible="1"/>
+                    <field name="state" invisible="1"/>
+                    <field name="nodo_quote_ready" invisible="1"/>
+                    <field name="nodo_can_edit_selection" invisible="1"/>
+                    <field name="nodo_can_edit_costs" invisible="1"/>
+                    <field name="nodo_can_record_acceptance" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <div class="oe_title"><h1><field name="name" readonly="1"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="partner_id" string="客户" readonly="not nodo_can_edit_selection"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="id or not nodo_can_edit_selection"/>
+                            <field name="user_id" string="销售" readonly="1"/>
+                            <field name="client_order_ref" string="客户参考" readonly="not nodo_can_edit_selection"/>
+                        </group>
+                        <group>
+                            <field name="pricelist_id" readonly="not nodo_can_edit_selection"/>
+                            <field name="document_tax_mode" string="对客金额口径" readonly="not nodo_can_edit_selection"/>
+                            <field name="commitment_date" string="交付日期" readonly="not nodo_can_edit_selection"/>
+                            <field name="payment_term_id" readonly="not nodo_can_edit_selection"/>
+                            <field name="nodo_version_number" invisible="not nodo_quote_ready"/>
+                        </group>
+                    </group>
+                    <group string="客户确认" invisible="nodo_quote_stage not in ('sent','accepted','sale')">
+                        <field name="nodo_acceptance_note" placeholder="填写签回报价、邮件或其他客户确认记录。"
+                               readonly="not nodo_can_record_acceptance"/>
+                    </group>
+                    <notebook>
+                        <page name="nodo_selection" string="图纸与选型">
+                            <field name="nodo_drawing_ids" widget="many2many_binary"
+                                   readonly="not id or not nodo_can_edit_selection"/>
+                            <field name="nodo_selection_ids" nolabel="1" readonly="not nodo_can_edit_selection">
+                                <list editable="bottom" open_form_view="1">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"
+                                           domain="[('sale_ok','=',True),('product_tmpl_id.nodo_cabinet_series','!=',False)]"
+                                           options="{'no_create': True, 'no_create_edit': True}"/>
+                                    <field name="nodo_width"/>
+                                    <field name="nodo_depth"/>
+                                    <field name="nodo_height"/>
+                                    <field name="product_uom_qty" string="台数"/>
+                                    <field name="nodo_effective_door" optional="show"/>
+                                    <field name="nodo_material" optional="show"/>
+                                    <field name="nodo_thickness" optional="show"/>
+                                    <field name="nodo_coating" optional="hide"/>
+                                    <field name="nodo_color" optional="hide"/>
+                                    <field name="name" column_invisible="1"/>
+                                    <field name="product_uom_id" column_invisible="1"/>
+                                </list>
+                                <form string="单柜配置">
+                                    <group>
+                                        <group>
+                                            <field name="product_id"
+                                                   domain="[('sale_ok','=',True),('product_tmpl_id.nodo_cabinet_series','!=',False)]"
+                                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                                            <field name="nodo_cabinet_series"/>
+                                            <field name="nodo_width"/>
+                                            <field name="nodo_depth"/>
+                                            <field name="nodo_height"/>
+                                            <field name="product_uom_qty" string="台数"/>
+                                            <field name="product_uom_id" string="单位" readonly="1"/>
+                                            <field name="tax_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                        </group>
+                                        <group>
+                                            <field name="nodo_door"/>
+                                            <field name="nodo_effective_door"/>
+                                            <field name="nodo_material"/>
+                                            <field name="nodo_thickness"/>
+                                            <field name="nodo_base_height"/>
+                                            <field name="nodo_coating"/>
+                                            <field name="nodo_color"/>
+                                            <field name="nodo_customer_name"/>
+                                            <field name="nodo_manual_remark"/>
+                                            <field name="nodo_remark" invisible="not nodo_manual_remark"/>
+                                            <field name="nodo_generated_remark" invisible="nodo_manual_remark or not nodo_generated_remark"/>
+                                        </group>
+                                    </group>
+                                    <group string="柜体附件">
+                                        <field name="nodo_attachments" nolabel="1">
+                                            <list editable="bottom">
+                                                <field name="product_id" options="{'no_create': True, 'no_create_edit': True}"/>
+                                                <field name="quantity"/>
+                                                <field name="selected"/>
+                                                <field name="model_code"/>
+                                                <field name="actual_dimensions"/>
+                                            </list>
+                                        </field>
+                                    </group>
+                                </form>
+                            </field>
+                        </page>
+                        <page name="nodo_costs" string="报价与成本"
+                              groups="nodo_base.group_role_costing,nodo_base.group_role_approval,base.group_system">
+                            <group string="材料与计价参数">
+                                <field name="nodo_carbon_price" readonly="not nodo_can_edit_costs"/>
+                                <field name="nodo_galvanized_price" readonly="not nodo_can_edit_costs"/>
+                                <field name="nodo_stainless_304_price" readonly="not nodo_can_edit_costs"/>
+                                <field name="nodo_stainless_316_price" readonly="not nodo_can_edit_costs"/>
+                                <field name="nodo_waste_factor" readonly="not nodo_can_edit_costs"/>
+                            </group>
+                            <field name="nodo_cost_line_ids" readonly="not nodo_can_edit_costs" nolabel="1">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="nodo_specification"/>
+                                    <field name="nodo_coefficient"/>
+                                    <field name="nodo_freight_mode"/>
+                                    <field name="nodo_freight" readonly="nodo_freight_mode != 'MANUAL'"/>
+                                    <field name="nodo_quote_freight_mode"/>
+                                    <field name="nodo_quote_freight" readonly="nodo_quote_freight_mode != 'MANUAL'"/>
+                                </list>
+                            </field>
+                            <field name="nodo_quote_versions" readonly="1" nolabel="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="calculated_by"/>
+                                    <field name="create_date"/>
+                                    <field name="approved_by"/>
+                                    <field name="approved_at"/>
+                                    <field name="sent_at"/>
+                                    <field name="accepted_at"/>
+                                </list>
+                                <form string="报价版本">
+                                    <group>
+                                        <group><field name="name"/><field name="calculated_by"/><field name="create_date"/></group>
+                                        <group><field name="approved_by"/><field name="approved_at"/>
+                                            <field name="sent_by"/><field name="sent_at"/>
+                                            <field name="accepted_by"/><field name="accepted_at"/>
+                                            <field name="acceptance_note"/>
+                                        </group>
+                                    </group>
+                                    <field name="cost_summary" nolabel="1"/>
+                                </form>
+                            </field>
+                        </page>
+                        <page name="nodo_price_lines" string="报价明细" invisible="not nodo_quote_ready">
+                            <field name="order_line" readonly="1" nolabel="1">
+                                <list>
+                                    <field name="product_id"/>
+                                    <field name="nodo_customer_name" optional="hide"/>
+                                    <field name="nodo_specification"/>
+                                    <field name="product_uom_qty" string="台数"/>
+                                    <field name="product_uom_id" string="单位"/>
+                                    <field name="price_unit" string="原报价单价"/>
+                                    <field name="price_subtotal" string="未税金额" column_invisible="parent.document_tax_mode == 'tax_included'"/>
+                                    <field name="price_total" string="含税金额" column_invisible="parent.document_tax_mode != 'tax_included'"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer">
+                                <field name="amount_untaxed" invisible="document_tax_mode == 'tax_included'"/>
+                                <field name="amount_total" invisible="document_tax_mode != 'tax_included'"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="nodo_sale_form_open_quote" model="ir.ui.view">
+        <field name="name">sale.order.nodo.quote.open</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="nodo_contract" invisible="1"/>
+                <button name="action_nodo_open_quote" string="打开 NODO 报价" type="object" invisible="not nodo_contract"/>
+            </xpath>
+            <xpath expr="//header/button[@id='quotation_send_primary']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@id='quotation_send']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@id='send_proforma_primary']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@id='send_proforma']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@id='action_confirm']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@name='action_confirm' and not(@id)]" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@name='action_preview_sale_order']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+            <xpath expr="//header/button[@name='action_cancel']" position="attributes">
+                <attribute name="invisible" add="nodo_contract" separator=" or "/>
+            </xpath>
+        </field>
+    </record>
+    <record id="action_nodo_quotes" model="ir.actions.act_window">
+        <field name="name">单柜报价</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('nodo_contract','=',True)]</field>
+        <field name="context">{'default_nodo_contract': True}</field>
+    </record>
+    <record id="action_nodo_quotes_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="nodo_quote_list"/>
+        <field name="act_window_id" ref="action_nodo_quotes"/>
+    </record>
+    <record id="action_nodo_quotes_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="nodo_quote_form"/>
+        <field name="act_window_id" ref="action_nodo_quotes"/>
+    </record>
+    <menuitem id="menu_nodo_contract" name="NODO Contract" sequence="25"
+              groups="nodo_base.group_role_sales,nodo_base.group_role_costing,nodo_base.group_role_approval,base.group_system"/>
+    <menuitem id="menu_nodo_quotes" name="单柜报价" parent="menu_nodo_contract" action="action_nodo_quotes"/>
+</odoo>

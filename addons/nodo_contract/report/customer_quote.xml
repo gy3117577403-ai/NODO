@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="nodo_sale_document_guard" inherit_id="sale.report_saleorder_document">
+        <xpath expr="//t[@t-call='web.external_layout']" position="before">
+            <t t-set="nodo_report_allowed" t-value="doc._nodo_check_native_report()"/>
+        </xpath>
+    </template>
+    <template id="customer_quote_pdf">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="order">
+                <t t-set="quote" t-value="order._nodo_customer_document()"/>
+                <div class="article" t-att-data-oe-model="order._name" t-att-data-oe-id="order.id"
+                     t-att-data-oe-lang="order.env.context.get('lang')">
+                    <div class="page">
+                        <style>
+                            .nodo-quote-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+                            .nodo-quote-table td, .nodo-quote-table th { border: 1px solid #64748b; padding: 5px; vertical-align: top; }
+                            .nodo-quote-table thead { display: table-header-group; }
+                            .nodo-quote-notes { white-space: pre-wrap; overflow-wrap: break-word; word-wrap: break-word; }
+                        </style>
+                        <h1>报价单</h1>
+                        <table class="nodo-quote-table mb-3">
+                            <tbody>
+                                <tr><th>编号</th><td><t t-out="quote['number']"/> / V<t t-out="quote['version']"/></td>
+                                    <th>日期</th><td t-out="quote['date']"/></tr>
+                                <tr><th>买方</th><td t-out="quote['buyer']"/><th>卖方</th><td t-out="quote['seller']"/></tr>
+                                <tr><th>付款条款</th><td t-out="quote['payment_terms']"/>
+                                    <th>交付日期</th><td t-out="quote['delivery']"/></tr>
+                            </tbody>
+                        </table>
+                        <p>金额口径 <t t-out="'人民币（含税）' if quote['tax_included'] else '人民币（未税）'"/></p>
+                        <table class="nodo-quote-table">
+                            <colgroup><col style="width:6%"/><col style="width:16%"/><col style="width:16%"/>
+                                <col style="width:6%"/><col style="width:6%"/><col style="width:12%"/>
+                                <col style="width:12%"/><col style="width:26%"/></colgroup>
+                            <thead><tr><th>序号</th><th>名称</th><th>规格型号（宽×深×高）</th>
+                                <th>数量</th><th>单位</th><th class="text-end">折后单价</th>
+                                <th class="text-end">折后总价</th><th>备注</th></tr></thead>
+                            <tbody>
+                                <tr t-foreach="quote['lines']" t-as="line">
+                                    <td t-out="line_index + 1"/><td t-out="line['name']"/><td t-out="line['specification']"/>
+                                    <td t-out="'%g' % line['quantity']"/><td t-out="line['unit']"/>
+                                    <td class="text-end" t-out="'{:,.2f}'.format(line['unit_price'])"/>
+                                    <td class="text-end" t-out="'{:,.2f}'.format(line['total'])"/>
+                                    <td class="nodo-quote-notes" t-out="line['remark']"/>
+                                </tr>
+                                <tr><th colspan="6">合计</th><th class="text-end" t-out="'{:,.2f}'.format(quote['total'])"/><td/></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+    <record id="action_customer_quote_pdf" model="ir.actions.report">
+        <field name="name">客户报价 PDF</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">nodo_contract.customer_quote_pdf</field>
+        <field name="report_file">nodo_contract.customer_quote_pdf</field>
+        <field name="print_report_name">'%s-V%s-客户报价' % (object.name, object.nodo_version_number)</field>
+    </record>
+</odoo>

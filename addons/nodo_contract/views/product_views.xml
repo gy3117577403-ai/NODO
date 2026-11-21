@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="nodo_product_quote_catalog" model="ir.ui.view">
+        <field name="name">product.template.nodo.quote.catalog</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="nodo_quote_catalog" string="原报价目录映射" groups="base.group_system">
+                    <group>
+                        <group string="柜体">
+                            <field name="nodo_cabinet_series"/>
+                            <field name="nodo_cabinet_model" invisible="not nodo_cabinet_series"/>
+                            <field name="nodo_cabinet_variant" invisible="not nodo_cabinet_series"/>
+                        </group>
+                        <group string="附件">
+                            <field name="nodo_quote_accessory_name"/>
+                            <field name="nodo_quote_accessory_category" invisible="not nodo_quote_accessory_name"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
