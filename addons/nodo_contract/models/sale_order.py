@@ -120,7 +120,7 @@ class SaleOrder(models.Model):
             if company not in self.env.companies.ids or (vals.get('user_id') and vals['user_id'] != self.env.uid):
                 raise AccessError('只能在有权操作的公司创建本人的报价。')
             prepared = {**vals, 'nodo_contract': True, 'state': 'draft', 'user_id': self.env.uid,
-                        'company_id': company, 'require_signature': False, 'require_payment': False}
+                        'company_id': company, 'require_signature': False, 'prepayment_percent': 0}
             records += super(SaleOrder, clean).create(prepared).with_env(self.env)
         return records
 

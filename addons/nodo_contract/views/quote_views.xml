@@ -87,8 +87,8 @@
                         <page name="nodo_selection" string="图纸与选型">
                             <field name="nodo_drawing_ids" widget="many2many_binary"
                                    readonly="not id or not nodo_can_edit_selection"/>
-                            <field name="nodo_selection_ids" nolabel="1" readonly="not nodo_can_edit_selection">
-                                <list editable="bottom" open_form_view="1">
+                            <field name="nodo_selection_ids" nolabel="1" add-label="添加柜体" readonly="not nodo_can_edit_selection">
+                                <list>
                                     <field name="sequence" widget="handle"/>
                                     <field name="product_id"
                                            domain="[('sale_ok','=',True),('product_tmpl_id.nodo_cabinet_series','!=',False)]"
@@ -117,6 +117,7 @@
                                             <field name="nodo_height"/>
                                             <field name="product_uom_qty" string="台数"/>
                                             <field name="product_uom_id" string="单位" readonly="1"/>
+                                            <field name="tax_country_id" invisible="1"/>
                                             <field name="tax_ids" widget="many2many_tags" options="{'no_create': True}"/>
                                         </group>
                                         <group>

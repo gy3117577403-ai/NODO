@@ -57,7 +57,6 @@
         <field name="model">sale.order</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">nodo_contract.customer_quote_pdf</field>
-        <field name="report_file">nodo_contract.customer_quote_pdf</field>
         <field name="print_report_name">'%s-V%s-客户报价' % (object.name, object.nodo_version_number)</field>
     </record>
 </odoo>
