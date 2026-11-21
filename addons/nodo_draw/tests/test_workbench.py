@@ -1,5 +1,6 @@
 import copy
 import hashlib
+import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -44,6 +45,69 @@ class TestDrawWorkbench(TransactionCase):
         design = self.model.browse(external.handoff_bom(self.raw)['design_id'])
         with self.assertRaises(AccessError):
             design.with_user(self.engineer).workspace()
+
+    def test_catalog_snapshots_exclude_pending_and_freeze_version(self):
+        catalog = self.env['nodo.draw.accessory']
+        old = catalog.search([('code', '=', 'T5-55')], limit=1)
+        pending = catalog.create(dict(company_id=self.env.company.id, code='PENDING-01', name='待核对型号', version=1,
+                                      category='安装与固定', state='pending', definition={**old.definition, 'code': 'PENDING-01'},
+                                      preview_key='pending-01-v1'))
+        catalog.create(dict(company_id=self.env.company.id, code=old.code, name=old.name, version=2,
+                            category=old.category, state='available', definition={**old.definition, 'version': 2},
+                            preview_key='fc-plate-t5-v2'))
+        cards = catalog.with_user(self.engineer).list_accessory_models()
+        self.assertEqual(next(card['state'] for card in cards if card['id'] == pending.id), 'pending')
+        handoff = self.model.with_user(self.sales).handoff_bom({**self.raw, 'source_version': 'catalog'})
+        updated = self.model.browse(handoff['design_id']).with_user(self.engineer)
+        self.assertEqual(updated.library['T5-55']['version'], 2)
+        self.assertEqual(self.design.library['T5-55']['version'], 1)
+        self.assertNotIn(pending.code, updated.library)
+        with self.assertRaises(AccessError):
+            catalog.with_user(self.operator).list_accessory_models()
+        with self.assertRaises(AccessError):
+            pending.with_user(self.engineer).write({'state': 'available'})
+
+    def test_alias_compatibility_and_multiple_positions(self):
+        library = copy.deepcopy(spec.LIBRARY)
+        library['T5-55'].update(aliases=['样例五孔板'], rules={'minThickness': 1.5, 'maxThickness': 2.5})
+        bom = spec.intake({**spec.SAMPLES[1], 'lines': [{'code': '样例五孔板', 'quantity': 2, 'face': 'door_right'}]})
+        settings = spec.initial(bom)
+        self.assertEqual(spec.match_row(settings, bom['lines'], library, 0), {'code': 'T5-55', 'face': 'door_right', 'issue': ''})
+        self.assertIn('缺少定位', spec.assemble(settings, bom['lines'], library)[0])
+        self.assertEqual(settings['instances'], [])
+        positions = {'a1n1': {'u': -45, 'v': 0}, 'a1n2': {'u': 52, 'v': 3}}
+        self.assertFalse(spec.assemble(settings, bom['lines'], library, positions))
+        self.assertEqual([part['u'] for part in settings['instances']], [-45, 52])
+        settings['thickness'] = {'door': 3}
+        self.assertIn('板厚', spec.match_row(settings, bom['lines'], library, 0)['issue'])
+        library['AE-SQ35']['aliases'] = ['样例五孔板']
+        self.assertIn('多个', spec.match_row(settings, bom['lines'], library, 0)['issue'])
+        settings['matches'] = {'0': {'code': 'AE-SQ35'}}
+        self.assertIn('柜型', spec.match_row(settings, bom['lines'], library, 0)['issue'])
+
+    def ready_assembly(self, design, settings, issues=None):
+        identifier = design.preview_assembly(design.edit_number, settings)
+        folder = self.env['nodo.draw.job'].browse(identifier)._folder()
+        folder.mkdir(exist_ok=True)
+        (folder / 'status.json').write_text(json.dumps({'state': 'done', 'files': {'mesh': 'mesh.json'}, 'issues': issues or []}), 'utf-8')
+        return identifier
+
+    def test_assembly_requires_checked_preview_with_identical_geometry(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
+                patch.object(workbench, 'online', return_value=True):
+            design = self.design
+            initial = copy.deepcopy(design.settings)
+            conflict = self.ready_assembly(design, initial, issues=['附件与板件干涉'])
+            with self.assertRaisesRegex(UserError, '校核通过'):
+                design.apply_design(1, initial, 'assemble', conflict)
+            self.assertEqual(design.settings, initial)
+            preview = self.ready_assembly(design, initial)
+            with self.assertRaisesRegex(UserError, '重新预览'):
+                design.apply_design(1, {**initial, 'width': 396}, 'assemble', preview)
+            design.apply_design(1, initial, 'assemble', preview)
+            with self.assertRaisesRegex(UserError, '当前参数'):
+                design.apply_design(design.edit_number, {**design.settings, 'width': 396}, 'generate')
+            self.assertTrue(design.workspace()['assembly_validated'])
 
     def test_assembly_is_per_cabinet_and_replayable(self):
         settings = spec.initial(spec.intake(self.raw))
@@ -189,7 +253,8 @@ class TestDrawWorkbench(TransactionCase):
         with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
                 patch.object(workbench, 'online', return_value=True):
             raw = {**self.design.settings, 'holes': [dict(id='H1', face='door', type='circle', u=95, v=110, diameter=18)]}
-            self.design.apply_design(self.design.edit_number, raw, 'assemble')
+            preview = self.ready_assembly(self.design, raw)
+            self.design.apply_design(self.design.edit_number, raw, 'assemble', preview)
             saved = self.design.settings
             self.assertEqual(len(saved['instances']), 2)
             preview_ids = {}
@@ -243,15 +308,17 @@ class TestDrawWorkbench(TransactionCase):
             settings = copy.deepcopy(self.design.settings)
             with self.assertRaises(UserError):
                 self.design.apply_design(1, settings, 'generate')
-            first = self.design.apply_design(1, settings, 'assemble')
-            same = self.design.apply_design(self.design.edit_number, self.design.settings, 'assemble')
+            preview = self.ready_assembly(self.design, settings)
+            first = self.design.apply_design(1, settings, 'assemble', preview)
+            repeat = self.ready_assembly(self.design, self.design.settings)
+            same = self.design.apply_design(self.design.edit_number, self.design.settings, 'assemble', repeat)
             self.assertEqual(first['job_id'],same['job_id'])
             with self.assertRaises(UserError):
                 self.design.apply_design(1,settings,'save')
             self.design.apply_design(self.design.edit_number,self.design.settings,'generate')
             status = self.design.workspace()
             self.assertEqual(len(status['jobs']),2)
-            self.assertEqual(len(list(Path(tmp).glob('*/request.json'))),2)
+            self.assertEqual(len(list(Path(tmp).glob('*/request.json'))),1)
             job = self.env['nodo.draw.job'].browse(status['jobs'][0]['id'])
             self.assertEqual(job.payload['quantity'],2)
             with patch.object(workbench,'DRAWING_FORMAT',workbench.DRAWING_FORMAT+1):

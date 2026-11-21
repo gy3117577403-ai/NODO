@@ -217,6 +217,12 @@
     .ae-error{position:absolute;top:40%;left:8%;right:8%;text-align:center;color:#784617;}
     .nd-vtools{position:absolute;bottom:15px;right:14px;display:flex;gap:6px;}.nd-vtools button{font-size:12px;box-shadow:0 2px 5px #1d3c2410;}
     .nd-explosion{position:relative;white-space:nowrap;}
+    .nd-accessory-choice{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;}
+    .nd-accessory-choice i{color:var(--muted);}
+    .nd-assembly-locations summary{cursor:pointer;color:var(--muted);font-size:12px;}
+    .nd-placement{margin-block:6px;}
+    .nd-assembly-actions{display:grid;gap:6px;padding:9px 10px;border-top:1px solid var(--stroke);}
+    .nd-assembly-error{color:#8a4530;white-space:pre-line;font-size:12px;}
     .nd-explosion-slider{position:absolute;inset-inline-end:0;inset-block-end:calc(100% + 6px);width:224px;max-width:calc(100vw - 34px);
         display:grid;gap:8px;padding:10px;border:1px solid var(--stroke);border-radius:10px;background:#fff;box-shadow:0 6px 20px #203a3324;}
     .nd-explosion-value,.nd-explosion-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;}

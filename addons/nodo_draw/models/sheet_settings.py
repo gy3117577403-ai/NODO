@@ -27,6 +27,12 @@ def for_editor(settings):
             **for_design(settings)}
 
 
+def panel_thickness(settings, part):
+    rule = SHEETS['parts'][part]
+    selection = for_design(settings)['thickness']
+    return selection.get('parts', {}).get(part, selection.get(rule['group'], rule['default']))
+
+
 def _entries(value, keys, message):
     if not isinstance(value, dict) or set(value) - set(keys):
         raise ValueError(message)

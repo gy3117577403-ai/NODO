@@ -17,6 +17,7 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   draw-start [refresh] 启动本机 CAD 计算进程；refresh 在空闲时重载工作进程
   seed-draw       在开发库准备 AE 单门、双门基础柜
+  seed-draw-catalog 在开发库登记待核对附件及预览
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
   check-staff-pilot 核对试点库的人员来源、档案关系和界面版本
@@ -24,11 +25,13 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   preview-staff-pilot <HTML>  核对架构图导入结果，回滚本次写入
   import-staff-pilot <HTML>  将架构图档案写入人员试点库
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
+  test nodo_draw -DrawBrowser  附加独立夹具公司的附件库浏览器和出图验收
   shell           进入 nodo_dev 的 odoo shell
 #>
 param(
     [Parameter(Position = 0)][string]$Command = 'help',
-    [Parameter(Position = 1)][string]$Module
+    [Parameter(Position = 1)][string]$Module,
+    [switch]$DrawBrowser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -222,6 +225,7 @@ switch ($Command) {
         Write-Host '已请求启动 CAD 服务'
     }
     'seed-draw' { Assert-Initialized; Invoke-OdooShellScript 'seed_draw_boms.py' }
+    'seed-draw-catalog' { Assert-Initialized; Invoke-OdooShellScript 'seed_draw_catalog.py' }
     'seed-users' {
         Assert-Initialized
         $out = Invoke-OdooShellScript 'seed_role_users.py'
@@ -296,6 +300,7 @@ switch ($Command) {
     'test' {
         Assert-ModuleName $Module
         Assert-Initialized
+        if ($DrawBrowser -and $Module -ne 'nodo_draw') { throw '-DrawBrowser 仅适用于 nodo_draw。' }
         Invoke-Compose up -d --wait db
         $testDb = 'nodo_test_' + (Get-Date -Format 'yyyyMMddHHmmss')
         Write-Host "在一次性测试库 $testDb 中测试 $Module ..."
@@ -305,6 +310,20 @@ switch ($Command) {
             if ($LASTEXITCODE -ne 0) { throw "创建测试库 $testDb 失败" }
             & docker compose --project-directory $Root -f $ComposeFile run --rm --no-deps odoo odoo -c $OdooConf -d $testDb -i $Module --test-tags "/$Module" --stop-after-init --log-level=test
             $code = $LASTEXITCODE
+            if ($DrawBrowser -and $code -eq 0) {
+                $browserPassword = New-Secret
+                Invoke-OdooShellScript 'seed_draw_browser.py' @{NODO_DRAW_BROWSER_PASSWORD = $browserPassword} $testDb
+                try {
+                    $env:NODO_DRAW_BROWSER_DB = $testDb
+                    $env:NODO_DRAW_BROWSER_PASSWORD = $browserPassword
+                    & node (Join-Path $Root 'scripts/draw/verify_accessory_library.cjs')
+                    $code = $LASTEXITCODE
+                }
+                finally {
+                    [Environment]::SetEnvironmentVariable('NODO_DRAW_BROWSER_DB', $null)
+                    [Environment]::SetEnvironmentVariable('NODO_DRAW_BROWSER_PASSWORD', $null)
+                }
+            }
         }
         finally {
             Write-Host "删除一次性测试库 $testDb ..."

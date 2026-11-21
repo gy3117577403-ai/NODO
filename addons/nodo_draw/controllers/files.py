@@ -20,6 +20,17 @@ def artifact_response(path, download_name):
 
 
 class DrawFiles(http.Controller):
+    @http.route('/nodo/draw/accessory/<int:model_id>/mesh', type='http', auth='user', methods=['GET'])
+    def accessory_mesh(self, model_id):
+        workbench.guard(request.env)
+        item = request.env['nodo.draw.accessory'].search([
+            ('id', '=', model_id), ('company_id', '=', request.env.company.id), ('state', '!=', 'retired'),
+        ], limit=1)
+        path = item._mesh_path() if item else None
+        if not path:
+            raise NotFound()
+        return artifact_response(path, f'{item.code}-V{item.version:02}.json')
+
     @http.route('/nodo/draw/file/<int:job_id>/<string:key>', type='http', auth='user', methods=['GET'])
     def artifact(self, job_id, key, **kwargs):
         job = request.env['nodo.draw.job'].browse(job_id).exists()

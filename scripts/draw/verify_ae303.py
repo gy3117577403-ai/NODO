@@ -15,6 +15,7 @@ from assembly_template import project_point
 from build_cabinet import check_assembly
 from cadgen.drawing_checks import validate_dxf_file
 from drawings import verify_roundtrip
+from sheet_parameters import thickness
 
 
 FILES = {
@@ -108,8 +109,8 @@ def verify_door(cut, door, lock, p, holes):
     size = [round(b-a,5) for a,b in zip(low,high)]
     require(size == [21.2,21.2] and not any(h[2] == 'door' for h in holes), '方锁带入了额外门板加工孔')
     center = [p['width'] - 55, p['height'] / 2]
-    depth = p['thickness']['door']
-    for y in (depth*.25, depth*.5, depth*.75):
+    panel_thickness = thickness(p, 'door')
+    for y in (panel_thickness*.25, panel_thickness*.5, panel_thickness*.75):
         require(not door.is_inside((center[0],y,center[1])) and lock.is_inside((center[0],y,center[1])), '方锁未正确穿过门板')
         for axis in (0,1):
             for sign in (-1,1):
@@ -213,7 +214,7 @@ def verify_bom(csv_rows, sheets, documents):
 
 def check(folder, run, temporary):
     receipt = json.loads((folder/'下载记录.json').read_bytes())
-    require(receipt['design']==4 and receipt['handoff']==2, '下载源不是 AE-303 交接版 2')
+    require(type(receipt['design']) is int and receipt['design'] > 0 and receipt['handoff']==2, '下载源不是 AE-303 交接版 2')
     request = json.loads((run.parent/'request.json').read_bytes())
     require(request['source']=='AE-303' and request['source_version']=='2' and request['quantity']==1, '工单与下载版本不符')
     with zipfile.ZipFile(folder/'工程图包.zip') as archive:

@@ -82,7 +82,7 @@ def edit(old, raw, lines, library):
         if not isinstance(choice, dict):
             raise ValueError('附件匹配格式无效')
         code, face = choice.get('code', ''), choice.get('face', '')
-        if (code and code not in library) or (face and face not in FACES):
+        if not isinstance(code, str) or not isinstance(face, str) or (code and code not in library) or (face and face not in FACES):
             raise ValueError('附件型号或安装面无效')
         new['matches'][key] = {'code': code, 'face': face}
     holes = raw.get('holes', [])
@@ -125,21 +125,32 @@ def edit(old, raw, lines, library):
             continue
         item = dict(item)
         position = requested.get(item['id'])
-        if position and library[item['code']]['kind'] not in ('base', 'canopy'):
-            for axis in ('u', 'v'):
-                item[axis] = number(position.get(axis), '附件中心偏移', -10000, 10000)
-            rotation = position.get('rotation', 0)
-            if rotation not in (0, 90, 180, 270):
-                raise ValueError('安装转角无效')
-            item['rotation'] = rotation
+        if position is not None and library[item['code']]['kind'] not in ('base', 'canopy'):
+            item.update(position_values(position))
         new['instances'].append(item)
     return new
+
+
+def position_values(position):
+    if not isinstance(position, dict):
+        raise ValueError('附件位置格式无效')
+    rotation = position.get('rotation', 0)
+    if type(rotation) is not int or rotation not in (0, 90, 180, 270):
+        raise ValueError('安装转角无效')
+    return {axis: number(position.get(axis), '附件中心偏移', -10000, 10000) for axis in ('u', 'v')} | {'rotation': rotation}
 
 
 def match_row(settings, lines, library, i):
     line = lines[i]
     choice = settings['matches'].get(str(i), {})
     code = choice.get('code') or line['code']
+    if code not in library and not choice.get('code'):
+        alias = code.strip().casefold()
+        candidates = [key for key, model in library.items() if any(name.strip().casefold() == alias for name in model.get('aliases', []))]
+        if len(candidates) > 1:
+            return dict(code=code, face='', issue='有多个匹配型号，请手动选择')
+        if candidates:
+            code = candidates[0]
     model = library.get(code)
     face = choice.get('face') or line['face'] or (model['face'] if model else '')
     issue = ''
@@ -149,15 +160,27 @@ def match_row(settings, lines, library, i):
         issue = '所选柜型与附件安装规则不符'
     elif face not in model.get('faces', [model['face']]) or (face == 'door_right' and settings['kind'] != 'double'):
         issue = '安装面与柜型不符'
+    else:
+        rules = model.get('rules', {})
+        low, high = rules.get('minThickness'), rules.get('maxThickness')
+        if low is not None or high is not None:
+            part = 'door' if face == 'door_right' else face if face in ('door', 'top', 'bottom', 'mount') else 'wrap'
+            thickness = sheet_settings.panel_thickness(settings, part)
+            if (low is not None and thickness < low) or (high is not None and thickness > high):
+                issue = f'安装面板厚 {thickness:g} mm 不在型号适用范围'
     return dict(code=code, face=face, issue=issue)
 
 
-def assemble(settings, lines, library):
+def assemble(settings, lines, library, positions=None):
+    positions = {} if positions is None else positions
+    if not isinstance(positions, dict):
+        raise ValueError('装配定位表格式无效')
     rows = [match_row(settings, lines, library, i) for i in range(len(lines))]
     totals = {}
     for i, row in enumerate(rows):
         totals[row['code']] = totals.get(row['code'], 0) + lines[i]['quantity']
-    instances = {a['id']: a for a in settings['instances']}
+    existing = {a['id']: a for a in settings['instances']}
+    instances = []
     issues = []
     for i, row in enumerate(rows):
         code = row['code']
@@ -169,13 +192,29 @@ def assemble(settings, lines, library):
         if issue:
             issues.append(f'第 {i + 1} 行 {code} · {issue}')
             continue
-        placement = library[code].get('placement', {})
+        model = library[code]
+        placement = model.get('placement', {})
+        spacing = placement.get('spacing')
+        fixed = model['kind'] not in ('base', 'canopy')
         for n in range(lines[i]['quantity']):
             ident = f'a{i+1}n{n+1}'
-            instances.setdefault(ident, dict(id=ident, row=i, code=code, face=row['face'],
-                                             u=placement.get('u', 0) + n*65,
-                                             v=placement.get('v', 0), rotation=0))
-    settings['instances'] = list(instances.values())
+            current = existing.get(ident)
+            supplied = positions.get(ident)
+            if supplied is not None and fixed:
+                location = position_values(supplied)
+            elif current and current['code'] == code and current['face'] == row['face']:
+                location = {key: current[key] for key in ('u', 'v', 'rotation')}
+            elif lines[i]['quantity'] == 1 or spacing:
+                location = {axis: placement.get(axis, 0) + n*(spacing or {}).get(axis, 0) for axis in ('u', 'v')}
+                location['rotation'] = 0
+            else:
+                issues.append(f'第 {i + 1} 行 {code} · 第 {n + 1} 件缺少定位，请填写横向和纵向坐标')
+                continue
+            instances.append(dict(id=ident, row=i, code=code, face=row['face'], **location))
+    if not issues:
+        if set(positions) - {item['id'] for item in instances}:
+            raise ValueError('装配定位包含不在当前匹配中的附件')
+        settings['instances'] = instances
     return issues
 
 
@@ -204,7 +243,7 @@ def parameters(settings, library, revision):
             definition['templateOpening'] = copy.deepcopy(opening)
             holes = []
         definition.update(code=item['code'], status='pending', holes=holes,
-                          rules={'faces': m.get('faces', [m['face']]), 'maxQuantity': m['maxQuantity']})
+                          rules={**m.get('rules', {}), 'faces': m.get('faces', [m['face']]), 'maxQuantity': m['maxQuantity']})
         if 'assetHash' in m:
             definition['assetPath'] = 'library/' + m['assetHash'] + '.step'
         p['accessories'].append({**{k: item[k] for k in ('id','face','u','v','rotation')},

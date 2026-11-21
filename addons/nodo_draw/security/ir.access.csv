@@ -5,3 +5,6 @@ design_company,技术设计所属公司,nodo.draw.design,,crud,"[('company_id','
 job_engineer,技术成果,nodo.draw.job,nodo_base.group_role_engineering,r,
 job_admin,技术成果管理,nodo.draw.job,base.group_system,r,
 job_company,技术成果所属公司,nodo.draw.job,,crud,"[('company_id','in',company_ids),'|',('preview_user_id','=',False),('preview_user_id','=',user.id)]"
+accessory_engineer,附件库查看,nodo.draw.accessory,nodo_base.group_role_engineering,r,
+accessory_admin,附件库管理查看,nodo.draw.accessory,base.group_system,r,
+accessory_company,附件库所属公司,nodo.draw.accessory,,crud,"[('company_id','in',company_ids)]"

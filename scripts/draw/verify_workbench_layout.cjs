@@ -449,7 +449,7 @@ async function checkParts(page) {
     await count("15 / 15 件").waitFor();
     assert.deepEqual(await region.locator("summary span").allTextContents(), ["钣金件", "结构五金"]);
     assert.deepEqual(await region.locator("summary small").allTextContents(), ["7 件", "8 件"]);
-    assert.equal(await region.getByText("附件库匹配").count(), 0);
+    assert.equal(await region.getByText("装配清单").count(), 0);
     const search = field(page, "搜索零件");
     const topCode = single.parts.find(part => part.id === "top").code;
     await search.fill(topCode.toLowerCase());
@@ -503,7 +503,7 @@ async function checkParts(page) {
     assert.equal(await region.count(), 0);
     assert.deepEqual(await assembly.locator(".nd-match > .nd-between strong").allTextContents(), ["T5-55 × 1", "EX-COVER × 1"]);
     assert.deepEqual([await field(page, "第1行安装面").inputValue(), await field(page, "第2行安装面").inputValue()], ["door", "top"]);
-    assert(await exact(page, "一键装配").isEnabled());
+    assert(await exact(page, "装配预览").isEnabled());
     await canvas.waitFor();
     assert((await assembly.boundingBox()).x > (await canvas.boundingBox()).x);
     await screenshot(page, "AE-101-独立装配");

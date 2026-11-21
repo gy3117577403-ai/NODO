@@ -6,6 +6,13 @@
     </record>
     <menuitem id="menu_root" name="技术工作台" sequence="45" groups="nodo_base.group_role_engineering,base.group_system"/>
     <menuitem id="menu_design" name="柜体设计" parent="menu_root" action="action_workbench" sequence="5"/>
+    <record id="action_accessory_library" model="ir.actions.client">
+        <field name="name">附件库</field>
+        <field name="tag">nodo_draw.accessory_library</field>
+        <field name="path">accessory-library</field>
+    </record>
+    <menuitem id="menu_accessory_library" name="附件库" parent="menu_root" action="action_accessory_library" sequence="10"/>
+    <function model="nodo.draw.accessory" name="_init_builtin_catalog"/>
     <record id="cron_dispatch" model="ir.cron">
         <field name="name">技术工作台 · 提交待处理设计</field>
         <field name="model_id" ref="model_nodo_draw_job"/>

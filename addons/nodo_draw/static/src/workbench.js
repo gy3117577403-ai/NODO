@@ -5,6 +5,7 @@ import {loadBundle} from "@web/core/assets";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas, containsMaterial, faceSurface} from "./mesh";
+import {AccessoryPicker} from "./accessory_library";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
 import {ExplosionControls} from "./explosion_controls";
 import {conflictsWithPlate, holeCoordinate, holeDimensionsReady, holeRecord, linkedHole, openingAt, sameHole, sameThickness} from "./hole_editing";
@@ -63,6 +64,8 @@ export class Workbench extends Component {
     viewerError=signal("");
     setup(){
         this.orm=useService("orm"); this.notification=useService("notification");
+        this.dialog=useService("dialog");
+        this.action=useService("action");
         this.drawingViews = new Map();
         this.holeDrafts = new Map();
         this.savedHoles = null;
@@ -278,7 +281,7 @@ export class Workbench extends Component {
         if(epoch!==this.epoch)return;
         this.doc.set(data);
         if (replace) {
-            const form = {...clone(data.settings), positions:{}};
+            const form = {...clone(data.settings), positions:{}, assembly_positions:{}};
             this.savedHoles = form.holes;
             this.form.set(form);
             this.localEdit = data.edit_number;
@@ -309,7 +312,10 @@ export class Workbench extends Component {
         }
     }
     dirty() { return this.settingsDirty() || !!this.form() && this.form().holes !== this.savedHoles; }
-    patch(p){this.form.set({...this.form(),...p});this.settingsDirty.set(true);this.issue.set("");}
+    patch(p){
+        if (this.draftPreview()?.assembly) this.resetDraftPreview();
+        this.form.set({...this.form(),...p});this.settingsDirty.set(true);this.issue.set("");
+    }
     resetDraftPreview() {
         clearTimeout(this.draftPreviewPoll);
         this.draftPreviewAbort?.abort();
@@ -362,7 +368,7 @@ export class Workbench extends Component {
             const mesh = await response.json();
             if (signal.aborted) return;
             if (meshKind(mesh) !== this.form().kind) throw Error("返回的模型与所选柜型不符，请重试。");
-            this.draftPreview.set({...this.draftPreview(), mesh, issues:job.issues});
+            this.draftPreview.set({...this.draftPreview(), mesh, issues:job.issues ?? [], jobId});
             return;
         }
         this.draftPreview.set({...this.draftPreview(), stage:job.stage});
@@ -449,6 +455,7 @@ export class Workbench extends Component {
         this.viewReset.set(reset);
     }
     assemblyOpen() { return !this.showFiles() && this.tab() === "assembly"; }
+    openAccessoryLibrary() { return this.action.doAction("nodo_draw.action_accessory_library"); }
     openAssembly() {
         if (this.assemblyOpen()) {
             const previous = this.assemblyReturn;
@@ -481,8 +488,7 @@ export class Workbench extends Component {
         event.preventDefault();
         this.setPanelWidth(this.panelWidth() + delta);
     }
-    async apply(operation){
-        if(this.busy())return;
+    focusPendingHole(){
         const pending = this.holeDraft().active ? this.face() :
             [...this.holeDrafts].find(([face,draft]) => face !== this.face() && draft.active)?.[0];
         if (pending) {
@@ -490,12 +496,18 @@ export class Workbench extends Component {
             this.selectBoard(pending);
             if (this.drilling()) this.drillNotice.set(pendingHoleNotice);
             else this.issue.set(pendingHoleNotice);
-            return;
+            return true;
         }
+        return false;
+    }
+    async apply(operation, previewId = null){
+        if(this.busy() || this.focusPendingHole())return;
         this.busy.set(true);this.issue.set("");
         const doc=this.doc(), epoch=this.epoch;
         try{
-            const out=await this.orm.call(MODEL,"apply_design",[[doc.id],this.localEdit,this.form(),operation]);
+            const args=[[doc.id],this.localEdit,this.form(),operation];
+            if (previewId) args.push(previewId);
+            const out=await this.orm.call(MODEL,"apply_design",args);
             if(epoch!==this.epoch)return;
             this.resetDraftPreview();
             await this.refresh(doc.id,epoch,true);
@@ -513,23 +525,81 @@ export class Workbench extends Component {
         }catch(e){if(epoch===this.epoch)this.issue.set(e.data?.message||e.message);}
         finally{if(epoch===this.epoch)this.busy.set(false);}
     }
+    async previewAssembly(){
+        if(this.busy() || this.focusPendingHole())return;
+        this.resetDraftPreview();
+        this.issue.set("");
+        this.busy.set(true);
+        const snapshot = this.form(), id = this.doc().id, epoch = this.epoch;
+        const request = this.draftPreviewAbort = new AbortController();
+        this.draftPreview.set({snapshot, scope:"design", assembly:true, stage:"等待计算"});
+        try {
+            const job = await this.orm.call(MODEL,"preview_assembly",[[id],this.localEdit,snapshot]);
+            await this.readDraftPreview(id,job,request.signal);
+        } catch(error) {
+            this.failDraftPreview(error,request.signal);
+        } finally {
+            if (epoch===this.epoch) this.busy.set(false);
+        }
+    }
+    assemblyPreview(){
+        const draft = this.draftPreview();
+        return draft?.assembly && draft.snapshot===this.form() ? draft : null;
+    }
+    confirmAssembly(){
+        const draft = this.assemblyPreview();
+        if (draft?.mesh && !draft.issues.length) return this.apply("assemble",draft.jobId);
+    }
+    closeAssemblyPreview(){
+        this.resetDraftPreview();
+        this.ensureDraftPreview();
+    }
+    chooseAccessory(i){
+        const doc = this.doc(), form = this.form(), row = this.rowInfo(i), line = doc.bom.lines[i];
+        this.dialog.add(AccessoryPicker,{
+            picker:{label:`${doc.name} · 第 ${i+1} 行 ${line.code} × ${line.quantity}`,kind:form.kind,code:row.code,
+                versions:Object.fromEntries(Object.entries(doc.library).map(([code,model])=>[code,model.version]))},
+            choose:item=>this.links(i,"code",item.code),
+        });
+    }
     links(i,k,val){
-        const f=this.form(),matches={...f.matches,[i]:{...f.matches[i],[k]:val}};
-        this.patch({matches});
+        const f=this.form(),choice={...f.matches[i],[k]:val};
+        if (k==="code" && this.rowInfo(i).code!==val) choice.face="";
+        const prefix = `a${i+1}n`;
+        const assembly_positions=Object.fromEntries(Object.entries(f.assembly_positions).filter(([key])=>!key.startsWith(prefix)));
+        this.patch({matches:{...f.matches,[i]:choice},assembly_positions});
     }
     rowInfo(i){
         const form=this.form(),line=this.doc().bom.lines[i],choice=form.matches[i]||{};
-        const code=choice.code||line.code,model=this.doc().library[code];
+        const library=this.doc().library;
+        let code=choice.code||line.code;
+        const alias=code.trim().toLowerCase();
+        const candidates=!Object.hasOwn(library,code) && !choice.code ? Object.entries(library).filter(([,model])=>model.aliases?.some(value=>value.trim().toLowerCase()===alias)) : [];
+        if (candidates.length===1) code=candidates[0][0];
+        const model=Object.hasOwn(library,code) ? library[code] : null;
         const face=choice.face||line.face||model?.face;
         const placed=form.instances.filter(a=>a.row===i && a.code===code&&a.face===face).length;
         const validFace=model && this.mountingFaces(model).includes(face);
         const wrongKind=model?.cabinetKinds && !model.cabinetKinds.includes(form.kind);
-        const status=!model?"待匹配":wrongKind?"柜型不符":!validFace?"待选安装面":placed===line.quantity?"已装配":"待装配";
+        const status=!model?(candidates.length>1?"有多个匹配":"待匹配"):wrongKind?"柜型不符":!validFace?"待选安装面":placed===line.quantity&&!this.dirty()?"已装配":"待装配";
         return {code,model,face,placed,validFace,status};
     }
+    assemblyPositions(i,row,line){
+        if (!row.validFace || row.status==="柜型不符" || !["step","lock"].includes(row.model.kind) || line.quantity>row.model.maxQuantity) return [];
+        const f=this.form(), placement=row.model.placement ?? {};
+        return Array.from({length:line.quantity},(_,n)=>{
+            const id=`a${i+1}n${n+1}`;
+            const saved=f.instances.find(item=>item.id===id && item.face===row.face && item.code===row.code);
+            const initial={id,rotation:0};
+            for (const axis of ["u","v"]) {
+                initial[axis]=line.quantity===1 || placement.spacing ? (placement[axis] ?? 0)+n*(placement.spacing?.[axis] ?? 0) : null;
+            }
+            return {...initial,...saved,...f.assembly_positions[id]};
+        });
+    }
     position(a,key,ev){
-        const positions={...this.form().positions},p={u:a.u,v:a.v,rotation:a.rotation,...positions[a.id]};
-        positions[a.id]={...p,[key]:fieldNumber(ev.target.value)};this.patch({positions});
+        const location={u:a.u,v:a.v,rotation:a.rotation,[key]:fieldNumber(ev.target.value)};
+        this.patch({assembly_positions:{...this.form().assembly_positions,[a.id]:location}});
     }
     setFace(value) {
         if (value === this.face()) return;
