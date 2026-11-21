@@ -6,75 +6,83 @@
         </main>
     </t>
     <t t-name="nodo_draw.AccessoryPicker">
-        <Dialog title="'从附件库选用'" size="'xl'" footer="false" withBodyPadding="false">
+        <Dialog title="'从附件库选用'" size="'xl'" contentClass="'nd-library-dialog'" footer="false" withBodyPadding="false">
+            <t t-set-slot="header">
+                <div class="nd-library-context">
+                    <h4 class="modal-title">从附件库选用</h4>
+                    <span t-out="this.props.picker.label"/>
+                </div>
+                <button type="button" class="btn-close" aria-label="关闭选型弹窗" t-on-click="this.props.close"/>
+            </t>
             <AccessoryCatalog picker="this.props.picker" choose="item => this.choose(item)"/>
         </Dialog>
     </t>
     <t t-name="nodo_draw.AccessoryCatalog">
         <div class="nd-library" t-att-class="{'nd-library-picker':!!this.props.picker}">
-            <div class="nd-library-bar">
-                <h1 t-if="!this.props.picker">附件库</h1>
-                <div t-else="" class="nd-library-context" t-out="this.props.picker.label"/>
-                <label class="nd-library-search"><i class="fa fa-search" aria-hidden="true"/>
+            <div class="nd-library-bar" role="search" aria-label="筛选附件">
+                <label class="nd-library-search">
+                    <i class="oi" data-icon="search" aria-hidden="true"/>
                     <input type="search" placeholder="搜索名称、型号或别名" aria-label="搜索附件库" t-att-value="this.filter()"
                            t-on-input="event => this.filter.set(event.target.value)"/>
                 </label>
-                <select aria-label="附件状态" t-on-change="event => this.state.set(event.target.value)">
+                <select aria-label="附件分类" t-att-value="this.category()" t-on-change="event => this.category.set(event.target.value)">
+                    <option value="">全部分类</option>
+                    <option t-foreach="this.categories()" t-as="name" t-key="name" t-att-value="name" t-out="name"/>
+                </select>
+                <select aria-label="附件状态" t-att-value="this.state()" t-on-change="event => this.state.set(event.target.value)">
                     <option value="">全部状态</option>
-                    <option value="available">可用于装配</option>
-                    <option value="pending">待工程核对</option>
+                    <option t-foreach="this.states()" t-as="status" t-key="status" t-att-value="status" t-out="this.stateName(status)"/>
                 </select>
             </div>
+            <t t-set="rows" t-value="this.filtered()"/>
+            <t t-set="selected" t-value="this.selected(rows)"/>
             <div t-if="this.error()" role="alert" class="nd-library-empty" t-out="this.error()"/>
             <div t-else="" class="nd-library-grid">
-                <nav class="nd-library-categories" aria-label="附件分类">
-                    <button type="button" t-att-aria-pressed="!this.category()?'true':'false'" t-on-click="() => this.category.set('')">全部</button>
-                    <button t-foreach="this.categories()" t-as="name" t-key="name" type="button" t-out="name"
-                            t-att-aria-pressed="this.category()===name?'true':'false'" t-on-click="() => this.category.set(name)"/>
-                </nav>
-                <t t-set="selected" t-value="this.selected()"/>
-                <div class="nd-library-list" aria-label="附件型号">
-                    <div t-if="!selected" class="nd-library-empty">没有符合条件的附件</div>
-                    <button t-foreach="this.filtered()" t-as="item" t-key="item.id" type="button" class="nd-library-item"
-                            t-att-aria-pressed="selected?.id===item.id?'true':'false'" t-on-click="() => this.select(item)">
-                        <strong t-out="item.name"/>
-                        <small><t t-out="item.code"/> · <t t-out="this.version(item)"/></small>
-                        <span class="nd-library-badge" t-att-class="{'nd-library-pending':item.state==='pending'}" t-out="this.stateName(item)"/>
-                    </button>
-                </div>
-                <section class="nd-library-detail" aria-label="附件详情" t-if="selected">
-                    <div class="nd-library-model-head">
-                        <div><h2 t-out="selected.name"/><small><t t-out="selected.code"/> · <t t-out="this.version(selected)"/></small></div>
-                        <div class="nd-library-tabs" aria-label="附件详情视图">
-                            <button type="button" t-att-aria-pressed="this.selectedTab()==='model'?'true':'false'" t-on-click="() => this.selectedTab.set('model')">三维模型</button>
-                            <button type="button" t-att-aria-pressed="this.selectedTab()==='rules'?'true':'false'" t-on-click="() => this.selectedTab.set('rules')">安装规则</button>
-                        </div>
-                    </div>
-                    <t t-if="this.selectedTab()==='model'">
-                        <t t-if="selected.mesh" t-key="selected.id">
-                            <AccessoryMesh src="selected.mesh" name="selected.name"/>
-                        </t>
-                        <div t-else="" class="nd-library-empty nd-library-view">此版本暂无三维预览</div>
-                    </t>
-                    <dl t-else="" class="nd-library-rules">
-                        <dt>尺寸方式</dt><dd t-out="selected.model_type"/>
-                        <dt>适用柜型</dt><dd t-out="this.cabinetKinds(selected)"/>
-                        <dt>安装面</dt><dd t-out="this.faceNames(selected)"/>
-                        <dt>板厚范围</dt><dd t-out="selected.min_thickness &amp;&amp; selected.max_thickness ? selected.min_thickness+'–'+selected.max_thickness+' mm' : '未录入'"/>
-                        <dt>每台上限</dt><dd t-out="selected.max_quantity || '未录入'"/>
-                        <dt>模型来源</dt><dd t-out="selected.source || '待核对'"/>
-                        <dt t-if="selected.evidence">安装依据</dt><dd t-if="selected.evidence" t-out="selected.evidence"/>
-                    </dl>
-                    <div class="nd-library-foot">
-                        <div class="nd-library-meta"><span t-out="selected.model_type"/><span t-out="this.faceNames(selected)"/></div>
-                        <t t-if="this.props.picker">
-                            <small t-if="this.restriction(selected)" class="nd-library-denied" role="status" t-out="this.restriction(selected)"/>
-                            <button type="button" class="nd-library-primary" t-att-disabled="!!this.restriction(selected)"
-                                    t-on-click="() => this.props.choose(selected)">使用此型号</button>
-                        </t>
-                        <span t-elif="selected.state==='pending'" class="nd-library-denied">待工程核对</span>
+                <section class="nd-library-index" aria-label="附件型号">
+                    <div class="nd-library-columns" aria-hidden="true"><span>型号</span><span>状态</span></div>
+                    <div class="nd-library-list" role="group" aria-label="型号列表">
+                        <button t-foreach="rows" t-as="item" t-key="item.id" type="button" class="nd-library-item"
+                                t-att-aria-pressed="selected?.id===item.id?'true':'false'" t-on-click="() => this.select(item)">
+                            <span class="nd-library-item-name">
+                                <strong t-out="item.name"/>
+                                <small><t t-out="item.code"/> · <t t-out="this.version(item)"/></small>
+                            </span>
+                            <t t-set="status" t-value="this.status(item)"/>
+                            <span t-attf-class="nd-library-badge nd-library-{{status}}" t-out="this.stateName(status)"/>
+                        </button>
                     </div>
                 </section>
+                <section class="nd-library-detail" aria-label="附件详情" t-if="selected">
+                    <div class="nd-library-model-head">
+                        <h2 t-out="selected.name"/>
+                        <small><t t-out="selected.code"/> · <t t-out="this.version(selected)"/></small>
+                    </div>
+                    <t t-if="selected.mesh" t-key="selected.id">
+                        <AccessoryMesh src="selected.mesh" name="selected.name"/>
+                    </t>
+                    <div t-else="" class="nd-library-empty nd-library-view">此版本暂无三维预览</div>
+                    <div class="nd-library-summary">
+                        <dl>
+                            <div><dt>适用柜型</dt><dd t-out="this.cabinetKinds(selected)"/></div>
+                            <div><dt t-out="selected.state==='pending'?'参考安装面':'安装面'"/><dd t-out="this.faceNames(selected)"/></div>
+                        </dl>
+                        <button type="button" class="nd-library-rule-toggle" t-att-aria-expanded="this.rulesOpen()?'true':'false'"
+                                t-on-click="() => this.rulesOpen.set(!this.rulesOpen())">详细规则</button>
+                    </div>
+                    <dl t-if="this.rulesOpen()" class="nd-library-rules" aria-label="详细安装规则">
+                        <div><dt>尺寸方式</dt><dd t-out="selected.model_type"/></div>
+                        <div><dt>板厚范围</dt><dd t-out="selected.min_thickness &amp;&amp; selected.max_thickness ? selected.min_thickness+'–'+selected.max_thickness+' mm' : '未录入'"/></div>
+                        <div><dt>每台上限</dt><dd t-out="selected.max_quantity || '未录入'"/></div>
+                        <div class="nd-library-rule-source"><dt>模型来源</dt><dd t-out="selected.source || '待核对'"/></div>
+                        <div class="nd-library-rule-source" t-if="selected.evidence"><dt>安装依据</dt><dd t-out="selected.evidence"/></div>
+                    </dl>
+                </section>
+                <div t-else="" class="nd-library-empty nd-library-splash" role="status">没有符合条件的附件</div>
+            </div>
+            <div class="nd-library-actions" t-if="this.props.picker">
+                <span class="nd-library-note" role="status" t-out="this.selectionNote(selected)"/>
+                <button type="button" class="nd-library-primary" t-att-disabled="!selected || !!this.restriction(selected)"
+                        t-on-click="() => this.props.choose(selected)">使用此型号</button>
             </div>
         </div>
     </t>
@@ -83,6 +91,7 @@
             <div class="nd-library-mesh" t-ref="this.host"/>
             <div t-if="this.loading()" class="nd-library-overlay" role="status">正在加载模型</div>
             <div t-elif="this.error()" class="nd-library-overlay" role="alert" t-out="this.error()"/>
+            <button t-else="" type="button" class="nd-library-reset" t-on-click="this.resetView">复位视角</button>
         </div>
     </t>
 </templates>

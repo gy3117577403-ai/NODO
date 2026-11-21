@@ -20,7 +20,7 @@ export function mount(host) {
     const readCamera = value => { camera = value; };
     return {
         camera() { return camera; },
-        update(model, open, paused, reset, {parts, holePreview, drilling, orientation, explode = 0} = {}) {
+        update(model, open, paused, reset, {parts, holePreview, drilling, orientation, explode = 0, catalogPreview = false} = {}) {
             if (!model) {
                 root.render(null);
                 return;
@@ -32,7 +32,7 @@ export function mount(host) {
             const drill = drilling && {
                 pick: ({plane, surface, obstructed}) => drilling.pick(plane, surface && locateFace(surface, model.faces), obstructed),
             };
-            root.render(<Viewer model={viewModel} angle={open ? 70 : 0} explode={explode}
+            root.render(<Viewer model={viewModel} angle={open ? 70 : 0} explode={explode} catalogPreview={catalogPreview}
                 view={orientation?.view ?? "iso"} reset={reset} restoreRequest={orientation?.restore} onCamera={readCamera}
                 paused={paused} selected={parts?.selected[0] ?? ""}
                 hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}

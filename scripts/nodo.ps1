@@ -26,12 +26,14 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   import-staff-pilot <HTML>  将架构图档案写入人员试点库
   test <模块>     在一次性测试库中安装模块并运行测试，结束后删除该测试库
   test nodo_draw -DrawBrowser  附加独立夹具公司的附件库浏览器和出图验收
+  test nodo_draw -DrawLayout <before|after>  附加附件库界面截图与选型验收
   shell           进入 nodo_dev 的 odoo shell
 #>
 param(
     [Parameter(Position = 0)][string]$Command = 'help',
     [Parameter(Position = 1)][string]$Module,
-    [switch]$DrawBrowser
+    [switch]$DrawBrowser,
+    [ValidateSet('before', 'after')][string]$DrawLayout
 )
 
 $ErrorActionPreference = 'Stop'
@@ -300,7 +302,7 @@ switch ($Command) {
     'test' {
         Assert-ModuleName $Module
         Assert-Initialized
-        if ($DrawBrowser -and $Module -ne 'nodo_draw') { throw '-DrawBrowser 仅适用于 nodo_draw。' }
+        if (($DrawBrowser -or $DrawLayout) -and $Module -ne 'nodo_draw') { throw '附件库浏览器验收仅适用于 nodo_draw。' }
         Invoke-Compose up -d --wait db
         $testDb = 'nodo_test_' + (Get-Date -Format 'yyyyMMddHHmmss')
         Write-Host "在一次性测试库 $testDb 中测试 $Module ..."
@@ -310,13 +312,13 @@ switch ($Command) {
             if ($LASTEXITCODE -ne 0) { throw "创建测试库 $testDb 失败" }
             & docker compose --project-directory $Root -f $ComposeFile run --rm --no-deps odoo odoo -c $OdooConf -d $testDb -i $Module --test-tags "/$Module" --stop-after-init --log-level=test
             $code = $LASTEXITCODE
-            if ($DrawBrowser -and $code -eq 0) {
+            if (($DrawBrowser -or $DrawLayout) -and $code -eq 0) {
                 $browserPassword = New-Secret
                 Invoke-OdooShellScript 'seed_draw_browser.py' @{NODO_DRAW_BROWSER_PASSWORD = $browserPassword} $testDb
                 try {
                     $env:NODO_DRAW_BROWSER_DB = $testDb
                     $env:NODO_DRAW_BROWSER_PASSWORD = $browserPassword
-                    & node (Join-Path $Root 'scripts/draw/verify_accessory_library.cjs')
+                    & node (Join-Path $Root 'scripts/draw/verify_accessory_library.cjs') $DrawLayout
                     $code = $LASTEXITCODE
                 }
                 finally {

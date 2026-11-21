@@ -556,8 +556,12 @@ export class Workbench extends Component {
     }
     chooseAccessory(i){
         const doc = this.doc(), form = this.form(), row = this.rowInfo(i), line = doc.bom.lines[i];
+        const face = row.validFace ? row.face : "";
+        const kind = form.kind === "double" ? "双开门" : "单开门";
+        const label = [`${doc.bom.source} ${kind}`, `第 ${i+1} 行 ${line.code} × ${line.quantity}`, this.faceName(face)]
+            .filter(Boolean).join(" · ");
         this.dialog.add(AccessoryPicker,{
-            picker:{label:`${doc.name} · 第 ${i+1} 行 ${line.code} × ${line.quantity}`,kind:form.kind,code:row.code,
+            picker:{label, kind:form.kind, code:row.code, face,
                 versions:Object.fromEntries(Object.entries(doc.library).map(([code,model])=>[code,model.version]))},
             choose:item=>this.links(i,"code",item.code),
         });
