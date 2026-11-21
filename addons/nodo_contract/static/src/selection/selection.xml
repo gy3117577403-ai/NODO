@@ -1,0 +1,421 @@
+<templates xml:space="preserve">
+  <t t-name="nodo_contract.CabinetDoors">
+    <div class="o_quote_cabinet_doors">
+      <div t-foreach="this.rows" t-as="cabinet" t-key="cabinet.index" class="o_quote_cabinet_door_row">
+        <span class="small">
+          单柜<small class="d-block text-muted">
+            <t t-esc="cabinet.width_mm"/> 毫米</small>
+        </span>
+        <select class="o_input" aria-label="单柜门型" t-att-value="cabinet.door_type" t-att-disabled="this.props.readonly" t-on-change="event =&gt; this.change(cabinet.index,event)">
+          <option t-foreach="this.options" t-as="door" t-key="door" t-att-value="door" t-esc="door"/>
+        </select>
+      </div>
+    </div>
+  </t>
+  <t t-name="nodo_contract.CabinetWidthField">
+    <div>
+      <input t-if="!this.props.readonly" type="text" class="o_input" aria-label="宽度（毫米）" placeholder="例如 900" t-att-value="this.value" t-on-change="this.change"/>
+      <span t-else="" t-esc="this.value || '—'"/>
+      <button t-if="this.source" type="button" class="btn btn-link btn-sm px-0 text-start o_drawing_dimension_source"
+              t-on-click="this.focusSource" t-esc="this.source"/>
+      <small t-if="this.state.error" class="d-block text-danger" role="alert" t-esc="this.state.error"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.CabinetDoorsField">
+    <div class="w-100">
+      <span class="small text-muted">门型</span>
+      <CabinetDoors values="this.values" readonly="this.props.readonly" change="config =&gt; this.change(config)"/>
+      <small t-if="this.state.error" class="d-block text-danger" role="alert" t-esc="this.state.error"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.CabinetAllocations">
+    <div class="o_quote_cabinet_allocations">
+      <div class="text-muted small mb-2">附件归属当前柜体，数量按单台填写。</div>
+      <div t-if="this.state.error" class="text-danger small mb-2" role="alert" t-esc="this.state.error"/>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>附件</th>
+              <th>每台用量</th>
+              <th>附件型号</th>
+              <th>实测尺寸（毫米）</th>
+              <th>计入报价</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr t-foreach="this.rows" t-as="item" t-key="item.name">
+              <td>
+                <span t-esc="item.name"/>
+                <small t-if="this.sourceText(item)" class="d-block text-muted" t-esc="this.sourceText(item)"/>
+                <button t-if="this.canRemove(item)" type="button" class="btn btn-link btn-sm p-0"
+                        t-on-click="() =&gt; this.remove(item)" t-att-disabled="this.state.saving"
+                        t-att-aria-label="'移除 ' + item.name">移除</button>
+              </td>
+              <td>
+                <input type="number" min="0.001" step="any" class="o_input" aria-label="每台用量" t-att-value="item.quantity ?? ''" t-att-readonly="this.props.readonly || this.state.saving" t-on-change="event =&gt; this.update(item_index, 'quantity', event)"/>
+              </td>
+              <td>
+                <input type="text" class="o_input" aria-label="附件型号" t-att-value="item.model_code || ''" t-att-readonly="this.props.readonly || this.state.saving" t-on-change="event =&gt; this.update(item_index, 'model_code', event)"/>
+              </td>
+              <td>
+                <input type="text" class="o_input" aria-label="实测尺寸" placeholder="如 {&quot;长度&quot;: 600}" t-att-value="this.dimensionText(item)" t-att-readonly="this.props.readonly || this.state.saving" t-on-change="event =&gt; this.updateDimensions(item_index, event)"/>
+              </td>
+              <td>
+                <input type="checkbox" class="form-check-input" aria-label="计入报价" t-att-checked="item.selected" t-att-disabled="this.props.readonly || this.state.saving" t-on-change="event =&gt; this.update(item_index, 'selected', event)"/>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingDimensions">
+    <div class="o_drawing_dimension_tools">
+      <div class="o_drawing_dimension_bar">
+        <span class="o_drawing_dimension_hint text-muted me-auto" role="status">
+          <i t-if="this.assist.state.busy" class="fa fa-spinner fa-spin me-1" aria-hidden="true"/>
+          <t t-esc="this.assist.hint"/>
+        </span>
+        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+          <button t-if="this.assist.state.boxes.front &amp;&amp; this.assist.state.boxes.side" type="button" class="btn btn-link btn-sm" t-on-click="() =&gt; this.assist.swap()" t-att-disabled="!this.assist.editable || this.assist.state.busy">交换正侧视图</button>
+          <button type="button" class="btn btn-secondary btn-sm" t-on-click="() =&gt; this.assist.undo()" t-att-disabled="!this.assist.editable || this.assist.state.busy || !this.assist.history.length">撤销</button>
+          <button type="button" class="btn btn-link btn-sm" t-on-click="() =&gt; this.assist.clear()" t-att-disabled="!this.assist.editable || this.assist.state.busy">清除选区</button>
+        </div>
+      </div>
+      <div t-if="this.assist.state.error" class="text-warning mt-1" role="alert" t-esc="this.assist.state.error"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingDimensionValue">
+    <div class="o_drawing_dimension_value">
+      <t t-call="web.FloatField"/>
+      <select t-if="this.assist.options(this.axis).length &gt; 1" class="o_input mt-1" t-att-aria-label="this.axis.label + '标注候选'" t-att-value="this.assist.state.chosen[this.axis.key] || ''" t-att-disabled="this.props.readonly || this.assist.state.busy" t-on-change="this.onOption">
+        <option value="">选择标注或直接修改尺寸</option>
+        <option t-foreach="this.assist.options(this.axis)" t-as="token" t-key="token.id" t-att-value="token.id" t-esc="token.text + ' mm'"/>
+      </select>
+      <button t-if="this.assist.token(this.axis)" type="button" class="btn btn-link btn-sm px-0 text-start o_drawing_dimension_source" t-on-click="() =&gt; this.assist.focus(this.axis)" t-esc="this.assist.source(this.axis)"/>
+      <small t-if="!this.value &amp;&amp; (this.assist.state.boxes.front || this.assist.state.boxes.side)" class="d-block text-muted">未读到明确标注，可直接填写</small>
+      <small t-if="this.axis.key === 'height_mm' &amp;&amp; this.assist.conflict" class="d-block text-warning" role="alert">
+                两视图高度不一致，侧视图为 <t t-esc="this.assist.heightCheck"/> 毫米，请修改或保留当前高度。
+            </small>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingImagePreview">
+    <div class="o_sale_drawing_image_viewport" t-ref="this.viewportRef">
+      <t t-call="web.ImageField"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingUpload">
+    <div class="o_drawing_upload_files">
+      <div class="d-flex align-items-center gap-3">
+        <button type="button" class="btn btn-secondary" t-on-click="this.select" t-att-disabled="this.state.loading">
+          <i class="oi me-1" data-icon="upload"/>
+          <t t-if="this.files.length">继续添加图纸</t>
+          <t t-else="">选择图纸</t>
+        </button>
+        <span class="text-muted" role="status">
+          <t t-if="this.state.loading">
+            <i class="fa fa-spinner fa-spin me-1"/>正在读取文件…</t>
+          <t t-elif="this.files.length">已选择 <t t-esc="this.files.length"/> 份图纸</t>
+          <t t-else="">可同时选择多份文件</t>
+        </span>
+      </div>
+      <input type="file" class="o_input_file d-none" multiple="multiple" t-ref="this.inputRef" t-att-accept="this.props.acceptedFileExtensions" t-on-change="this.onFiles"/>
+      <ul t-if="this.files.length" class="list-unstyled mt-3 mb-0 overflow-auto" style="max-height: 280px">
+        <li t-foreach="this.files" t-as="file" t-key="file_index" class="d-flex align-items-center gap-2 py-1 border-bottom">
+          <i class="fa fa-file-o text-muted" aria-hidden="true"/>
+          <span class="flex-grow-1 text-break" t-esc="file.name"/>
+          <button type="button" class="btn btn-link btn-sm" t-att-disabled="this.state.loading" t-att-aria-label="'移除 ' + file.name" t-on-click="() =&gt; this.remove(file_index)">移除</button>
+        </li>
+      </ul>
+      <div t-if="this.state.error" class="text-danger mt-2" role="alert" t-esc="this.state.error"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingAccessories">
+    <div class="o_drawing_accessories">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <small t-if="this.state.items.length" class="text-muted">已选 <t t-esc="this.selectedCount"/> 项</small>
+        <button t-if="!this.props.readonly" type="button" class="btn btn-outline-primary btn-sm ms-auto" t-att-disabled="this.state.saving" t-on-click="this.openPicker">＋ 添加附件</button>
+      </div>
+      <div t-if="this.state.loading &amp;&amp; !this.state.items.length" class="text-muted py-2" role="status">
+                正在匹配图纸中的附件…
+            </div>
+      <div t-elif="!this.state.items.length &amp;&amp; !this.state.error" class="text-muted py-2" role="status">
+        <t t-if="this.state.pending">图纸文字识别完成后，将自动勾选匹配附件。</t>
+        <t t-else="">图纸中暂未匹配到附件。</t>
+        <small t-if="!this.props.readonly" class="d-block mt-1">可点击“添加附件”从附件库中选择。</small>
+      </div>
+      <CabinetAllocations t-if="this.hasAllocations" values="this.selectionValues" readonly="this.props.readonly" evidence="this.evidence" change="data =&gt; this.changeAllocations(data)"/>
+      <div t-if="this.state.items.length &amp;&amp; !this.hasAllocations" class="overflow-auto" style="max-height: 240px">
+        <div t-foreach="this.state.items" t-as="item" t-key="item.name" class="o_drawing_accessory_row d-flex align-items-start gap-2 py-2 border-bottom">
+          <label class="d-flex align-items-start gap-2 mb-0 flex-grow-1">
+            <input type="checkbox" class="form-check-input flex-shrink-0 mt-1" t-att-checked="this.selected(item.name)" t-att-disabled="this.props.readonly || this.state.saving" t-att-aria-label="item.name" t-on-change="(event) =&gt; this.toggle(item.name,event.target.checked)"/>
+            <span class="text-break">
+              <span t-esc="item.name"/>
+              <small t-if="item.source === 'manual'" class="d-block text-muted">手动添加</small>
+              <small t-else="" class="d-block text-muted">图纸匹配 · <t t-esc="item.match_rate"/>% · <t t-esc="item.overlap"/>
+              </small>
+            </span>
+          </label>
+          <button t-if="item.source === 'manual' &amp;&amp; !this.props.readonly" type="button" class="btn btn-link btn-sm p-0 flex-shrink-0" t-att-aria-label="'移除 ' + item.name" t-att-disabled="this.state.saving" t-on-click="() =&gt; this.removeManual(item.name)">移除</button>
+        </div>
+        <small class="d-block text-muted mt-2">图纸文字重叠率达到 60% 时自动勾选</small>
+      </div>
+      <div t-if="this.state.error" class="text-warning mt-1" role="alert" t-esc="this.state.error"/>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingAccessoryPicker">
+    <Dialog title="'选择附件'" size="'lg'">
+      <div class="o_drawing_accessory_picker">
+        <div class="row g-3 mb-3">
+          <label class="col-sm-8">
+            <span class="visually-hidden">搜索附件名称</span>
+            <input type="search" class="o_input w-100" placeholder="搜索附件名称" aria-label="搜索附件名称" t-att-value="this.state.query" t-att-disabled="this.state.adding" t-on-input="event =&gt; this.state.query=event.target.value"/>
+          </label>
+          <label class="col-sm-4">
+            <span class="visually-hidden">附件分类</span>
+            <select class="o_input w-100" aria-label="附件分类" t-att-value="this.state.category" t-att-disabled="this.state.adding || this.state.loading" t-on-change="event =&gt; this.state.category=event.target.value">
+              <option value="">全部分类</option>
+              <option t-foreach="this.categories" t-as="category" t-key="category" t-att-value="category" t-esc="category"/>
+            </select>
+          </label>
+        </div>
+        <div t-if="this.state.loading" class="text-muted py-3" role="status">正在加载附件库…</div>
+        <div t-elif="this.state.error" class="text-warning py-2" role="alert">
+          <span t-esc="this.state.error"/>
+          <button type="button" class="btn btn-link btn-sm" t-on-click="this.load">重试</button>
+        </div>
+        <div t-elif="!this.items.length" class="text-muted py-3 text-center" role="status">未找到附件，请更换名称搜索</div>
+        <div t-else="" class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th aria-label="选择"/>
+                <th>附件名称</th>
+                <th>分类</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr t-foreach="this.items" t-as="item" t-key="item.name">
+                <td>
+                  <input type="checkbox" class="form-check-input" t-att-aria-label="'选择 ' + item.name" t-att-checked="this.selected(item.name)" t-att-disabled="this.state.adding" t-on-change="event =&gt; this.toggle(item.name,event.target.checked)"/>
+                </td>
+                <td class="text-break" t-esc="item.name"/>
+                <td class="text-muted" t-esc="item.category"/>
+                <td>
+                  <small class="text-muted" t-esc="this.status(item.name)"/>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <t t-set-slot="footer">
+        <button type="button" class="btn btn-primary" t-on-click="this.add" t-att-disabled="this.state.loading || this.state.adding || !this.hasChanges">确认选择</button>
+        <button type="button" class="btn btn-secondary" t-on-click="this.props.close" t-att-disabled="this.state.adding">取消</button>
+        <small class="text-muted ms-auto" role="status">已选 <t t-esc="this.state.picked.length"/> 项</small>
+      </t>
+    </Dialog>
+  </t>
+  <t t-name="nodo_contract.QuoteParameterEditor">
+    <div class="o_quote_parameter_editor p-3" t-ref="this.rootRef" aria-label="修改规格参数">
+      <div class="fw-bold mb-3">修改规格参数</div>
+      <div class="o_quote_parameter_fields">
+        <label>材质
+                    <select class="o_input" aria-label="材质" t-att-value="this.state.values.material" t-att-disabled="this.state.saving" t-on-change="event =&gt; this.change('material',event)">
+            <option value="">请选择</option>
+            <option t-foreach="this.materials" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/>
+          </select>
+        </label>
+        <label>料厚（毫米）
+                    <input type="number" min="0.001" step="any" class="o_input" aria-label="料厚（毫米）" t-att-value="this.state.values.thickness_mm" t-att-disabled="this.state.saving" t-on-input="event =&gt; this.change('thickness_mm',event)"/>
+        </label>
+        <label t-if="!this.state.values.cabinet_configuration?.cabinets?.length" class="o_quote_parameter_wide">门型
+                    <select class="o_input" aria-label="门型" t-att-value="this.state.values.door_type" t-att-disabled="this.state.saving" t-on-change="event =&gt; this.change('door_type',event)">
+            <option value="">请选择</option>
+            <option t-foreach="this.doors" t-as="door" t-key="door" t-att-value="door" t-esc="door"/>
+          </select>
+        </label>
+        <div t-if="this.state.values.cabinet_configuration?.cabinets?.length" class="o_quote_parameter_wide">
+          <span class="small text-muted">门型 · 按柜位顺序</span>
+          <CabinetDoors values="this.state.values" readonly="this.state.saving" change="config =&gt; this.changeCabinets(config)"/>
+        </div>
+        <label>喷塑
+                    <select class="o_input" aria-label="喷塑" t-att-value="this.state.values.coating_type" t-att-disabled="this.state.saving" t-on-change="event =&gt; this.change('coating_type',event)">
+            <option value="">请选择</option>
+            <option value="none">无喷塑</option>
+            <option value="gloss">平光</option>
+            <option value="orange">橘纹</option>
+          </select>
+        </label>
+        <label>颜色
+                    <input type="text" class="o_input" aria-label="颜色" placeholder="色号或颜色" t-att-value="this.state.values.display_color" t-att-disabled="this.state.saving" t-on-input="event =&gt; this.change('display_color',event)"/>
+        </label>
+      </div>
+      <div t-if="this.state.error" class="text-danger small mt-2" role="alert" t-esc="this.state.error"/>
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-primary btn-sm" t-att-disabled="this.state.saving" t-on-click="this.save">
+          <t t-if="this.state.saving">保存中…</t>
+          <t t-else="">保存</t>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" t-att-disabled="this.state.saving" t-on-click="this.props.close">取消</button>
+      </div>
+    </div>
+  </t>
+  <t t-name="nodo_contract.QuoteSelectionTable">
+    <div class="o_quote_selection_table" t-ref="this.rootRef">
+      <div class="d-flex align-items-center justify-content-between gap-3 py-2">
+        <button t-if="this.editable &amp;&amp; !this.hasProducts &amp;&amp; !this.state.drawing || this.editable &amp;&amp; this.state.drawing" type="button" class="btn btn-outline-primary" t-on-click="this.upload" t-att-disabled="this.busy">
+                    上传图纸
+                </button>
+        <span class="text-muted small" t-if="this.state.loading" role="status">正在加载产品…</span>
+        <span class="text-muted small ms-auto" t-if="this.state.busy" role="status">正在保存…</span>
+      </div>
+      <div t-if="this.state.error" class="alert alert-warning py-2" role="alert">
+        <span t-esc="this.state.error"/>
+        <button type="button" class="btn btn-link btn-sm" t-on-click="this.retry">重试保存</button>
+      </div>
+      <div class="o_quote_table_scroll">
+        <table class="table table-sm o_list_table o_quote_products mb-0">
+          <thead>
+            <tr>
+              <th class="o_quote_product_name">产品</th>
+              <th class="o_quote_parameters">规格参数</th>
+              <th class="o_quote_quantity text-end">数量</th>
+              <th t-if="this.state.drawing &amp;&amp; this.state.showState">选型状态</th>
+              <th class="o_quote_operations">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <span>操作</span>
+                  <Dropdown t-if="this.state.drawing" menuClass="'o_quote_columns_menu'">
+                    <button type="button" class="btn btn-link btn-sm p-0" aria-label="选择显示列">
+                      <i class="oi oi-fw" data-icon="tune"/>
+                    </button>
+                    <t t-set-slot="content">
+                      <DropdownItem closingMode="'none'" onSelected="() =&gt; this.toggleState()">
+                        <CheckBox value="this.state.showState" onChange="() =&gt; this.toggleState()">选型状态</CheckBox>
+                      </DropdownItem>
+                    </t>
+                  </Dropdown>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <t t-foreach="this.state.rows" t-as="row" t-key="row.key">
+              <tr t-if="row.display_type" class="o_quote_product_row" t-att-class="row.display_type === 'line_section' ? 'bg-light fw-bold' : 'text-muted'">
+                <td t-att-colspan="this.columns - 1">
+                  <input type="text" class="o_input" t-att-value="row.text" t-att-readonly="!this.editable" t-att-placeholder="row.display_type === 'line_section' ? '输入分组标题' : '输入备注'" t-on-input="event =&gt; this.edit(row,'text',event)" t-on-change="event =&gt; this.change(row,'text',event)"/>
+                </td>
+                <td>
+                  <button t-if="this.editable" type="button" class="btn btn-link btn-sm" t-on-click="() =&gt; this.remove(row)">删除</button>
+                </td>
+              </tr>
+              <t t-else="">
+                <tr class="o_quote_product_row" t-att-data-row-key="row.key">
+                  <td>
+                    <Many2XAutocomplete t-if="this.editable &amp;&amp; (row.source === 'manual' || row.independent)" resModel="'product.product'" fieldString="'产品'" value="row.product_name || ''" placeholder="'键入以查找产品…'" activeActions="{create:false,createEdit:false,write:false}" context="{display_default_code:false}" getDomain="() =&gt; this.getDomain()" update="records =&gt; this.productChanged(row,records)"/>
+                    <span t-else="" t-esc="row.product_name"/>
+                    <small t-if="this.cabinets(row).length" class="badge rounded-pill text-bg-light mt-1 d-block text-start">单柜</small>
+                    <small t-if="row.source === 'drawing'" class="d-block text-muted mt-1" t-esc="this.recognition(row)"/>
+                  </td>
+                  <td>
+                    <div t-if="row.placeholder" class="text-muted">请查看图纸并选择柜型</div>
+                    <t t-else="">
+                      <div class="o_quote_dimensions">
+                        <label t-foreach="this.axes" t-as="axis" t-key="axis.name" class="mb-0">
+                          <span class="small text-muted">
+                            <t t-esc="axis.label"/>（毫米）</span>
+                          <input t-if="this.editable &amp;&amp; (row.source === 'manual' || row.independent)" t-att-type="axis.name === 'width_mm' ? 'text' : 'number'" min="0" step="any" class="o_input" t-att-aria-label="axis.label" t-att-value="axis.name === 'width_mm' ? this.widthValue(row) : row[axis.name] || ''" t-on-input="event =&gt; this.edit(row,axis.name,event)" t-on-change="event =&gt; this.change(row,axis.name,event)"/>
+                          <span t-else="" class="d-block" t-esc="axis.name === 'width_mm' ? this.widthValue(row) || '—' : row[axis.name] || '—'"/>
+                        </label>
+                      </div>
+                      <small t-if="row.width_error" class="d-block text-danger" role="alert" t-esc="row.width_error"/>
+                      <div class="o_quote_parameter_summary mt-1">
+                        <small class="d-block text-muted" t-esc="this.parameters(row)"/>
+                        <button t-if="this.editable" type="button" class="btn btn-link btn-sm p-0 o_quote_parameter_edit" aria-label="修改规格参数" title="修改规格参数" t-att-disabled="this.busy || this.isRecognizing(row)" t-on-click="event =&gt; this.editParameters(row,event)">
+                          <i class="oi" data-icon="edit"/>
+                        </button>
+                      </div>
+                    </t>
+                  </td>
+                  <td class="text-end">
+                    <span t-if="row.placeholder">—</span>
+                    <input t-else="" type="number" min="0.001" step="any" class="o_input text-end" aria-label="数量" t-att-readonly="!this.editable || row.source === 'drawing' &amp;&amp; !row.independent" t-att-value="row.quantity || 1" t-on-input="event =&gt; this.edit(row,'quantity',event)" t-on-change="event =&gt; this.change(row,'quantity',event)"/>
+                    <small t-if="!row.placeholder" class="d-block text-muted">台</small>
+                  </td>
+                  <td t-if="this.state.drawing &amp;&amp; this.state.showState">
+                    <span t-if="row.source === 'drawing'" class="badge rounded-pill" t-att-class="row.state === 'confirmed' ? 'text-bg-success' : 'text-bg-warning'" t-esc="this.status(row)"/>
+                  </td>
+                  <td>
+                    <div class="d-flex flex-wrap align-items-center gap-1 o_quote_row_actions">
+                      <t t-if="row.source === 'drawing' &amp;&amp; row.drawing_id &amp;&amp; !row.independent">
+                        <button t-if="this.isRecognizing(row)" type="button" class="btn btn-link btn-sm" disabled="disabled">识别中</button>
+                        <button t-elif="this.editable &amp;&amp; ['idle','failed'].includes(row.recognition_state)" type="button" class="btn btn-link btn-sm" t-att-disabled="this.busy" t-on-click="() =&gt; this.recognize(row)">
+                          <t t-if="row.recognition_state === 'failed'">重试识别</t>
+                          <t t-else="">自动识别</t>
+                        </button>
+                        <button type="button" class="btn btn-link btn-sm" t-att-disabled="this.busy" t-on-click="() =&gt; this.configure(row)">查看与选型</button>
+                        <Dropdown t-if="this.editable &amp;&amp; ['review','done'].includes(row.recognition_state)">
+                          <button type="button" class="btn btn-link btn-sm" aria-label="更多产品操作">更多</button>
+                          <t t-set-slot="content">
+                            <DropdownItem onSelected="() =&gt; this.recognize(row)">重新识别</DropdownItem>
+                          </t>
+                        </Dropdown>
+                      </t>
+                      <button t-else="" type="button" class="btn btn-link btn-sm" t-on-click="() =&gt; this.configure(row)">
+                        <t t-if="this.state.editing === row.key">收起</t>
+                        <t t-else="">配置</t>
+                      </button>
+                      <button t-if="this.editable &amp;&amp; row.line_id" type="button" class="btn btn-link btn-sm" t-att-disabled="this.busy" t-on-click="() =&gt; this.copy(row)">复制</button>
+                      <button t-if="this.editable &amp;&amp; !this.isRecognizing(row)" type="button" class="btn btn-link btn-sm" t-att-disabled="this.busy" t-on-click="() =&gt; this.remove(row)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr t-if="this.state.editing === row.key" class="o_quote_inline_config">
+                  <td t-att-colspan="this.columns">
+                    <div class="o_quote_config_accessories">
+                      <div class="d-flex align-items-center gap-2 mb-2">
+                        <strong>附件选配</strong>
+                        <small class="text-muted">已选 <t t-esc="this.selectedAccessories(row)"/> 项</small>
+                        <button t-if="this.editable" type="button" class="btn btn-outline-primary btn-sm ms-auto" t-att-disabled="this.busy" t-on-click="() =&gt; this.addAccessories(row)">＋ 添加附件</button>
+                      </div>
+                      <div t-if="!this.accessories(row).length" class="text-muted py-2" role="status">尚未选择附件，可从附件库中添加。</div>
+                      <CabinetAllocations t-else="" values="row" readonly="!this.editable || this.busy" change="data =&gt; this.changeAllocations(row,data)"/>
+                    </div>
+                  </td>
+                </tr>
+              </t>
+            </t>
+          </tbody>
+        </table>
+      </div>
+      <div t-if="this.editable" class="d-flex flex-wrap gap-3 py-2 border-bottom o_quote_add_actions">
+        <button t-if="!this.state.drawing" type="button" class="btn btn-link p-0" t-on-click="() =&gt; this.add()">添加明细行</button>
+        <button type="button" class="btn btn-link p-0" t-on-click="() =&gt; this.add('line_section')">添加节</button>
+        <button type="button" class="btn btn-link p-0" t-on-click="() =&gt; this.add('line_note')">添加备注</button>
+        <button t-if="!this.state.drawing" type="button" class="btn btn-link p-0" t-on-click="this.catalog">目录</button>
+      </div>
+      <div t-if="this.state.attachments.length" class="o_quote_attachments d-flex flex-wrap gap-2 pt-3">
+        <div t-foreach="this.state.attachments" t-as="file" t-key="file.id" class="o_quote_attachment d-flex align-items-center">
+          <button type="button" class="btn btn-link d-flex gap-2 align-items-center text-start flex-grow-1" t-on-click="() =&gt; this.execute('open_selection_row',[file.id,0],true)">
+            <span class="o_image flex-shrink-0" t-att-data-mimetype="file.kind === 'pdf' ? 'application/pdf' : file.kind === 'image' ? 'image/png' : 'application/octet-stream'" aria-hidden="true"/>
+            <span class="o_quote_attachment_name">
+              <span t-esc="file.name"/>
+              <small class="d-block text-muted">
+                <t t-esc="this.recognition(file)"/>
+                <t t-if="file.pages"> · <t t-esc="file.pages"/> 页</t>
+              </small>
+            </span>
+          </button>
+          <button t-if="this.editable" type="button" class="btn btn-link align-self-start" t-att-disabled="this.busy" t-att-aria-label="'删除附件 ' + file.name" t-on-click="() =&gt; this.removeFile(file)">
+            <i class="oi" data-icon="close"/>
+          </button>
+        </div>
+      </div>
+    </div>
+  </t>
+  <t t-name="nodo_contract.ChineseRecognitionMessage">
+    <div class="text-break" style="white-space: pre-wrap;" t-esc="this.message"/>
+  </t>
+</templates>

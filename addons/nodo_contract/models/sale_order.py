@@ -23,7 +23,7 @@ HEADER_FIELDS = {
     'partner_id', 'partner_invoice_id', 'partner_shipping_id', 'client_order_ref',
     'commitment_date', 'validity_date', 'date_order', 'pricelist_id',
     'currency_id', 'payment_term_id', 'note', 'fiscal_position_id', 'document_tax_mode',
-    'order_line', 'nodo_selection_ids', 'nodo_drawing_ids', 'team_id', 'warehouse_id',
+    'order_line', 'nodo_selection_ids', 'nodo_drawing_ids', 'team_id', 'warehouse_id', 'picking_policy',
 }
 CLIENT_FIELDS = HEADER_FIELDS | COST_FIELDS | {'nodo_acceptance_note', 'message_main_attachment_id'}
 COST_TOTAL_FIELDS = {'margin', 'margin_percent'}
@@ -32,7 +32,7 @@ COST_TOTAL_FIELDS = {'margin', 'margin_percent'}
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
-    nodo_contract = fields.Boolean(string='NODO 报价', index=True, copy=False)
+    nodo_contract = fields.Boolean(string='单柜报价', index=True, copy=False, default=lambda self: self._nodo_default_contract())
     nodo_quote_stage = fields.Selection(STAGES, string='报价阶段', default='selection', index=True, copy=False, readonly=True)
     nodo_selection_ids = fields.One2many('sale.order.line', 'order_id', string='单柜选型', copy=False)
     nodo_cost_line_ids = fields.One2many('sale.order.line', 'order_id', string='报价参数', groups=COST_GROUPS, copy=False)
@@ -91,36 +91,57 @@ class SaleOrder(models.Model):
         for order in self:
             order.nodo_quote_ready = bool(order.sudo().nodo_active_version_id)
 
-    @api.depends('nodo_quote_stage')
+    @api.depends('nodo_contract', 'nodo_quote_stage')
     @api.depends_context('uid')
     def _compute_nodo_editable(self):
         seller = has_role(self.env, SALES)
         costing = has_role(self.env, COSTING)
         for order in self:
-            order.nodo_can_edit_selection = seller and order.nodo_quote_stage == 'selection'
-            order.nodo_can_edit_costs = costing and order.nodo_quote_stage == 'costing'
-            order.nodo_can_record_acceptance = seller and order.nodo_quote_stage == 'sent'
+            order.nodo_can_edit_selection = order.nodo_contract and seller and order.nodo_quote_stage == 'selection'
+            order.nodo_can_edit_costs = order.nodo_contract and costing and order.nodo_quote_stage == 'costing'
+            order.nodo_can_record_acceptance = order.nodo_contract and seller and order.nodo_quote_stage == 'sent'
+
+    @api.model
+    def _nodo_default_contract(self):
+        return bool(self.env.context.get('nodo_quote_entry') and has_role(self.env, SALES))
+
+    @api.model
+    def default_get(self, field_names):
+        managed = self.env.context.get('default_nodo_contract', self._nodo_default_contract())
+        if managed and 'quotation_document_ids' in field_names:
+            # Optional standard PDF builder defaults require the native
+            # salesperson group. Managed quotes use the approved NODO report.
+            defaults = super().default_get([name for name in field_names if name != 'quotation_document_ids'])
+            defaults['quotation_document_ids'] = []
+            return defaults
+        return super().default_get(field_names)
 
     @api.model_create_multi
     def create(self, vals_list):
-        if not any(vals.get('nodo_contract', self.env.context.get('default_nodo_contract')) for vals in vals_list):
+        default_contract = self.env.context.get('default_nodo_contract', self._nodo_default_contract())
+        if not any(vals.get('nodo_contract', default_contract) for vals in vals_list):
             return super().create(vals_list)
         require_role(self.env, SALES)
         allowed = HEADER_FIELDS | {'nodo_contract', 'user_id', 'company_id'}
-        if any(vals.keys() - allowed
-               for vals in vals_list if vals.get('nodo_contract', self.env.context.get('default_nodo_contract'))):
-            raise AccessError('新建报价只能保存选型草稿。')
+        portal_defaults = {'require_signature', 'prepayment_percent', 'prepayment_amount'}
         records = self.browse()
         clean = self.with_context({k: v for k, v in self.env.context.items() if not k.startswith('default_')})
         for vals in vals_list:
-            if not vals.get('nodo_contract', self.env.context.get('default_nodo_contract')):
+            if not vals.get('nodo_contract', default_contract):
                 records += super().create(vals)
                 continue
+            # The standard form also sends empty defaults for its hidden tabs.
+            # Keep only the draft inputs, and explicitly set the portal defaults.
+            if any(value for name, value in vals.items() if name not in allowed | portal_defaults):
+                raise AccessError('新建报价只能保存选型草稿。')
+            vals = {name: value for name, value in vals.items() if name in allowed}
             company = vals.get('company_id') or clean.env.company.id
             if company not in self.env.companies.ids or (vals.get('user_id') and vals['user_id'] != self.env.uid):
                 raise AccessError('只能在有权操作的公司创建本人的报价。')
             prepared = {**vals, 'nodo_contract': True, 'state': 'draft', 'user_id': self.env.uid,
                         'company_id': company, 'require_signature': False, 'prepayment_percent': 0}
+            if 'quotation_document_ids' in self._fields:
+                prepared['quotation_document_ids'] = []
             records += super(SaleOrder, clean).create(prepared).with_env(self.env)
         return records
 
@@ -164,6 +185,8 @@ class SaleOrder(models.Model):
             self._nodo_check_stage(('selection',), SALES)
             self._nodo_lock()
             self._nodo_check_stage(('selection',), SALES)
+            if any(self.mapped('locked')):
+                raise UserError('当前报价已锁定。')
 
     def _nodo_check_cost_edit(self):
         if self and not internal_change():
@@ -225,6 +248,13 @@ class SaleOrder(models.Model):
 
     def _nodo_rows(self):
         self.ensure_one()
+        for drawing in self.nodo_quote_drawing_ids:
+            candidates = drawing._current_candidates()
+            if drawing.recognition_state in ('queued', 'processing') or (
+                not drawing.selection_row_hidden and (drawing.state != 'confirmed' if not candidates else
+                                                      any(row.review_state != 'confirmed' for row in candidates))
+            ):
+                raise ValidationError(f'请先完成图纸「{drawing.name}」的产品选型。')
         products = self.order_line.filtered(lambda line: not line.display_type)
         if not products:
             raise ValidationError('请添加至少一条单柜产品明细。')
@@ -250,6 +280,9 @@ class SaleOrder(models.Model):
             'amounts': [(line.id, line.price_unit, line.discount, line.price_subtotal, line.price_total, sorted(line.tax_ids.ids))
                         for line in order.order_line.sorted('id') if not line.display_type],
         }
+        if order.nodo_quote_drawing_ids:
+            payload['drawing_review'] = [(drawing.id, drawing.sha256, drawing.recognition_token)
+                                         for drawing in order.nodo_quote_drawing_ids]
         return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
     def _nodo_document(self, number):
@@ -416,16 +449,6 @@ class SaleOrder(models.Model):
     def action_nodo_quote_excel(self):
         self._nodo_customer_document()
         return {'type': 'ir.actions.act_url', 'url': f'/nodo/contract/quotes/{self.id}/xlsx', 'target': 'download'}
-
-    def action_nodo_open_quote(self):
-        self.ensure_one()
-        self.check_access('read')
-        if not self.nodo_contract:
-            raise UserError('请选择单柜报价。')
-        return {
-            'type': 'ir.actions.act_window', 'res_model': self._name, 'res_id': self.id,
-            'views': [(self.env.ref('nodo_contract.nodo_quote_form').id, 'form')], 'target': 'current',
-        }
 
     def action_quotation_send(self):
         if self.filtered('nodo_contract'):

@@ -49,6 +49,7 @@ class SelectionAttachment(models.Model):
     product_id = fields.Many2one('product.product', string='附件', required=True, check_company=True,
                                  domain="[('product_tmpl_id.nodo_quote_accessory_name', '!=', False)]")
     quantity = fields.Float(string='每台用量', required=True, default=1)
+    quantity_pending = fields.Boolean(string='待填每台用量')
     selected = fields.Boolean(string='计入报价', default=True)
     model_code = fields.Char(string='附件型号')
     actual_dimensions = fields.Text(string='实测尺寸', help='填写原规则参数名和值，例如 {"长度": 600}。尺寸单位为毫米。')
@@ -76,6 +77,8 @@ class SelectionAttachment(models.Model):
 
     def _nodo_allocation(self):
         self.ensure_one()
+        if self.selected and self.quantity_pending:
+            raise ValidationError(f'请填写附件「{self.product_id.nodo_quote_accessory_name}」的每台用量。')
         return {
             'name': self.product_id.nodo_quote_accessory_name,
             'category_level1': self.product_id.nodo_quote_accessory_category or '',

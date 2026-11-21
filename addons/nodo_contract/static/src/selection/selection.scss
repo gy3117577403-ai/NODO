@@ -1,0 +1,227 @@
+// Drawing and selection styles from Jingneng sales c3c120987925ec1b4f417f6c3d398b7f7ce9e6ce.
+.modal-dialog:has(.o_sale_drawing_selection) {
+    width: calc(100vw - 2rem);
+    max-width: 1380px;
+}
+
+.o_sale_drawing_review {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: map-get($spacers, 4);
+    align-items: start;
+}
+
+.o_sale_drawing_preview {
+    min-height: 28rem;
+    background: $o-view-background-color;
+    border: 1px solid $border-color;
+    border-radius: $border-radius;
+
+    .o_field_widget {
+        width: 100%;
+    }
+
+    iframe {
+        width: 100%;
+        height: 65vh;
+        max-height: 48rem;
+        min-height: 28rem;
+        border: 0;
+    }
+
+    .o_field_image {
+        min-height: 28rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        img {
+            max-width: 100%;
+            max-height: 65vh;
+            object-fit: contain;
+        }
+    }
+}
+
+.o_sale_drawing_cad {
+    padding: map-get($spacers, 5);
+}
+
+.o_drawing_source_text {
+    max-height: 15rem;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+    .o_sale_drawing_review {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.o_quote_cabinet_allocations table {
+    min-width: 29rem;
+}
+
+.o_sale_drawing_image_viewport {
+    height: 65vh;
+    min-height: 28rem;
+    max-height: 48rem;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: $o-gray-200;
+
+    > div {
+        width: 100%;
+        height: 100%;
+    }
+
+    img {
+        position: absolute;
+        left: 0;
+        top: 0;
+        max-width: none !important;
+        max-height: none !important;
+        transform-origin: top left;
+        user-select: none;
+        -webkit-user-drag: none;
+    }
+
+    &.o_drawing_pan_active,
+    &.o_drawing_pan_active * {
+        cursor: grabbing !important;
+        user-select: none !important;
+    }
+}
+
+.o_drawing_dimension_tools {
+    padding: map-get($spacers, 1) map-get($spacers, 2);
+    border-bottom: 1px solid $border-color;
+}
+
+.o_sale_drawing_review .o_field_widget[name="dimension_assist_data"] {
+    display: block;
+    width: 100%;
+}
+
+.o_drawing_dimension_hint {
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.o_drawing_dimension_bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: map-get($spacers, 2);
+}
+
+.o_drawing_dimension_value {
+    width: 100%;
+    input, select { min-width: 0; width: 100%; }
+    .o_drawing_dimension_source {
+        display: block;
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+.o_quote_selection_table {
+    display: block;
+    width: 100%;
+    .o_quote_table_scroll { overflow-x: auto; }
+    .o_quote_products {
+        table-layout: fixed;
+        min-width: 42rem;
+        th { background: $o-gray-100; vertical-align: middle; }
+        th, td { padding: map-get($spacers, 2); }
+        td { vertical-align: top; overflow-wrap: anywhere; }
+        .o_quote_product_name { width: 25%; }
+        .o_quote_parameters { width: 32%; }
+        .o_quote_quantity { width: 8%; }
+        .o_quote_operations { width: 25%; }
+        .o_quote_product_row:focus-within { background: $o-gray-100; }
+    }
+    .o_quote_dimensions {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
+        gap: map-get($spacers, 2);
+        label { min-width: 0; }
+        input { width: 100%; }
+    }
+    .o_quote_row_actions .btn { padding: 0 map-get($spacers, 1); white-space: nowrap; }
+    .o_quote_parameter_summary {
+        position: relative;
+        padding-inline-end: 1.75rem;
+        min-height: 1.5rem;
+        .o_quote_parameter_edit {
+            position: absolute;
+            inset-inline-end: 0;
+            inset-block-start: 0;
+            min-width: 1.5rem;
+            min-height: 1.5rem;
+        }
+    }
+    .o_quote_inline_config {
+        background: $o-gray-100;
+        .o_quote_config_fields {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: map-get($spacers, 3);
+            label { display: flex; flex-direction: column; margin: 0; }
+            .o_quote_config_notes { grid-column: 1 / -1; }
+        }
+    }
+    .o_quote_attachment {
+        width: 20rem;
+        max-width: 100%;
+        background: rgba($info, .14);
+        border-inline-start: 3px solid rgba($info, .4);
+        border-radius: $border-radius;
+        .o_quote_attachment_name { min-width: 0; overflow-wrap: anywhere; }
+        .o_image { width: 2.5rem; height: 2.5rem; background-size: contain; }
+        > .btn { min-width: 0; }
+    }
+    @include media-breakpoint-down(md) {
+        .o_quote_products { min-width: 36rem; }
+        .o_quote_inline_config .o_quote_config_fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+}
+
+.o_quote_cabinet_door_row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: map-get($spacers, 2);
+    padding-block: map-get($spacers, 2);
+    border-bottom: 1px solid $o-gray-200;
+}
+.o_quote_cabinet_allocations {
+    .o_quote_accessory_quantity { min-width: 4rem; max-width: 6rem; }
+    td { vertical-align: middle; }
+    select { min-width: 7rem; }
+}
+.o_quote_order_cabinets {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    > span { display: block; }
+}
+.o_quote_order_cabinet_details { white-space: normal; }
+
+.o_quote_parameter_editor {
+    width: 23rem;
+    max-width: calc(100vw - 2rem);
+    .o_quote_parameter_fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: map-get($spacers, 3);
+        label { display: flex; flex-direction: column; gap: map-get($spacers, 1); margin: 0; min-width: 0; }
+        .o_quote_parameter_wide { grid-column: 1 / -1; }
+    }
+}
