@@ -33,7 +33,7 @@
             </select>
             <span t-if="job?.reference" class="nd-tag" title="原图尺寸（宽 × 高 × 深）" aria-label="原图尺寸（宽 × 高 × 深）"><t t-out="job.dimensions.width"/> × <t t-out="job.dimensions.height"/> × <t t-out="job.dimensions.depth"/> mm</span>
             <span t-elif="job?.state==='done'" class="nd-tag">待工艺校核</span>
-            <button t-if="!this.showFiles()" type="button" class="nd-primary" t-att-disabled="this.busy()" t-on-click="() => this.apply('generate')">一键出图</button>
+            <button t-if="!this.showFiles()" type="button" class="nd-primary" t-att-disabled="this.busy() || !!this.accessoryPicker()" t-on-click="() => this.apply('generate')">一键出图</button>
             <span t-if="!this.showFiles() &amp;&amp; !doc.online" class="nd-offline" role="status" title="计算服务离线" aria-label="计算服务离线">
                 <i class="fa fa-exclamation-circle" aria-hidden="true"/>
             </span>
@@ -85,6 +85,7 @@
     <t t-set="warning" t-value="this.issue() || (draft?.snapshot===form &amp;&amp; !draft.assembly ? draft.issues?.join(' · ') : '')"/>
     <div class="nd-error" role="alert" t-if="!this.showFiles() &amp;&amp; warning" t-out="warning"/>
     <t t-set="assembly" t-value="this.assemblyOpen()"/>
+    <t t-set="picker" t-value="this.accessoryPicker()"/>
     <div class="nd-layout" t-att-class="{'nd-archive-layout':this.showFiles(),'nd-assembly-layout':assembly,'nd-layout-folded':this.panelHidden() &amp;&amp; !this.showFiles() &amp;&amp; !assembly}"
             t-att-style="'--nd-panel-width:'+this.panelWidth()+'px'">
         <aside class="nd-panel nd-inspector" t-if="!this.showFiles() &amp;&amp; !assembly">
@@ -243,6 +244,9 @@
                             <small t-if="this.drillNotice()" t-out="this.drillNotice()"/>
                         </div>
                     </div>
+                    <div class="nd-viewport-head" t-elif="picker &amp;&amp; visual &amp;&amp; picker.choices.length" role="status">
+                        <div class="nd-board-caption nd-installation-caption" t-out="picker.face ? '安装面 · '+this.faceName(picker.face) : '点击柜体上的安装面'"/>
+                    </div>
                     <div class="nd-three-host" t-att-hidden="this.mode()!=='3d' || !visual" t-ref="this.threeHost"/>
                     <canvas t-if="this.mode()==='2d'" aria-label="板面开孔定位" t-ref="this.canvas" t-on-pointerdown="this.flatPointerDown" t-on-pointerup="this.flatPointerUp" t-on-pointercancel="() => { this.flatPress=null; }" t-on-wheel.prevent="ev => this.faceView?.scale(ev.deltaY)"/>
                     <div t-if="this.mode()==='3d' &amp;&amp; this.viewerError()" class="nd-overlay" role="alert" t-out="this.viewerError()"/>
@@ -306,6 +310,10 @@
             <div class="nd-progress" t-if="!this.showFiles() &amp;&amp; recent &amp;&amp; ['queued','running'].includes(recent.state)"><span t-out="recent.stage"/><progress max="100" t-att-value="recent.progress"/><small><t t-out="recent.progress"/>%</small></div>
         </section>
         <aside class="nd-panel nd-assembly" aria-label="装配" t-if="assembly">
+            <AccessoryCatalog t-if="picker" picker="picker" selectModel="item => this.selectAccessoryModel(item)"
+                              selectFace="face => this.selectAccessoryFace(face)" apply="() => this.applyAccessoryPicker()"
+                              cancel="() => this.closeAccessoryPicker()"/>
+            <t t-else="">
             <div class="nd-assembly-head nd-between">
                 <h3>装配清单 <small>每台</small></h3>
                 <button type="button" class="nd-inspector-toggle" aria-label="关闭装配" title="关闭装配" t-on-click="this.openAssembly">×</button>
@@ -321,11 +329,12 @@
                             t-att-aria-label="'第'+(line_index+1)+'行从附件库选用'">
                         <span t-out="row.model?.name || '从附件库选用'"/><i class="fa fa-search" aria-hidden="true"/>
                     </button>
-                    <label t-if="row.model">安装面<select t-att-aria-label="'第'+(line_index+1)+'行安装面'" t-on-change="ev => this.links(line_index,'face',ev.target.value)">
+                    <label t-if="row.model">安装面<select t-att-aria-label="'第'+(line_index+1)+'行安装面'" t-on-change="ev => this.setAssemblyFace(line_index,ev.target.value)">
                         <option t-if="!row.validFace" value="" selected="">选择适用安装面</option>
                         <option t-foreach="this.mountingFaces(row.model)" t-as="id" t-key="id" t-att-value="id" t-att-selected="row.face===id" t-out="this.faceName(id)"/></select></label>
                     <small t-if="row.model">模型版本 <t t-out="row.model.version"/> · 已装 <t t-out="row.placed"/> / <t t-out="line.quantity"/></small>
-                    <details t-if="positions.length" class="nd-assembly-locations" t-att-open="positions.length&gt;1">
+                    <small t-if="positions.length &amp;&amp; this.placementReview().includes(line_index)" class="nd-placement-review" role="status">安装基准已变更，请重新核对位置。</small>
+                    <details t-if="positions.length" class="nd-assembly-locations" t-att-open="positions.length&gt;1 || this.placementReview().includes(line_index)">
                         <summary>安装位置</summary>
                         <small t-out="row.model.placement?.anchor==='right'?'横向距板面右边，纵向相对板面中心（mm）':'相对板面中心定位（mm）'"/>
                         <div t-foreach="positions" t-as="a" t-key="a.id" class="nd-placement">
@@ -334,7 +343,7 @@
                                 <label t-foreach="[['u','横向'],['v','纵向']]" t-as="k" t-key="k[0]">
                                     <t t-out="k[1]"/><input type="number" step="any" t-att-value="a[k[0]]" t-on-input="ev => this.position(a,k[0],ev)"/>
                                 </label>
-                                <label>转角<select t-on-change="ev => this.position(a,'rotation',ev)">
+                                <label>转角<select aria-label="转角" t-on-change="ev => this.position(a,'rotation',ev)">
                                     <option t-foreach="[0,90,180,270]" t-as="v" t-key="v" t-att-value="v" t-att-selected="a.rotation===v"><t t-out="v"/>°</option>
                                 </select></label>
                             </div>
@@ -354,6 +363,7 @@
                 <button t-else="" type="button" class="nd-wide nd-soft" t-att-disabled="this.busy() || (preview &amp;&amp; !preview.error &amp;&amp; !preview.mesh)"
                         t-on-click="this.previewAssembly">装配预览</button>
             </div>
+            </t>
         </aside>
     </div>
     </t>

@@ -97,7 +97,7 @@
     .nd-layout{display:grid;grid-template-columns:clamp(0px,var(--nd-panel-width),42%) 12px minmax(0,1fr);grid-template-rows:minmax(0,1fr);flex:1 0 0;min-height:390px;}
     .nd-layout-folded{grid-template-columns:56px minmax(0,1fr);gap:8px;}
     .nd-layout.nd-archive-layout{grid-template-columns:minmax(0,1fr);}
-    .nd-layout.nd-assembly-layout{grid-template-columns:minmax(0,1fr) clamp(0px,var(--nd-panel-width),42%);gap:10px;}
+    .nd-layout.nd-assembly-layout{grid-template-columns:minmax(0,1fr) clamp(350px,var(--nd-panel-width),42%);gap:10px;}
     .nd-panel {background:#fff;border:1px solid var(--stroke);border-radius:15px;box-shadow:0 5px 16px #233c2c09;min-width:0;overflow:hidden;}
     .nd-inspector,.nd-stage,.nd-assembly{display:flex;flex-direction:column;min-height:0;}
     .nd-inspector-bar{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 8px;border-bottom:1px solid var(--stroke);}
@@ -220,6 +220,8 @@
     .nd-accessory-choice{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;}
     .nd-accessory-choice i{color:var(--muted);}
     .nd-assembly-locations summary{cursor:pointer;color:var(--muted);font-size:12px;}
+    .nd-placement-review{color:#84521c;}
+    .nd-installation-caption{color:#17654f;font-weight:650;}
     .nd-placement{margin-block:6px;}
     .nd-assembly-actions{display:grid;gap:6px;padding:9px 10px;border-top:1px solid var(--stroke);}
     .nd-assembly-error{color:#8a4530;white-space:pre-line;font-size:12px;}

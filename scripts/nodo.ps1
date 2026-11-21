@@ -314,7 +314,10 @@ switch ($Command) {
             $code = $LASTEXITCODE
             if (($DrawBrowser -or $DrawLayout) -and $code -eq 0) {
                 $browserPassword = New-Secret
-                Invoke-OdooShellScript 'seed_draw_browser.py' @{NODO_DRAW_BROWSER_PASSWORD = $browserPassword} $testDb
+                Invoke-OdooShellScript 'seed_draw_browser.py' @{
+                    NODO_DRAW_BROWSER_PASSWORD = $browserPassword
+                    NODO_DRAW_BROWSER_LAYOUT = $DrawLayout
+                } $testDb
                 try {
                     $env:NODO_DRAW_BROWSER_DB = $testDb
                     $env:NODO_DRAW_BROWSER_PASSWORD = $browserPassword

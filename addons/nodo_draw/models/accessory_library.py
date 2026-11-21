@@ -11,6 +11,7 @@ CATEGORIES = {
     'EX-LOCK-22': '锁具与门控', 'AE-SQ35': '锁具与门控',
 }
 PREVIEW_KEY = re.compile(r'[a-z0-9][a-z0-9_-]{0,100}-v[1-9][0-9]*')
+PREVIEW_FILES = {'mesh': ('meshes', '.json'), 'thumbnail': ('thumbnails', '.png')}
 MODEL_TYPES = {'step': '固定 STEP', 'lock': '固定尺寸', 'canopy': '按柜体尺寸', 'base': '按柜体尺寸'}
 
 
@@ -69,11 +70,12 @@ class DrawAccessory(models.Model):
                 versions.setdefault(item.code, item.definition)
         return versions
 
-    def _mesh_path(self):
-        if not PREVIEW_KEY.fullmatch(self.preview_key):
+    def _preview_path(self, kind):
+        if kind not in PREVIEW_FILES or not PREVIEW_KEY.fullmatch(self.preview_key):
             return None
-        root = (workbench.EXCHANGE / 'catalog' / 'meshes').resolve()
-        path = (root / (self.preview_key + '.json')).resolve()
+        folder, suffix = PREVIEW_FILES[kind]
+        root = (workbench.EXCHANGE / 'catalog' / folder).resolve()
+        path = (root / (self.preview_key + suffix)).resolve()
         return path if path.is_relative_to(root) and path.is_file() else None
 
     @api.model
@@ -91,4 +93,5 @@ class DrawAccessory(models.Model):
                     kinds=definition.get('cabinetKinds') or ['single', 'double'], max_quantity=definition.get('maxQuantity') or rules.get('maxQuantity'),
                     min_thickness=rules.get('minThickness'), max_thickness=rules.get('maxThickness'),
                     source=definition.get('source', ''), evidence=rules.get('evidence', ''),
-                    mesh=f'/nodo/draw/accessory/{self.id}/mesh' if self._mesh_path() else False)
+                    **{kind: f'/nodo/draw/accessory/{self.id}/{kind}' if self._preview_path(kind) else False
+                       for kind in PREVIEW_FILES})

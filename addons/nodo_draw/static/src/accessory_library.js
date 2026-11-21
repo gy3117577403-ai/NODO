@@ -1,6 +1,5 @@
-import {Component, onMounted, onWillStart, onWillUnmount, signal, t, useProps} from "@odoo/owl";
+import {Component, onMounted, onWillStart, onWillUnmount, signal, t, useEffect, useProps} from "@odoo/owl";
 import {loadBundle} from "@web/core/assets";
-import {Dialog} from "@web/core/dialog/dialog";
 import {registry} from "@web/core/registry";
 import {useService} from "@web/core/utils/hooks";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
@@ -19,6 +18,18 @@ const blocked = {
     version: "此版本未列入当前设计的附件库快照",
 };
 const faces = {door:"门板 / 左门", door_right:"右门板", top:"顶板", bottom:"底板", back:"围板背面", left:"左侧板", right:"右侧板", mount:"安装板"};
+
+function accessoryStatus(item, picker) {
+    if (item.state === "pending") return "pending";
+    if (!picker) return "available";
+    if (!item.kinds.includes(picker.kind)) return "cabinet";
+    if (picker.versions[item.code] !== item.version) return "version";
+    return picker.originalFace && !item.faces.includes(picker.originalFace) ? "face" : "selectable";
+}
+
+export function accessoryRestriction(item, picker) {
+    return blocked[accessoryStatus(item,picker)] || "";
+}
 
 class AccessoryMesh extends Component {
     static template = "nodo_draw.AccessoryMesh";
@@ -65,29 +76,47 @@ class AccessoryMesh extends Component {
     }
 }
 
-class AccessoryCatalog extends Component {
+export class AccessoryCatalog extends Component {
     static template = "nodo_draw.AccessoryCatalog";
     static components = {AccessoryMesh};
-    props = useProps({picker:t.object().optional(), choose:t.function().optional()});
+    props = useProps({picker:t.object().optional(), selectModel:t.function().optional(), selectFace:t.function().optional(),
+        apply:t.function().optional(), cancel:t.function().optional()});
     items = signal([]);
     filter = signal("");
     category = signal("");
     state = signal("");
     selectedId = signal(null);
+    view = signal("list");
+    galleryDetail = signal(false);
+    galleryList = signal.ref();
+    search = signal.ref();
     rulesOpen = signal(false);
     error = signal("");
 
     setup() {
         const orm = useService("orm");
+        this.galleryScroll = 0;
         onWillStart(async () => {
             try {
                 const rows = await orm.call("nodo.draw.accessory", "list_accessory_models", []);
                 this.items.set(rows);
-                const preferred = this.filtered().find(row => !this.restriction(row));
+                const picker = this.props.picker;
+                const current = picker && rows.find(row => row.code === picker.code && row.version === picker.versions[row.code]);
+                const preferred = current || this.filtered().find(row => !accessoryRestriction(row,picker));
                 this.selectedId.set(preferred?.id ?? null);
             } catch (error) {
                 this.error.set(error.data?.message || "附件库暂时无法读取");
             }
+        });
+        onMounted(() => {
+            if (!this.props.picker) return;
+            const item = this.items().find(row => row.id === this.selectedId());
+            if (item) this.props.selectModel(item);
+            this.search()?.focus({preventScroll:true});
+        });
+        useEffect(() => {
+            const list = this.galleryList();
+            if (list) list.scrollTop = this.galleryScroll;
         });
     }
 
@@ -104,8 +133,28 @@ class AccessoryCatalog extends Component {
         if (!picker) return rows;
         return rows.sort((a,b) => this.priority(a)-this.priority(b) || Number(b.code===picker.code)-Number(a.code===picker.code));
     }
-    selected(rows) { return rows.find(item=>item.id===this.selectedId()) ?? rows[0]; }
-    select(item) { this.selectedId.set(item.id); }
+    selected(rows) {
+        if (this.props.picker) return this.props.picker.item;
+        return rows.find(item=>item.id===this.selectedId()) ?? rows[0];
+    }
+
+    select(item) {
+        if (this.props.picker) this.props.selectModel(item);
+        else this.selectedId.set(item.id);
+    }
+
+    setView(view) {
+        if (this.galleryList()) this.galleryScroll = this.galleryList().scrollTop;
+        this.view.set(view);
+        this.galleryDetail.set(false);
+    }
+
+    inspectGallery(item) {
+        this.galleryScroll = this.galleryList()?.scrollTop ?? 0;
+        this.select(item);
+        this.galleryDetail.set(true);
+    }
+
     version(item) { return `V${String(item.version).padStart(2,"0")}`; }
     stateName(status) { return labels[status]; }
     faceNames(item) { return item.faces.map(face=>faces[face]).filter(Boolean).join("、") || "待核对"; }
@@ -113,34 +162,17 @@ class AccessoryCatalog extends Component {
         return item.state === "pending" ? "待核对" : item.kinds.map(kind=>kind==="double" ? "双开门" : "单开门").join("、");
     }
 
-    status(item) {
-        if (item.state === "pending") return "pending";
-        const picker = this.props.picker;
-        if (!picker) return "available";
-        if (!item.kinds.includes(picker.kind)) return "cabinet";
-        if (picker.versions[item.code] !== item.version) return "version";
-        return picker.face && !item.faces.includes(picker.face) ? "face" : "selectable";
-    }
+    status(item) { return accessoryStatus(item,this.props.picker); }
 
     priority(item) {
-        return this.restriction(item) ? 2 : Number(this.status(item)==="face");
-    }
-
-    restriction(item) {
-        return blocked[this.status(item)] || "";
+        return accessoryRestriction(item,this.props.picker) ? 2 : Number(this.status(item)==="face");
     }
 
     selectionNote(item) {
+        const picker = this.props.picker;
         if (!item) return "";
-        return this.restriction(item) || (this.status(item) === "face" ? "选用后请在装配清单调整安装面" : "");
+        return picker.notice || accessoryRestriction(item,picker) || (!picker.face ? "请选择安装面" : "");
     }
-}
-
-export class AccessoryPicker extends Component {
-    static template = "nodo_draw.AccessoryPicker";
-    static components = {AccessoryCatalog, Dialog};
-    props = useProps({picker:t.object(), choose:t.function(), close:t.function()});
-    choose(item) { this.props.choose(item); this.props.close(); }
 }
 
 class AccessoryLibrary extends Component {

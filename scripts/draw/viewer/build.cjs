@@ -40,6 +40,7 @@ function readSource(file) {
 }
 const sources = {name: "jingneng-release", setup(build) {
     build.onResolve({filter: /^@nodo\/drill-pick$/}, () => ({path: path.join(__dirname, "drill_pick.js")}));
+    build.onResolve({filter: /^@nodo\/installation-highlight$/}, () => ({path: path.join(__dirname, "installation_highlight.js")}));
     build.onResolve({filter: /^@jingneng\/(Viewer|coordinates|holePlacement|holeShape|HoleGizmo)$/}, ({path: name}) => {
         const file = name.slice("@jingneng/".length);
         return {path: "src/ae-cabinet/" + file + (file === "Viewer" ? ".tsx" : ".ts"), namespace: "ae"};

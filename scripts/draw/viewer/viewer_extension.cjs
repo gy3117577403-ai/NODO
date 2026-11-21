@@ -8,8 +8,11 @@ module.exports = function extendViewer(source) {
     const visibleBounds = "objects.filter(o=>o.group.visible&&(!focusIds||focusIds.includes(o.part.id))).forEach(o=>bounds.expandByObject(o.mesh));";
     const fitCorners = "for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){";
     const changes = [
-        [imports, imports + "\nimport {pickDrillPlane} from '@nodo/drill-pick';"],
-        [props, "catalogPreview?:boolean;drill?:{pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
+        [imports, imports + "\nimport {pickDrillPlane} from '@nodo/drill-pick';\nimport {createInstallationHighlight} from '@nodo/installation-highlight';"],
+        [props, "catalogPreview?:boolean;installationFace?:string;drill?:{pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
+        ["const accessories=createAccessoryGizmo", "const installationHighlight=createInstallationHighlight(scene);\n  const accessories=createAccessoryGizmo"],
+        ["renderer.render(scene,camera);", "installationHighlight.update(p.installationFace&&p.model.faces.find(face=>face.id===p.installationFace),objects);\n   renderer.render(scene,camera);"],
+        ["gizmo.dispose();controls.removeEventListener", "gizmo.dispose();installationHighlight.dispose();controls.removeEventListener"],
         ["antialias:true,alpha:false", "antialias:true,alpha:!!props.catalogPreview"],
         ["renderer.setClearColor('#e9edef')", "renderer.setClearColor('#e9edef',props.catalogPreview?0:1)"],
         // Catalogue parts can be much smaller than a cabinet. Fit their real

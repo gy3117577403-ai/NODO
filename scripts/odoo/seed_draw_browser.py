@@ -19,6 +19,22 @@ designs = env['nodo.draw.design']
 for sample in spec.SAMPLES[1:]:
     designs.handoff_bom(sample)
 
+if os.environ.get('NODO_DRAW_BROWSER_LAYOUT') == 'after':
+    double = designs.search([('source', '=', 'AE-202'), ('company_id', '=', company.id)], limit=1)
+    payload = double._job_payload(double.settings, 'preview', 0)
+    for state_file in workbench.EXCHANGE.glob('*/status.json'):
+        folder = state_file.parent
+        if not re.fullmatch(r'[a-f0-9]{32}', folder.name) or workbench.read_json(folder / 'request.json') != payload:
+            continue
+        state = workbench.read_json(state_file)
+        if state.get('state') != 'done' or 'mesh' not in state.get('files', {}):
+            continue
+        env['nodo.draw.job'].create(dict(design_id=double.id, company_id=company.id, token=folder.name,
+                                        operation='preview', edit_number=double.edit_number, version=0,
+                                        final_state='done', payload=payload))
+        print('AE-202 界面验收复用同参数的柜体网格。')
+        break
+
 backups = sorted(workbench.EXCHANGE.glob('dev-cabinets-backup-*.json'))
 if not backups:
     raise RuntimeError('缺少开发柜体归档索引。')

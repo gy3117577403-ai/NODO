@@ -4,13 +4,14 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
+const {target} = require("./verify_selection.cjs");
 
 const origin = "http://127.0.0.1:8079";
 const root = path.resolve(__dirname,"../..");
 const exchange = path.join(root,".nodo-draw/exchange");
 const output = path.join(root,".nodo-draw/output/playwright/accessory-library");
 const downloads = path.join(output,"下载");
-const layoutOutput = path.join(output,"layout");
+const layoutOutput = path.join(output,"side-selection");
 const layoutPhase = process.argv[2] || "";
 const database = process.env.NODO_DRAW_BROWSER_DB;
 const password = process.env.NODO_DRAW_BROWSER_PASSWORD;
@@ -217,29 +218,28 @@ async function checkV02(page) {
 async function openAE202Picker(page) {
     const design=await openDesign(page,"AE-202");
     await btn(page,"装配").click();
-    return {design,dialog:await openPicker(page)};
+    return {design,picker:await openPicker(page)};
 }
 
 async function openPicker(page) {
     await btn(page,"第1行从附件库选用").click();
-    const dialog=page.locator(".modal").filter({hasText:"从附件库选用"});
-    await value(dialog,"搜索附件库").waitFor();
-    return dialog;
+    const picker=page.locator(layoutPhase==="before" ? ".modal" : ".nd-library-picker");
+    await value(picker,"搜索附件库").waitFor();
+    return picker;
 }
 
 async function checkAE202(page) {
-    const {design,dialog}=await openAE202Picker(page);
-    await value(dialog,"搜索附件库").fill("FC-CORNER-2020");
-    await dialog.getByText("待工程核对，暂不可安装",{exact:true}).waitFor();
-    assert(await btn(dialog,"使用此型号").isDisabled());
-    await value(dialog,"搜索附件库").fill("AE-SQ35");
-    await modelRow(dialog,"AE-SQ35").getByText("柜型不符",{exact:true}).waitFor();
-    assert(await btn(dialog,"使用此型号").isDisabled());
-    await dialog.locator(".nd-library-view canvas").waitFor();
+    const {design,picker}=await openAE202Picker(page);
+    await modelRow(picker,"FC-CORNER-2020").click();
+    await picker.getByText("待工程核对，暂不可安装",{exact:true}).waitFor();
+    assert(await btn(picker,"应用到本行").isDisabled());
+    await modelRow(picker,"AE-SQ35").click();
+    await picker.locator(".nd-library-note").filter({hasText:"柜型不符"}).waitFor();
+    assert(await btn(picker,"应用到本行").isDisabled());
     await screenshot(page,"AE-202-单门方锁柜型不符");
-    await value(dialog,"搜索附件库").fill("T5-55");
-    await btn(dialog,"使用此型号").click();
-    await value(page,"第1行安装面").selectOption("door_right");
+    await modelRow(picker,"T5-55").click();
+    await pickerFace(picker,"右门板").click();
+    await btn(picker,"应用到本行").click();
     await previewAndConfirm(page,design,[["T5-55","door_right"]]);
     return {rightDoor:"T5-55",incompatible:"AE-SQ35",pending:"FC-CORNER-2020"};
 }
@@ -378,38 +378,125 @@ async function checkInteraction(page, fit) {
     await page.setViewportSize(viewport);
 }
 
-async function checkPicker(page, dialog, design) {
-    const model=btn(page,"第1行从附件库选用");
-    const original=await model.innerText();
-    const before=await workspace(page,design.id);
-    const search=value(dialog,"搜索附件库");
-    await search.fill("AE-SQ35");
-    await modelRow(dialog,"AE-SQ35").getByText("柜型不符",{exact:true}).waitFor();
-    assert(await btn(dialog,"使用此型号").isDisabled());
-    await search.fill("FC-CORNER-2020");
-    await dialog.getByText("待工程核对，暂不可安装",{exact:true}).waitFor();
-    assert(await btn(dialog,"使用此型号").isDisabled());
-    await previewCanvas(dialog).waitFor();
-    await search.fill("EX-COVER");
-    await modelRow(dialog,"EX-COVER").getByText("需调整板面",{exact:true}).waitFor();
-    assert(await btn(dialog,"使用此型号").isEnabled());
-    await btn(dialog,"关闭选型弹窗").click();
-    assert.equal(await model.innerText(),original);
-    assert.equal(await value(page,"第1行安装面").inputValue(),"door_right");
+async function checkGallery(page, exerciseReturn) {
+    await btn(page,"图集").click();
+    const gallery=page.locator(".nd-library-gallery");
+    await page.waitForFunction(()=>[...document.querySelectorAll(".nd-library-gallery img")]
+        .filter(image=>image.complete && image.naturalWidth===320 && image.naturalHeight===216).length===7);
+    assert(await gallery.evaluate(node=>[...node.querySelectorAll("img")].every(image=>{
+        const frame=image.parentElement.getBoundingClientRect(), box=image.getBoundingClientRect();
+        return getComputedStyle(image).objectFit==="contain" && Math.abs(frame.height-box.height)<1;
+    })),"图集卡片应完整显示缩略图");
+    assert.equal(await previewCanvas(page).count(),0,"图集应仅读取静态缩略图");
+    await captureLayout(page,"附件图集");
+    if (!exerciseReturn) return;
 
-    dialog=await openPicker(page);
-    await modelRow(dialog,"EX-COVER").click();
-    await btn(dialog,"使用此型号").click();
-    assert.match(await model.innerText(),/平板防尘罩/);
-    dialog=await openPicker(page);
-    await modelRow(dialog,"T5-55").click();
-    await dialog.getByText("门板 / 左门、右门板、安装板",{exact:true}).waitFor();
-    await btn(dialog,"使用此型号").click();
-    assert.equal(await model.innerText(),original);
-    assert.equal(await value(page,"第1行安装面").inputValue(),"door_right");
+    const viewport=page.viewportSize();
+    await page.setViewportSize({width:viewport.width,height:430});
+    const tile=gallery.locator(".nd-library-tile").filter({hasText:"T5-55"});
+    await tile.scrollIntoViewIfNeeded();
+    const scroll=await gallery.evaluate(node=>node.scrollTop);
+    assert(scroll>0,"图集测试窗口应触发滚动");
+    await tile.click();
+    await previewCanvas(page).waitFor();
+    assert.equal(await previewCanvas(page).count(),1);
+    await btn(page,"返回图集").click();
+    await page.waitForFunction(expected=>Math.abs(document.querySelector(".nd-library-gallery")?.scrollTop-expected)<2,scroll);
+    assert.equal(await previewCanvas(page).count(),0);
+    await page.setViewportSize(viewport);
+
+    await value(page,"搜索附件库").fill("角码");
+    await value(page,"附件分类").selectOption("安装与固定");
+    await value(page,"附件状态").selectOption("pending");
+    await gallery.locator(".nd-library-tile").filter({hasText:"FC-CORNER-2020"}).click();
+    await previewCanvas(page).waitFor();
+    await btn(page,"返回图集").click();
+    assert.equal(await value(page,"搜索附件库").inputValue(),"角码");
+    assert.equal(await value(page,"附件分类").inputValue(),"安装与固定");
+    assert.equal(await value(page,"附件状态").inputValue(),"pending");
+    assert.equal(await gallery.locator(".nd-library-tile").count(),1);
+}
+
+const cabinetCanvas = page => page.locator(".nd-three-host canvas");
+const applyChoice = area => btn(area,"应用到本行");
+const firstFace = page => value(page,"第1行安装面");
+const pickerFace = (area,name) => btn(area.getByRole("group",{name:"选型安装面",exact:true}),name);
+
+async function clickCabinetFace(page, mesh, id, relative = [.37,.65]) {
+    await btn(page,"复位视角").click();
+    await settle(page);
+    const face=mesh.faces.find(board=>board.id===id);
+    assert(face,id);
+    const point=target(mesh,face,await cabinetCanvas(page).boundingBox(),[face.width*relative[0],face.height*relative[1]]);
+    await page.mouse.click(point.x,point.y);
+}
+
+async function checkPicker(page, picker, design, mesh) {
+    const before=await workspace(page,design.id);
+    const requests=[];
+    const track=request=>{
+        const method=new URL(request.url()).pathname.split("/").at(-1);
+        if (["apply_design","preview_assembly","preview_cabinet"].includes(method)) requests.push(method);
+    };
+    page.on("request",track);
+    await modelRow(picker,"FC-CORNER-2020").click();
+    await picker.getByText("待工程核对，暂不可安装",{exact:true}).waitFor();
+    assert(await applyChoice(picker).isDisabled());
+    await btn(picker,"取消").click();
+
+    const offsets=page.locator(".nd-assembly-locations");
+    await offsets.locator("summary").click();
+    await value(offsets,"横向").fill("37.5");
+    await value(offsets,"纵向").fill("-16");
+    await value(offsets,"转角").selectOption("90");
+    picker=await openPicker(page);
+    await pickerFace(picker,"左门板").click();
+    await page.getByText("安装面 · 左门板",{exact:true}).waitFor();
+    await clickCabinetFace(page,mesh,"door_right");
+    await page.getByText("安装面 · 右门板",{exact:true}).waitFor();
+    assert.equal(await pickerFace(picker,"右门板").getAttribute("aria-pressed"),"true");
+    await captureLayout(page,"右门点选");
+    await applyChoice(picker).click();
+
+    const assertOriginal=async()=>{
+        assert.equal(await firstFace(page).inputValue(),"door_right");
+        if (await offsets.getAttribute("open")===null) await offsets.locator("summary").click();
+        assert.equal(await value(offsets,"横向").inputValue(),"37.5");
+        assert.equal(await value(offsets,"纵向").inputValue(),"-16");
+        assert.equal(await value(offsets,"转角").inputValue(),"90");
+    };
+    await assertOriginal();
+    picker=await openPicker(page);
+    await modelRow(picker,"EX-COVER").click();
+    await picker.getByText("请选择安装面",{exact:true}).waitFor();
+    assert(await applyChoice(picker).isDisabled());
+    await clickCabinetFace(page,mesh,"top",[.5,.55]);
+    await page.getByText("安装面 · 顶板",{exact:true}).waitFor();
+    await modelRow(picker,"EX-COVER").getByText("板面已选",{exact:true}).waitFor();
+    await captureLayout(page,"顶板点选");
+    await btn(picker,"取消").click();
+    await assertOriginal();
+
+    picker=await openPicker(page);
+    await pickerFace(picker,"安装板").click();
+    await page.getByText("安装面 · 安装板",{exact:true}).waitFor();
+    await captureLayout(page,"柜门闭合时选择安装板");
+    await applyChoice(picker).click();
+    assert.equal(await firstFace(page).inputValue(),"mount");
+    await page.getByText("安装基准已变更，请重新核对位置。",{exact:true}).waitFor();
+    assert.notEqual(await value(offsets,"横向").inputValue(),"37.5");
+
+    picker=await openPicker(page);
+    await modelRow(picker,"EX-COVER").click();
+    await pickerFace(picker,"顶板").click();
+    await applyChoice(picker).click();
+    await btn(page,"第1行从附件库选用").getByText("平板防尘罩",{exact:true}).waitFor();
+    assert.equal(await firstFace(page).inputValue(),"top");
     const after=await workspace(page,design.id);
     assert.equal(after.edit_number,before.edit_number);
     assert.deepEqual(after.settings,before.settings);
+    assert.deepEqual(requests,[],"选型操作不应提交 CAD 或写入服务器");
+    page.off("request",track);
 }
 
 async function checkLayout(page) {
@@ -428,22 +515,40 @@ async function checkLayout(page) {
             assert(fit.fraction>=.60 && fit.fraction<.90 && fit.margin>=20,JSON.stringify(fit));
             fits.push({viewport:[width,height],modelHeight:fit.height,fraction:fit.fraction,minMargin:fit.margin});
             if (width===1173) await checkInteraction(page,fit);
+            await checkGallery(page,width===1173);
         }
 
-        const {design,dialog}=await openAE202Picker(page);
-        if (layoutPhase==="after") {
-            assert.match(await dialog.locator(".nd-library-context").innerText(),/AE-202.*双开门.*第 1 行.*右门板/);
-            assert.match(await dialog.locator(".nd-library-item").first().innerText(),/T5-55/);
+        if (layoutPhase==="before") {
+            const {picker}=await openAE202Picker(page);
+            await modelRow(picker,"AE-SQ35").click();
+            assert(await btn(picker,"使用此型号").isDisabled());
+            await previewCanvas(picker).waitFor();
+            await captureLayout(page,"AE-202选型");
+            continue;
         }
-        await modelRow(dialog,"AE-SQ35").click();
-        assert(await btn(dialog,"使用此型号").isDisabled());
-        await dialog.locator(".nd-library-view canvas").waitFor();
+
+        const nextMesh=page.waitForResponse(response=>/\/nodo\/draw\/file\/\d+\/mesh$/.test(response.url()) && response.ok(),{timeout:180000});
+        const design=await openDesign(page,"AE-202");
+        await btn(page,"装配").click();
+        const mesh=await (await nextMesh).json();
+        const canvas=cabinetCanvas(page);
+        await canvas.waitFor({timeout:30000});
+        const rect=await canvas.boundingBox();
+        const picker=await openPicker(page);
+        await page.getByText("安装面 · 右门板",{exact:true}).waitFor();
+        assert.equal(await page.locator(".modal").count(),0);
+        assert.equal(await page.locator("canvas").count(),1);
+        assert.deepEqual(await canvas.boundingBox(),rect,"打开选型栏后柜体画布位置变化");
+        assert.match(await picker.locator(".nd-picker-head").innerText(),/AE-202.*双开门.*第 1 行.*× 1/);
+        assert.match(await picker.locator(".nd-library-item").first().innerText(),/T5-55/);
+        await modelRow(picker,"AE-SQ35").click();
+        await picker.locator(".nd-library-note").filter({hasText:"柜型不符"}).waitFor();
+        assert(await applyChoice(picker).isDisabled());
         await captureLayout(page,"AE-202选型");
-        if (layoutPhase==="after") {
-            await checkColumns(dialog);
-            await modelRow(dialog,"AE-SQ35").getByText("柜型不符",{exact:true}).waitFor();
-            if (width===1173) await checkPicker(page,dialog,design);
-        }
+        await modelRow(picker,"T5-55").click();
+        await page.getByText("安装面 · 右门板",{exact:true}).waitFor();
+        await captureLayout(page,"柜体右侧选型");
+        if (width===1173) await checkPicker(page,picker,design,mesh);
     }
     if (fits.length) fs.writeFileSync(path.join(layoutOutput,"取景测量.json"),JSON.stringify(fits,null,2));
 }
@@ -466,6 +571,13 @@ async function main() {
         const engineer=await open("draw.engineer@nodo.test");
         if (layoutPhase) {
             await checkLayout(engineer);
+            if (layoutPhase === "after") {
+                const catalog=await call(engineer.context(),"nodo.draw.accessory","list_accessory_models");
+                const ref=catalog.find(item=>item.code==="T5-55").thumbnail;
+                const otherCompany=await signIn(browser,"draw.archive@nodo.test");
+                assert.equal((await otherCompany.request.get(origin+ref)).status(),404);
+                await otherCompany.close();
+            }
             assert.deepEqual(errors,[]);
             console.log(`附件库 ${layoutPhase} 界面验收 1173×871、1655×881 已完成。`);
             return;

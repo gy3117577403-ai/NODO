@@ -8,9 +8,11 @@ import tempfile
 from pathlib import Path
 
 from worker import ENGINE, EXCHANGE, HARDWARE, install_assets, publish, read
+from catalog_thumbnail import write_thumbnail
 
 
 SAMPLE = {'width': 420, 'height': 340, 'depth': 235}
+PREVIEW_KEY = re.compile(r'[a-z0-9][a-z0-9_-]{0,100}-v[1-9][0-9]*')
 CATEGORIES = {'locks': '锁具与门控', 'hinges': '铰链与连接', 'bases': '底座与支撑',
               'protection': '防护与通风', 'mounting': '安装与固定', 'fasteners': '密封与紧固'}
 
@@ -42,10 +44,11 @@ def builtin_preview(definition, work):
 
 def store(meshes, model, mesh):
     key = f"{model['id']}-v{model['version']}"
-    if not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,100}-v[1-9][0-9]*', key):
+    if not PREVIEW_KEY.fullmatch(key):
         raise ValueError('附件型号预览编号不符合格式')
     if not mesh['parts'] or not all(part['valid'] and part['solids'] for part in mesh['parts']):
         raise ValueError(f"{model['code']} 缺少有效 STEP 实体预览")
+    write_thumbnail(meshes.parent / 'thumbnails' / (key + '.png'), mesh)
     publish(meshes / (key + '.json'), {**mesh, 'model': model['name'], 'faces': [], 'parameters': {}})
 
 
@@ -69,11 +72,21 @@ def stage_pending(desktop, work, meshes):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--desktop-library', required=True, type=Path, help='京能桌面版附件库索引和 STEP 所在目录')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--desktop-library', type=Path, help='京能桌面版附件库索引和 STEP 所在目录')
+    mode.add_argument('--thumbnails-only', action='store_true', help='只从已有附件网格生成缩略图')
     args = parser.parse_args()
     catalog = EXCHANGE / 'catalog'
     meshes = catalog / 'meshes'
     meshes.mkdir(parents=True, exist_ok=True)
+    if args.thumbnails_only:
+        sources = sorted(source for source in meshes.glob('*.json') if PREVIEW_KEY.fullmatch(source.stem))
+        if not sources:
+            raise FileNotFoundError('缺少可生成缩略图的附件网格')
+        for source in sources:
+            write_thumbnail(catalog / 'thumbnails' / (source.stem + '.png'), read(source))
+        print(f'已从已有 CAD 网格生成 {len(sources)} 张附件缩略图。')
+        return
     builtins = read(HARDWARE.parent / 'library.json')
     with tempfile.TemporaryDirectory(prefix='nodo-catalog-') as temporary:
         work = Path(temporary)

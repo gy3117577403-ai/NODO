@@ -20,7 +20,7 @@ export function mount(host) {
     const readCamera = value => { camera = value; };
     return {
         camera() { return camera; },
-        update(model, open, paused, reset, {parts, holePreview, drilling, orientation, explode = 0, catalogPreview = false} = {}) {
+        update(model, open, paused, reset, {parts, holePreview, drilling, orientation, explode = 0, catalogPreview = false, installationFace} = {}) {
             if (!model) {
                 root.render(null);
                 return;
@@ -36,6 +36,7 @@ export function mount(host) {
                 view={orientation?.view ?? "iso"} reset={reset} restoreRequest={orientation?.restore} onCamera={readCamera}
                 paused={paused} selected={parts?.selected[0] ?? ""}
                 hidden={parts?.hidden ?? empty} highlighted={parts?.selected} focusPart={parts?.focus}
+                installationFace={installationFace}
                 display={drill ? drillingDisplay : display} drill={drill}
                 snapStep={drilling?.snap} holeMode={!!drill} holeOverlay={!!holePreview}
                 holes={holePreview?.holes ?? empty} activeHole={holePreview?.active ?? null}

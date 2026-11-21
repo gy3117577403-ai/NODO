@@ -5,7 +5,7 @@ import {loadBundle} from "@web/core/assets";
 import {standardActionServiceProps} from "@web/webclient/actions/action_plugin";
 import {useSetupAction} from "@web/search/action_hook";
 import {FaceCanvas, containsMaterial, faceSurface} from "./mesh";
-import {AccessoryPicker} from "./accessory_library";
+import {AccessoryCatalog, accessoryRestriction} from "./accessory_library";
 import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
 import {ExplosionControls} from "./explosion_controls";
 import {conflictsWithPlate, holeCoordinate, holeDimensionsReady, holeRecord, linkedHole, openingAt, sameHole, sameThickness} from "./hole_editing";
@@ -28,11 +28,13 @@ const noParts = [];
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
-    static components = {ArchivedCabinet, DrawingViewport, ExplosionControls, PartsPanel, Portal, SheetSettings};
+    static components = {AccessoryCatalog, ArchivedCabinet, DrawingViewport, ExplosionControls, PartsPanel, Portal, SheetSettings};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     settingsDirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
     draftPreview=signal(null);
+    accessoryPicker=signal(null);
+    placementReview=signal([]);
     referenceDrawings=signal({});
     referenceKind=signal(null);
     modelJob=signal(null); mode=signal("3d"); opened=signal(false); face=signal("door");
@@ -64,7 +66,6 @@ export class Workbench extends Component {
     viewerError=signal("");
     setup(){
         this.orm=useService("orm"); this.notification=useService("notification");
-        this.dialog=useService("dialog");
         this.action=useService("action");
         this.drawingViews = new Map();
         this.holeDrafts = new Map();
@@ -140,14 +141,16 @@ export class Workbench extends Component {
     }
     updateThree(){
         const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
+        const selection = this.accessoryPicker();
         const boardView = this.boardView(), drillFace = this.drillFace();
         const picked = this.inspectedPart()?.id, showParts = this.tab() === "parts";
         const explode = this.drilling() ? 0 : this.explosion();
         let parts = {
-            selected:showParts ? this.selectedParts() : picked ? [picked] : noParts,
+            selected:showParts ? this.selectedParts() : !selection && picked ? [picked] : noParts,
             hidden:showParts ? this.hiddenParts() : noParts,
             focus:showParts ? this.partFocus() : null,
-            pick:(id, face) => this.inspectPart(id, face), clear:() => this.inspectPart(null),
+            pick:(id, face) => this.accessoryPicker() ? this.selectAccessoryFace(face) : this.inspectPart(id, face),
+            clear:() => { if (!this.accessoryPicker()) this.inspectPart(null); },
         };
         const overlay = paused || explode ? null : this.holeOverlay(mesh);
         const drill = !paused && this.drilling() && !this.busy() && this.holeGeometryReady(mesh) ? {
@@ -163,7 +166,7 @@ export class Workbench extends Component {
         }
         const orientation = {view:boardView ? boardViews[boardView.face] : "iso", restore:this.cameraRestore()};
         this.threeView?.update(mesh, !boardView && open, paused, reset,
-            {parts, holePreview:overlay, drilling:drill, orientation, explode});
+            {parts, holePreview:overlay, drilling:drill, orientation, explode, installationFace:selection?.face});
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
     inspectPart(id, face = null) {
@@ -255,6 +258,7 @@ export class Workbench extends Component {
     }
     async loadDesign(id){
         if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
+        this.closeAccessoryPicker();
         this.leaveDrilling();
         this.explosion.set(0);
         this.cameraRestore.set(null);
@@ -286,6 +290,7 @@ export class Workbench extends Component {
             this.form.set(form);
             this.localEdit = data.edit_number;
             this.settingsDirty.set(false);
+            this.placementReview.set([]);
             this.resetHoleHistory();
         }
         const current=data.jobs.find(j=>j.state==="done"&&j.files?.includes("mesh"));
@@ -382,6 +387,7 @@ export class Workbench extends Component {
     changeField(key,ev,numeric=false){this.patch({[key]:numeric?fieldNumber(ev.target.value):ev.target.value});}
     selectTab(id, in3d = false, scope = this.previewScope()) {
         const previous = this.previewScope();
+        if (id !== "assembly") this.closeAccessoryPicker();
         if (id !== "holes" || !in3d) this.leaveDrilling();
         this.partFocus.set(null);
         if (id === "holes") this.holeAssembly.set(scope === "design");
@@ -501,7 +507,7 @@ export class Workbench extends Component {
         return false;
     }
     async apply(operation, previewId = null){
-        if(this.busy() || this.focusPendingHole())return;
+        if(this.busy() || this.accessoryPicker() || this.focusPendingHole())return;
         this.busy.set(true);this.issue.set("");
         const doc=this.doc(), epoch=this.epoch;
         try{
@@ -555,23 +561,59 @@ export class Workbench extends Component {
         this.ensureDraftPreview();
     }
     chooseAccessory(i){
+        if (this.busy()) return;
         const doc = this.doc(), form = this.form(), row = this.rowInfo(i), line = doc.bom.lines[i];
         const face = row.validFace ? row.face : "";
         const kind = form.kind === "double" ? "双开门" : "单开门";
-        const label = [`${doc.bom.source} ${kind}`, `第 ${i+1} 行 ${line.code} × ${line.quantity}`, this.faceName(face)]
-            .filter(Boolean).join(" · ");
-        this.dialog.add(AccessoryPicker,{
-            picker:{label, kind:form.kind, code:row.code, face,
-                versions:Object.fromEntries(Object.entries(doc.library).map(([code,model])=>[code,model.version]))},
-            choose:item=>this.links(i,"code",item.code),
+        this.accessoryPicker.set({row:i, label:`${doc.bom.source} ${kind} · 第 ${i+1} 行 ${line.code} × ${line.quantity}`,
+            kind:form.kind, code:row.code, originalFace:face, face, item:null, choices:[], notice:"",
+            versions:Object.fromEntries(Object.entries(doc.library).map(([code,model])=>[code,model.version])),
         });
     }
-    links(i,k,val){
-        const f=this.form(),choice={...f.matches[i],[k]:val};
-        if (k==="code" && this.rowInfo(i).code!==val) choice.face="";
+
+    selectAccessoryModel(item) {
+        const picker = this.accessoryPicker();
+        if (!picker) return;
+        const definition = this.doc().library[item.code];
+        const choices = definition && !accessoryRestriction(item,picker)
+            ? this.mountingFaces(definition).filter(face => this.faceName(face)).map(id => ({id,name:this.faceName(id)})) : [];
+        const face = [picker.face,picker.originalFace].find(id => choices.some(choice => choice.id === id)) || "";
+        this.accessoryPicker.set({...picker,item,choices,face,notice:""});
+    }
+
+    selectAccessoryFace(face) {
+        const picker = this.accessoryPicker();
+        if (!picker?.item || !picker.choices.length) return;
+        if (!picker.choices.some(choice => choice.id === face)) {
+            const name = this.faceName(face);
+            this.accessoryPicker.set({...picker,notice:name ? `此型号不支持${name}` : "请选择可用安装面"});
+            return;
+        }
+        this.accessoryPicker.set({...picker,face,notice:""});
+    }
+
+    applyAccessoryPicker() {
+        const picker = this.accessoryPicker();
+        if (!picker?.item || !picker.choices.some(choice => choice.id === picker.face)) return;
+        this.commitAccessoryMatch(picker.row,picker.item.code,picker.face);
+        this.closeAccessoryPicker();
+    }
+
+    closeAccessoryPicker() { this.accessoryPicker.set(null); }
+
+    setAssemblyFace(i, face) { this.commitAccessoryMatch(i,this.rowInfo(i).code,face); }
+
+    commitAccessoryMatch(i, code, face) {
+        const row = this.rowInfo(i);
+        if (row.code === code && row.face === face) return;
+        const f = this.form();
         const prefix = `a${i+1}n`;
-        const assembly_positions=Object.fromEntries(Object.entries(f.assembly_positions).filter(([key])=>!key.startsWith(prefix)));
-        this.patch({matches:{...f.matches,[i]:choice},assembly_positions});
+        const positions = Object.entries(f.assembly_positions);
+        const remaining = positions.filter(([key]) => !key.startsWith(prefix));
+        if (remaining.length !== positions.length || f.instances.some(item => item.row === i)) {
+            this.placementReview.set([...new Set([...this.placementReview(),i])]);
+        }
+        this.patch({matches:{...f.matches,[i]:{code,face}},assembly_positions:Object.fromEntries(remaining)});
     }
     rowInfo(i){
         const form=this.form(),line=this.doc().bom.lines[i],choice=form.matches[i]||{};
@@ -838,6 +880,7 @@ export class Workbench extends Component {
             state:reference.sheets.length ? "done" : "unavailable"};
     }
     openArchive() {
+        this.closeAccessoryPicker();
         this.returnToCabinet();
         if (!this.selectedBuild()) {
             this.openReference();
@@ -849,6 +892,7 @@ export class Workbench extends Component {
         this.showFiles.set(true);
     }
     openReference(kind = this.form().kind || "single") {
+        this.closeAccessoryPicker();
         this.returnToCabinet();
         this.referenceKind.set(kind);
         this.sheet.set(null);
@@ -886,6 +930,10 @@ export class Workbench extends Component {
         if (this.archiveMenu() && !event.target.closest?.(".nd-workbar .nd-menu")) this.archiveMenu.set(null);
     }
     keyArchiveMenu(event) {
+        if (event.key === "Escape" && this.accessoryPicker()) {
+            this.closeAccessoryPicker();
+            return;
+        }
         if (event.key !== "Escape" || !this.archiveMenu()) return;
         document.querySelector('.nd-workbar .nd-menu > button[aria-expanded="true"]')?.focus();
         this.archiveMenu.set(null);

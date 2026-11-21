@@ -10,26 +10,26 @@ from ..models import standard_drawings, workbench
 
 def artifact_response(path, download_name):
     stat = path.stat()
-    mime = {'.svg':'image/svg+xml','.json':'application/json','.csv':'text/csv; charset=utf-8',
+    mime = {'.svg':'image/svg+xml','.png':'image/png','.json':'application/json','.csv':'text/csv; charset=utf-8',
             '.zip':'application/zip'}.get(path.suffix,'application/octet-stream')
     stream = Stream(type='path', path=str(path), size=stat.st_size, mimetype=mime, public=False,
                     download_name=download_name, last_modified=stat.st_mtime)
-    response = stream.get_response(as_attachment=path.suffix not in ('.json', '.svg'))
+    response = stream.get_response(as_attachment=path.suffix not in ('.json', '.svg', '.png'))
     response.headers['Cache-Control'] = 'private, no-store'
     return response
 
 
 class DrawFiles(http.Controller):
-    @http.route('/nodo/draw/accessory/<int:model_id>/mesh', type='http', auth='user', methods=['GET'])
-    def accessory_mesh(self, model_id):
+    @http.route('/nodo/draw/accessory/<int:model_id>/<string:kind>', type='http', auth='user', methods=['GET'])
+    def accessory_preview(self, model_id, kind):
         workbench.guard(request.env)
         item = request.env['nodo.draw.accessory'].search([
             ('id', '=', model_id), ('company_id', '=', request.env.company.id), ('state', '!=', 'retired'),
         ], limit=1)
-        path = item._mesh_path() if item else None
+        path = item._preview_path(kind) if item else None
         if not path:
             raise NotFound()
-        return artifact_response(path, f'{item.code}-V{item.version:02}.json')
+        return artifact_response(path, f'{item.code}-V{item.version:02}{path.suffix}')
 
     @http.route('/nodo/draw/file/<int:job_id>/<string:key>', type='http', auth='user', methods=['GET'])
     def artifact(self, job_id, key, **kwargs):
