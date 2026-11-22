@@ -197,8 +197,22 @@
   <t t-name="nodo_contract.DrawingDimensions">
     <div class="o_drawing_dimension_tools" t-ref="this.toolbarRef">
       <div class="o_drawing_dimension_bar" role="group" aria-label="图纸工具">
-        <button type="button" class="btn btn-secondary btn-sm o_nodo_drawing_fit"
-                t-att-disabled="!this.assist.state.viewerReady" t-on-click="() =&gt; this.assist.fit()">回到全图</button>
+        <div class="btn-group o_nodo_drawing_view_tools" role="group" aria-label="原图阅览">
+          <t t-if="this.props.record.data.file_kind === 'pdf'">
+            <button type="button" class="btn btn-secondary btn-sm" aria-label="向左旋转 90 度" title="向左旋转 90°"
+                    t-att-disabled="!this.assist.canView" t-on-click="() =&gt; this.assist.rotate(-90)">左转</button>
+            <button type="button" class="btn btn-secondary btn-sm" aria-label="向右旋转 90 度" title="向右旋转 90°"
+                    t-att-disabled="!this.assist.canView" t-on-click="() =&gt; this.assist.rotate(90)">右转</button>
+            <button type="button" class="btn btn-secondary btn-sm o_nodo_drawing_zoom" aria-label="缩小原图"
+                    title="缩小原图" t-att-disabled="!this.assist.canView"
+                    t-on-click="() =&gt; this.assist.zoom(-1)">−</button>
+            <button type="button" class="btn btn-secondary btn-sm o_nodo_drawing_zoom" aria-label="放大原图"
+                    title="放大原图" t-att-disabled="!this.assist.canView"
+                    t-on-click="() =&gt; this.assist.zoom(1)">+</button>
+          </t>
+          <button type="button" class="btn btn-secondary btn-sm o_nodo_drawing_fit"
+                  t-att-disabled="!this.assist.canView" t-on-click="() =&gt; this.assist.fit()">回到全图</button>
+        </div>
         <div t-if="this.assist.editable" class="o_nodo_frame_modes" role="group" aria-label="框选视图">
           <button t-foreach="this.views" t-as="view" t-key="view.key" type="button" class="o_nodo_frame_tool"
                   t-att-aria-pressed="this.assist.state.tool === view.key ? 'true' : 'false'"

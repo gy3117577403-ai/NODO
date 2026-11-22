@@ -932,8 +932,9 @@ function drawingDimensionSession(record, orm) {
             pane: "results", tool: null, viewerReady: false, pendingSelection: null }),
         get editable() { return Boolean(record.data.can_edit_selection); },
         get candidate() { return record.data.active_recognition_id?.id || 0; },
+        get canView() { return this.state.viewerReady && !this.state.orienting; },
         get canFrame() {
-            return this.editable && this.state.viewerReady && !this.state.busy && !this.state.orienting
+            return this.editable && this.canView && !this.state.busy
                 && !this.vision.state.saving;
         },
         get activeTool() { return this.vision.state.selecting ? "vision" : this.state.tool; },
@@ -977,6 +978,12 @@ function drawingDimensionSession(record, orm) {
         fit() {
             this.fitPreview?.();
             this.emit();
+        },
+        rotate(angle) {
+            if (this.canView) this.rotatePreview?.(angle);
+        },
+        zoom(step) {
+            if (this.canView) this.zoomPreview?.(step);
         },
         orientation(page) {
             const cached = record.data.orientation_data?.pages?.[String(page)];
@@ -1624,7 +1631,7 @@ function setupDrawingPdfControls(frame, application, positions) {
     const container = viewer.container;
     const style = doc.createElement("style");
     style.textContent = `
-        #scaleSelectContainer { display: none !important; }
+        #toolbarViewerMiddle, #pageRotateCw, #pageRotateCcw { display: none !important; }
         #viewerContainer { overscroll-behavior: none; scrollbar-gutter: stable; }
         #viewer { box-sizing: content-box; width: max-content; padding: 50vh 50vw; }
         #viewer .page { margin: 0 !important; border: 0 !important; }
@@ -1707,7 +1714,7 @@ function setupDrawingPdfControls(frame, application, positions) {
         });
     }
 
-    const controls = bindDrawingMouseControls(container, {
+    const gestures = {
         zoom(factor, clientX, clientY) {
             if (restoring || !viewer.pdfDocument) {
                 return;
@@ -1745,7 +1752,8 @@ function setupDrawingPdfControls(frame, application, positions) {
             savePosition();
         },
         fit() { restorePosition(true); },
-    });
+    };
+    const controls = bindDrawingMouseControls(container, gestures);
 
     const onPageChange = ({ pageNumber }) => {
         if (restoring) {
@@ -1801,14 +1809,29 @@ function setupDrawingPdfControls(frame, application, positions) {
     };
     cleanup.fit = () => restorePosition(true);
     cleanup.restore = () => restorePosition();
+    cleanup.zoom = (step) => {
+        const bounds = container.getBoundingClientRect();
+        gestures.zoom(DRAWING_GESTURES.wheelStep ** step,
+            bounds.left + container.clientWidth / 2, bounds.top + container.clientHeight / 2);
+    };
+    cleanup.rotate = (angle) => {
+        if (!viewer.pdfDocument) return;
+        savePosition();
+        const saved = positions.get(activePage);
+        if (saved) {
+            const [x, y] = rotateDrawingRect([saved.x, saved.y, 0, 0], angle);
+            positions.set(activePage, { ...saved, x, y });
+        }
+        restoring = true;
+        viewer.pagesRotation = (viewer.pagesRotation + angle + 360) % 360;
+        restorePosition();
+    };
     cleanup.focus = (box, rect) => {
-        if (!viewer.pdfDocument || !rect) return;
+        if (!viewer.pdfDocument || !rect || viewer.currentPageNumber !== box.page) return;
         restoring = true;
         view.cancelAnimationFrame(restoreFrame);
         view.cancelAnimationFrame(finishFrame);
         activePage = box.page;
-        viewer.currentPageNumber = box.page;
-        viewer.pagesRotation = box.rotation;
         restoreFrame = view.requestAnimationFrame(() => {
             if (disposed) return;
             viewer.currentScaleValue = "page-fit";
@@ -1868,12 +1891,25 @@ class DrawingPdfViewerField extends PdfViewerField {
                     application.eventBus.on("pagesinit", updateCropReady);
                     const removeMouse = setupDrawingPdfControls(frame, application, this.drawingPagePositions);
                     assist.fitPreview = removeMouse.fit;
+                    assist.rotatePreview = removeMouse.rotate;
+                    assist.zoomPreview = removeMouse.zoom;
+                    let focusRevision = 0;
                     const dimensions = bindDrawingDimensionSelection(application.pdfViewer.container, () => {
                         const viewer = application.pdfViewer;
                         return viewer.pdfDocument ? { element: viewer.getPageView(viewer.currentPageNumber-1)?.div,
                             page: viewer.currentPageNumber, rotation: viewer.pagesRotation,
                             orientation: assist.orientationAngles.get(viewer.currentPageNumber) || 0 } : null;
-                    }, assist, (box, token) => removeMouse.focus(box, token?.rect));
+                    }, assist, async (box, token) => {
+                        const viewer = application.pdfViewer;
+                        if (!viewer.pdfDocument) return;
+                        const request = ++focusRevision;
+                        if (viewer.currentPageNumber !== box.page) viewer.currentPageNumber = box.page;
+                        if (!token?.rect) return;
+                        if (assist.state.orienting) await assist.orientation(box.page);
+                        if (request === focusRevision && revision === currentRevision) {
+                            removeMouse.focus(box, token.rect);
+                        }
+                    });
                     const events = ["pagerendered", "pagechanging", "rotationchanging", "scalechanging"];
                     for (const name of events) application.eventBus.on(name, dimensions.render);
                     const removeOrientation = bindDrawingPdfOrientation(application, assist, removeMouse, dimensions.render);
@@ -1884,6 +1920,8 @@ class DrawingPdfViewerField extends PdfViewerField {
                             assist.vision.state.viewerReady = false;
                             assist.state.viewerReady = false;
                             assist.fitPreview = null;
+                            assist.rotatePreview = null;
+                            assist.zoomPreview = null;
                         }
                         for (const name of events) application.eventBus.off(name, dimensions.render);
                         removeOrientation(); dimensions.destroy(); removeMouse();

@@ -402,6 +402,12 @@
     .o_nodo_drawing_more { margin-inline-start: auto; padding-inline: .55rem; }
 }
 
+.o_nodo_drawing_view_tools {
+    flex: 0 0 auto;
+    .btn { min-height: 1.9rem; padding-inline: .5rem; white-space: nowrap; }
+    .o_nodo_drawing_zoom { min-inline-size: 2rem; font-size: 1rem; line-height: 1; }
+}
+
 .o_nodo_frame_modes {
     display: inline-flex;
     flex-wrap: wrap;
