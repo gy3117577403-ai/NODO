@@ -8,7 +8,7 @@ export class DrawingVisionSession {
         this.revision = 0;
         this.state = proxy({
             review: null, loading: true, saving: false, selecting: false,
-            region: null, focus: null, error: "", viewerReady: false,
+            region: null, focus: null, error: "", viewerReady: false, onlyPending: false,
         });
     }
 
@@ -20,8 +20,21 @@ export class DrawingVisionSession {
         return [...(this.state.review?.runs || [])].reverse();
     }
 
-    valueLabel(item) {
-        return item.unit ? `${item.value} ${item.unit}` : item.value;
+    get itemCount() {
+        return this.runs.reduce((count, run) => count + run.items.length, 0);
+    }
+
+    get pendingCount() {
+        return this.runs.reduce((count, run) => count + run.items.filter(item => !item.decision).length, 0);
+    }
+
+    itemsFor(run) {
+        const pending = run.items.filter(item => !item.decision);
+        return this.state.onlyPending ? pending : [...pending, ...run.items.filter(item => item.decision)];
+    }
+
+    valueLabel(item, value = item.value) {
+        return item.unit ? `${value} ${item.unit}` : value;
     }
 
     decisionLabel(item) {
@@ -32,13 +45,14 @@ export class DrawingVisionSession {
 
     get canSend() {
         return this.assist.editable && this.state.review?.configured && this.state.viewerReady &&
-            !this.state.loading && !this.active && !this.state.saving && !this.assist.state.orienting;
+            !this.state.loading && !this.active && !this.state.saving && !this.assist.state.orienting
+            && !this.assist.state.busy;
     }
 
     reset() {
         this.revision++;
         Object.assign(this.state, { review: null, loading: true, saving: false, selecting: false,
-            region: null, focus: null, error: "" });
+            region: null, focus: null, error: "", onlyPending: false });
         this.assist.emit();
     }
 
@@ -48,6 +62,7 @@ export class DrawingVisionSession {
             const review = await this.orm.call("nodo.contract.drawing", "get_drawing_vision", [[this.record.resId]]);
             if (revision === this.revision) {
                 this.state.review = review;
+                this.state.error = "";
             }
         } catch (error) {
             if (revision === this.revision) {
@@ -62,8 +77,12 @@ export class DrawingVisionSession {
 
     chooseRegion() {
         if (!this.canSend) return;
+        this.assist.state.tool = null;
+        this.assist.state.error = "";
+        this.assist.choosePane("vision");
         Object.assign(this.state, { selecting: true, region: null, focus: null, error: "" });
         this.assist.emit();
+        this.assist.revealPreview?.();
     }
 
     select(page, rect, rotation) {
@@ -115,12 +134,17 @@ export class DrawingVisionSession {
     }
 
     focus(run, item) {
-        this.state.focus = { page: run.page, rotation: run.rotation, rect: item.rect };
+        this.state.focus = { page: run.page, rotation: run.rotation, rect: item.rect, runId: run.id, itemId: item.id };
         this.assist.state.focusToken = null;
+        this.assist.revealPreview?.();
         for (const navigate of this.assist.navigators) {
             navigate(run, item);
         }
         this.assist.emit();
+    }
+
+    isFocused(run, item) {
+        return this.state.focus?.runId === run.id && this.state.focus?.itemId === item.id;
     }
 
     async confirm(run, item, choice) {

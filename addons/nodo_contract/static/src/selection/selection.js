@@ -150,6 +150,7 @@ class CabinetAllocations extends Component {
     sourceText(item) {
         const fact = this.props.evidence?.[item.name];
         if (!fact) return "";
+        if (fact.source === "part_number") return `图纸料号 · ${fact.part_number}`;
         return fact.source === "manual" ? "手动添加" : '图纸匹配 · ' + fact.match_rate + '% · ' + fact.overlap;
     }
     canRemove(item) {
@@ -320,8 +321,8 @@ class QuoteSelectionTable extends Component {
     fail(error) { if (!this.disposed) this.state.error = error.data?.message || error.message || "保存失败，请重试。"; }
     status(row) { return row.state === "confirmed" ? "已选型" : "待选型"; }
     recognition(row) {
-        return { idle: "待识别", queued: "排队中", processing: "识别中", review: "识别完成",
-            done: "识别完成", failed: "识别失败" }[row.recognition_state] || "";
+        return { idle: "待本地读取", queued: "本地读取排队中", processing: "本地读取中", review: "本地结果待核",
+            done: "本地结果已核", failed: "本地未提取" }[row.recognition_state] || "";
     }
     isRecognizing(row) { return ["queued", "processing"].includes(row.recognition_state); }
     parameters(row) {
@@ -484,7 +485,6 @@ class QuoteSelectionTable extends Component {
         return [...names].map(name => ({ name, selected: data.choices?.[name] !== false }));
     }
     selectedAccessories(row) { return this.accessories(row).filter(item => item.selected).length; }
-    cabinets(row){return cabinetRows(row);}
     widthValue(row){return row.width_expression ?? (row.width_mm || "");}
     async changeAllocations(row,data){
         row.accessory_selection_data=data;
@@ -806,6 +806,10 @@ class DrawingAccessoriesField extends Component {
     get decisions() { return this.saved.choices || {}; }
     get selectionValues(){return {...this.props.record.data,accessory_selection_data:this.saved};}
     get hasAllocations(){return !!this.saved.allocations?.length;}
+    get candidateItems() {
+        const allocated = new Set((this.saved.allocations || []).map(item => item.name));
+        return this.state.items.filter(item => !allocated.has(item.name));
+    }
     get evidence() {
         return Object.fromEntries(this.state.items.map(item => [item.name, item]));
     }
@@ -892,6 +896,7 @@ const dimensionAxes = [
     { key: "depth_mm", label: "深度", role: "side", direction: "horizontal" },
     { key: "height_mm", label: "高度", role: "front", direction: "vertical" },
 ];
+const drawingViewLabels = { front: "正视图", side: "侧视图" };
 
 function rotateDrawingRect(rect, angle) {
     const [x,y,w,h] = rect;
@@ -912,9 +917,15 @@ function drawingDimensionSession(record, orm) {
         pendingUpdates: 0, clients: 0, contextCandidate: record.data.active_recognition_id?.id || 0,
         saving: Promise.resolve(), orientationLoads: new Map(), orientationAngles: new Map(),
         state: proxy({ boxes: {}, values: {}, chosen: {}, busy: false, error: "", applied: false,
-            heightReviewed: false, focus: null, focusToken: null, orienting: false }),
+            heightReviewed: false, focus: null, focusToken: null, orienting: false,
+            pane: "parameters", tool: null, viewerReady: false, pendingSelection: null }),
         get editable() { return Boolean(record.data.can_edit_selection); },
         get candidate() { return record.data.active_recognition_id?.id || 0; },
+        get canFrame() {
+            return this.editable && this.state.viewerReady && !this.state.busy && !this.state.orienting
+                && !this.vision.state.saving;
+        },
+        get activeTool() { return this.vision.state.selecting ? "vision" : this.state.tool; },
         get heightCheck() {
             const box = this.state.boxes.side;
             return box?.tokens.find((token) => token.id === box.vertical)?.value;
@@ -924,14 +935,36 @@ function drawingDimensionSession(record, orm) {
                 Math.abs(this.heightCheck - this.state.values.height_mm) > 0.01;
         },
         get hint() {
-            if (!this.editable) return "当前单据只读";
-            if (this.state.orienting) return "图纸正在后台准备…";
-            if (this.vision.state.selecting) return "在图纸上拖动，框选要智能补读的局部";
-            if (this.vision.state.region) return "已选局部，请确认后开始补读";
-            if (this.state.busy) return "正在读取框选范围内的尺寸…";
-            if (!this.state.boxes.front) return "拖动框选正视图，请包含尺寸标注";
-            if (!this.state.boxes.side) return "正视图已框选，请拖动框选侧视图";
-            return "已读取，尺寸已填入右侧字段";
+            if (!this.state.viewerReady || this.state.orienting) return "正在准备原图…";
+            if (this.state.busy) return `正在读取${drawingViewLabels[this.state.pendingSelection?.role] || "选区"}…`;
+            if (this.vision.state.selecting) return "拖动框住需要补读的标注或文字";
+            if (this.vision.state.region) return `第 ${this.vision.state.region.page} 页已框选，确认后发送局部图像`;
+            if (this.state.tool) return `拖动框选${drawingViewLabels[this.state.tool]}，包含尺寸标注`;
+            return "滚轮缩放 · 按住中键平移";
+        },
+        choosePane(pane) {
+            this.state.pane = pane;
+        },
+        chooseTool(role) {
+            if (!this.canFrame) return;
+            const tool = this.state.tool === role ? null : role;
+            this.vision.cancel();
+            this.vision.state.focus = null;
+            this.state.tool = tool;
+            this.state.error = "";
+            if (tool) this.choosePane("parameters");
+            this.emit();
+        },
+        cancelTool() {
+            if (!(this.activeTool || this.vision.state.region) || this.vision.state.saving) return false;
+            this.state.tool = null;
+            this.state.error = "";
+            this.vision.cancel();
+            return true;
+        },
+        fit() {
+            this.fitPreview?.();
+            this.emit();
         },
         orientation(page) {
             const cached = record.data.orientation_data?.pages?.[String(page)];
@@ -958,6 +991,7 @@ function drawingDimensionSession(record, orm) {
         emit() { for (const listener of this.listeners) listener(); },
         remember() { this.history.push(this.snapshot()); if (this.history.length > 20) this.history.shift(); },
         restore(value, useSnapshot = false) {
+            if (this.contextCandidate !== this.candidate) this.state.tool = null;
             this.contextCandidate = this.candidate;
             const data = value?.version === 1 && value.candidate_id === this.candidate ? value : {};
             this.state.boxes = clone(data.boxes || {});
@@ -1022,19 +1056,16 @@ function drawingDimensionSession(record, orm) {
                 this.state.values.height_mm = 0; this.state.chosen.height_mm = ""; this.state.heightRole = "front";
             }
         },
-        select(page, rect, rotation, orientation = 0) {
-            this.reading = this.selectRect(page, rect, rotation, orientation);
+        select(role, page, rect, rotation, orientation = 0) {
+            this.reading = this.selectRect(role, page, rect, rotation, orientation);
             return this.reading;
         },
-        async selectRect(page, rect, rotation, orientation = 0) {
-            if (!this.editable || this.state.busy || this.state.orienting) return;
-            if (this.state.boxes.front && this.state.boxes.side) {
-                this.state.error = "已选两个视图，请先删除一个选框，再重新框选。"; this.emit(); return;
-            }
+        async selectRect(role, page, rect, rotation, orientation = 0) {
+            if (!this.canFrame || !drawingViewLabels[role]) return;
             const point = [rect[0]+rect[2]/2,rect[1]+rect[3]/2];
             const revision = ++this.request, candidate = this.candidate;
             this.state.busy = true; this.state.error = "";
-            this.state.pendingSelection = {page,rotation,regions:[rect],regionIndex:0}; this.emit();
+            this.state.pendingSelection = {role,page,rotation,regions:[rect],regionIndex:0}; this.emit();
             try {
                 const result = await orm.call("nodo.contract.drawing", "get_dimension_view",
                     [[record.resId], page, point, rotation, orientation, rect]);
@@ -1044,9 +1075,9 @@ function drawingDimensionSession(record, orm) {
                     throw new Error("原图已变化，请清除选区后重新框选。");
                 }
                 this.remember();
-                const role = this.state.boxes.front ? "side" : "front";
                 this.state.boxes[role] = { ...result, regionIndex: 0 };
                 this.readRole(role); this.state.focus = role; this.state.focusToken = null;
+                this.state.tool = this.state.tool === "front" && role === "front" && !this.state.boxes.side ? "side" : null;
                 await this.persist();
             } catch (error) {
                 if (revision === this.request) this.state.error = error.data?.message || error.message || "读取未完成，请重新框选。";
@@ -1082,7 +1113,10 @@ function drawingDimensionSession(record, orm) {
             this.vision.state.focus = null;
             this.state.focus = this.role(axis); this.state.focusToken = this.token(axis)?.id || null;
             const box = this.state.boxes[this.role(axis)];
-            if (box) for (const navigate of this.navigators) navigate(box, this.token(axis));
+            if (box) {
+                this.revealPreview?.();
+                for (const navigate of this.navigators) navigate(box, this.token(axis));
+            }
             this.emit();
         },
     };
@@ -1094,11 +1128,30 @@ function drawingDimensionSession(record, orm) {
 
 class DrawingDimensionsField extends Component {
     static template = "nodo_contract.DrawingDimensions";
+    static components = { Dropdown, DropdownItem };
     props = useProps({ ...standardFieldProps, toolbar: t.boolean().optional(false) });
+    toolbarRef = signal.ref();
     setup() {
         this.assist = drawingDimensionSession(this.props.record, useService("orm"));
+        this.views = Object.entries(drawingViewLabels).map(([key, label]) => ({ key, label }));
+        const revealPreview = () => this.toolbarRef()?.closest(".o_sale_drawing_preview")?.scrollIntoView({
+            block: "nearest", inline: "nearest",
+        });
+        this.assist.revealPreview = revealPreview;
+        useOnChange(() => [this.toolbarRef()], (toolbar) => {
+            const modal = toolbar?.closest(".modal-content");
+            if (!modal) return;
+            const exitDrawingTool = (event) => {
+                if (event.key !== "Escape" || !this.assist.cancelTool()) return;
+                event.preventDefault();
+                event.stopPropagation();
+            };
+            modal.addEventListener("keydown", exitDrawingTool, true);
+            return () => modal.removeEventListener("keydown", exitDrawingTool, true);
+        });
         this.assist.clients++;
         onWillUnmount(() => {
+            if (this.assist.revealPreview === revealPreview) this.assist.revealPreview = null;
             if (--this.assist.clients === 0) { this.assist.request++; this.assist.state.busy = false; }
         });
         this.axes = dimensionAxes;
@@ -1159,6 +1212,26 @@ class DrawingVisionField extends Component {
     }
 }
 
+class DrawingSectionsField extends Component {
+    static template = "nodo_contract.DrawingSections";
+    props = useProps({ ...standardFieldProps });
+    setup() {
+        this.assist = drawingDimensionSession(this.props.record, useService("orm"));
+    }
+    get panes() {
+        const panes = [{ key: "parameters", label: "参数" }];
+        if (this.props.record.data.file_kind === "pdf") {
+            panes.push({ key: "vision", label: "智能补读", count: this.assist.vision.pendingCount });
+        }
+        panes.push({ key: "accessories", label: "附件与要求" });
+        return panes;
+    }
+}
+
+registry.category("fields").add("nodo_contract_drawing_sections", {
+    component: DrawingSectionsField, supportedTypes: ["integer"],
+});
+
 registry.category("fields").add("nodo_contract_drawing_vision", {
     component: DrawingVisionField, supportedTypes: ["selection"],
 });
@@ -1174,18 +1247,24 @@ registry.category("fields").add("nodo_contract_drawing_dimensions", {
 
 function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
     const doc = surface.ownerDocument, view = doc.defaultView;
-    surface.classList.toggle("o_drawing_manual_select",assist.editable);
+    const preview = surface.closest(".o_sale_drawing_preview") || view.frameElement?.closest(".o_sale_drawing_preview");
+    const theme = preview?.ownerDocument.defaultView.getComputedStyle(preview);
+    const ink = theme?.getPropertyValue("--nodo-drawing-ink").trim() || "currentColor";
+    const fill = theme?.getPropertyValue("--nodo-drawing-fill").trim() || "transparent";
+    const evidenceInk = theme?.getPropertyValue("--nodo-drawing-evidence").trim() || ink;
+    const evidenceFill = theme?.getPropertyValue("--nodo-drawing-evidence-fill").trim() || fill;
     const abort = new view.AbortController(), options = { signal: abort.signal, capture: true };
     const style = doc.createElement("style");
     style.textContent = `.o_drawing_manual_select .page,.o_drawing_manual_select img{cursor:crosshair;user-select:none}
         .o_drawing_dimension_overlay{position:absolute;pointer-events:none;z-index:12;inset:0}
-        .o_drawing_dimension_region{position:absolute;border:1.5px dashed #366a9e;background:rgba(54,106,158,.06);box-sizing:border-box}
-        .o_drawing_dimension_region[data-role=side]{border-color:#22776e;background:rgba(34,119,110,.06)}
-        .o_drawing_dimension_region[data-role=supplement]{border-color:#71507f;background:rgba(113,80,127,.10)}
+        .o_drawing_dimension_region{position:absolute;border:1.5px dashed ${ink};background:${fill};box-sizing:border-box}
+        .o_drawing_dimension_region[data-role=side]{border-style:dotted;border-width:2px}
+        .o_drawing_dimension_region[data-role=supplement]{border-color:${evidenceInk};background:${evidenceFill}}
         .o_drawing_dimension_region[data-focus=true]{border-style:solid}
-        .o_drawing_dimension_tag{position:absolute;left:-1px;top:0;background:white;color:#244c74;white-space:nowrap;font:12px/20px sans-serif;padding:0 4px;pointer-events:auto}
-        .o_drawing_dimension_tag button{border:0;background:transparent;color:inherit;font:inherit;padding:0 4px;cursor:pointer}
-        .o_drawing_dimension_evidence{position:absolute;border:2px solid #716197;box-sizing:border-box;background:rgba(113,97,151,.1)}`;
+        .o_drawing_dimension_tag{position:absolute;left:-1px;top:0;background:white;color:${ink};white-space:nowrap;font:600 12px/24px system-ui,sans-serif;padding:0 6px;border:1px solid ${ink};border-radius:0 0 4px 0;pointer-events:auto}
+        .o_drawing_manual_select .o_drawing_dimension_tag{pointer-events:none}
+        .o_drawing_dimension_tag button{border:0;background:transparent;color:inherit;font:inherit;padding:0 5px;cursor:pointer}
+        .o_drawing_dimension_evidence{position:absolute;border:2px solid ${evidenceInk};box-sizing:border-box;background:${evidenceFill}}`;
     doc.head.appendChild(style);
     const overlay = doc.createElement("div"); overlay.className = "o_drawing_dimension_overlay";
     let pointer = null, frame, disposed = false;
@@ -1200,6 +1279,7 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
     }
     function render() {
         if (disposed) return;
+        surface.classList.toggle("o_drawing_manual_select", Boolean(assist.activeTool) && assist.canFrame);
         const page = currentPage();
         if (!page?.element?.isConnected) { overlay.remove(); return; }
         if (page.element.tagName === "IMG") {
@@ -1223,11 +1303,12 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         if (pointer?.rect) {
             const r=pointer.rect;
             Object.assign(selection.style,{left:`${r[0]*100}%`,top:`${r[1]*100}%`,width:`${r[2]*100}%`,height:`${r[3]*100}%`});
-            selection.dataset.role=vision.selecting ? "supplement" : assist.state.boxes.front ? "side" : "front";
+            selection.dataset.role = pointer.role === "vision" ? "supplement" : pointer.role;
             overlay.appendChild(selection);
         }
         for (const role of ["front", "side"]) {
-            const box = assist.state.boxes[role] || ((role === (assist.state.boxes.front ? "side" : "front")) ? assist.state.pendingSelection : null);
+            const pending = assist.state.pendingSelection?.role === role;
+            const box = pending ? assist.state.pendingSelection : assist.state.boxes[role];
             if (!box || box.page !== page.page) continue;
             const r = rotateDrawingRect(box.regions[box.regionIndex || 0],page.rotation-box.rotation);
             if (!r) continue;
@@ -1236,8 +1317,8 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
             Object.assign(region.style, { left: `${r[0]*100}%`, top: `${r[1]*100}%`,
                 width: `${r[2]*100}%`, height: `${r[3]*100}%` });
             const tag = doc.createElement("span"); tag.className = "o_drawing_dimension_tag";
-            tag.append(doc.createTextNode(role === "front" ? "正视图 " : "侧视图 "));
-            if (assist.editable && !assist.state.busy) {
+            tag.append(doc.createTextNode(drawingViewLabels[role] + " "));
+            if (!pending && assist.editable && !assist.state.busy && !assist.activeTool) {
                 const remove = doc.createElement("button"); remove.type = "button"; remove.textContent = "×";
                 remove.setAttribute("aria-label", role === "front" ? "取消正视图" : "取消侧视图");
                 remove.addEventListener("click", (event) => { event.stopPropagation(); assist.remove(role); });
@@ -1257,13 +1338,13 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
     }
     function schedule() { view.cancelAnimationFrame(frame); frame = view.requestAnimationFrame(render); }
     surface.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || !assist.editable || assist.state.busy || assist.state.orienting ||
-            assist.vision.state.region || event.target.closest(".o_drawing_dimension_tag")) return;
+        const role = assist.activeTool;
+        if (event.button !== 0 || !role || !assist.canFrame) return;
         const page = currentPage(); if (!page?.element) return;
         const r = page.element.getBoundingClientRect();
         const u=(event.clientX-r.left)/r.width,v=(event.clientY-r.top)/r.height;
         if (![u,v].every(value=>Number.isFinite(value)&&value>=0&&value<=1)) return;
-        pointer = {u,v,x:event.clientX,y:event.clientY,id:event.pointerId,...page};
+        pointer = {u,v,x:event.clientX,y:event.clientY,id:event.pointerId,role,...page};
         surface.setPointerCapture(event.pointerId);
         event.preventDefault();event.stopPropagation();
     }, options);
@@ -1277,17 +1358,27 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
         event.preventDefault();event.stopPropagation();schedule();
         if (Math.hypot(event.clientX-start.x,event.clientY-start.y)<8 || rect[2]<.005 || rect[3]<.005) return;
-        if (assist.vision.state.selecting) {
+        if (start.role !== assist.activeTool) return;
+        if (start.role === "vision") {
             assist.vision.select(start.page, rect, start.rotation);
         } else {
-            assist.select(start.page,rect,start.rotation,start.orientation || 0);
+            assist.select(start.role,start.page,rect,start.rotation,start.orientation || 0);
         }
     }, options);
     const cancel = () => { pointer=null;schedule(); };
     surface.addEventListener("pointercancel",cancel,options);
     surface.addEventListener("lostpointercapture",cancel,options);
     view.addEventListener("blur",cancel,{signal:abort.signal});
-    doc.addEventListener("keydown",event=>{if(event.key==="Escape"&&pointer){event.preventDefault();event.stopPropagation();const id=pointer.id;cancel();if(surface.hasPointerCapture(id))surface.releasePointerCapture(id);}},options);
+    doc.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        const exitingTool = assist.cancelTool();
+        if (!pointer && !exitingTool) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const id = pointer?.id;
+        cancel();
+        if (id != null && surface.hasPointerCapture(id)) surface.releasePointerCapture(id);
+    }, options);
     for (const name of ["scroll", "wheel", "pointermove"]) surface.addEventListener(name, schedule, { signal: abort.signal, passive: true });
     const resize = new view.ResizeObserver(schedule); resize.observe(surface);
     const image = surface.querySelector("img");
@@ -1644,6 +1735,7 @@ class DrawingPdfViewerField extends PdfViewerField {
                 removeControls();
                 removeControls = () => {};
                 const document = frame.contentDocument;
+                frame.title = "原始 PDF 图纸";
                 const application = frame.contentWindow?.PDFViewerApplication;
                 if (!application) {
                     return;
@@ -1654,10 +1746,12 @@ class DrawingPdfViewerField extends PdfViewerField {
                     assist.vision.renderCrop = renderCrop;
                     const updateCropReady = () => {
                         assist.vision.state.viewerReady = Boolean(application.pdfDocument);
+                        assist.state.viewerReady = assist.vision.state.viewerReady;
                     };
                     updateCropReady();
                     application.eventBus.on("pagesinit", updateCropReady);
                     const removeMouse = setupDrawingPdfControls(frame, application, this.drawingPagePositions);
+                    assist.fitPreview = removeMouse.fit;
                     const dimensions = bindDrawingDimensionSelection(application.pdfViewer.container, () => {
                         const viewer = application.pdfViewer;
                         return viewer.pdfDocument ? { element: viewer.getPageView(viewer.currentPageNumber-1)?.div,
@@ -1685,6 +1779,8 @@ class DrawingPdfViewerField extends PdfViewerField {
                         if (assist.vision.renderCrop === renderCrop) {
                             assist.vision.renderCrop = null;
                             assist.vision.state.viewerReady = false;
+                            assist.state.viewerReady = false;
+                            assist.fitPreview = null;
                         }
                         for (const name of events) application.eventBus.off(name, dimensions.render);
                         removeOrientation(); dimensions.destroy(); removeMouse();
@@ -1740,6 +1836,7 @@ class DrawingImageField extends ImageField {
                 apply();
             };
             const onLoad = () => {
+                assist.state.viewerReady = Boolean(image.naturalWidth);
                 if (view.width !== image.naturalWidth || view.height !== image.naturalHeight) {
                     view.width = image.naturalWidth;
                     view.height = image.naturalHeight;
@@ -1781,6 +1878,7 @@ class DrawingImageField extends ImageField {
                 },
                 fit,
             });
+            assist.fitPreview = fit;
             const dimensions = bindDrawingDimensionSelection(surface,
                 () => ({ element: image, page: 1, rotation: view.angle,
                     orientation: assist.orientationAngles.get(1) || 0 }), assist, (box, token) => {
@@ -1801,6 +1899,10 @@ class DrawingImageField extends ImageField {
             }
             return () => {
                 disposed = true; assist.state.orienting = false;
+                if (assist.fitPreview === fit) {
+                    assist.state.viewerReady = false;
+                    assist.fitPreview = null;
+                }
                 controls.destroy();
                 dimensions.destroy();
                 resize.disconnect();

@@ -4,6 +4,7 @@ from collections import Counter
 from io import BytesIO
 from unittest.mock import Mock, patch
 
+from lxml import etree
 from PIL import Image
 from reportlab.pdfgen import canvas
 
@@ -213,3 +214,15 @@ class TestDrawingSelection(TransactionCase):
             'text': '安装', 'matched_count': 2, 'name_count': 3, 'rate': 66.7,
         })
         self.assertIsNone(accessory_overlap('安装安装板', counts))
+
+    def test_selection_form_keeps_review_panes_and_sales_actions(self):
+        view_id = self.env.ref('nodo_contract.view_drawing_selection').id
+        model = self.env['nodo.contract.drawing'].with_user(self.seller)
+        arch = etree.fromstring(model.get_view(view_id, 'form')['arch'])
+        self.assertEqual(arch.xpath('.//*[@data-drawing-pane]/@data-drawing-pane'),
+                         ['parameters', 'vision', 'accessories'])
+        self.assertTrue(arch.xpath('.//field[@widget="nodo_contract_drawing_sections"]'))
+        self.assertTrue(arch.xpath('.//*[@data-drawing-pane="parameters"]//field[@name="height_mm"]'))
+        self.assertTrue(arch.xpath('.//*[@data-drawing-pane="vision"]//field[@name="vision_state"]'))
+        self.assertTrue(arch.xpath('.//*[@data-drawing-pane="accessories"]//field[@name="selection_notes"]'))
+        self.assertTrue(arch.xpath('.//footer/button[@name="action_confirm_selection"]'))

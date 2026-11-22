@@ -25,21 +25,33 @@
       <form string="图纸与选型" class="o_sale_drawing_selection" js_class="nodo_contract_drawing_form" dialog_size="xl" create="0">
         <field name="company_id" invisible="1"/>
         <field name="order_id" invisible="1"/>
+        <field name="name" invisible="1"/>
         <field name="file_kind" invisible="1"/>
         <field name="can_edit_selection" invisible="1"/>
         <field name="drawing_recognition_pending" invisible="1"/>
         <field name="drawing_recognition_version" invisible="1"/>
+        <field name="recognition_state" invisible="1"/>
         <field name="recognition_token" invisible="1"/>
         <field name="orientation_data" invisible="1"/>
         <field name="orientation_token" invisible="1"/>
         <field name="file_data_page" invisible="1"/>
         <field name="page_count" invisible="1"/>
         <field name="product_template_id" invisible="1" domain="[('sale_ok','=',True),('nodo_cabinet_series','!=',False),('company_id','in',[False,company_id])]"/>
-        <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-          <field name="name" readonly="1" nolabel="1" class="fw-bold"/>
-          <field name="recognition_state" widget="badge" nolabel="1" decoration-info="recognition_state in ('queued', 'processing')" decoration-warning="recognition_state == 'review'" decoration-danger="recognition_state == 'failed'" decoration-success="recognition_state == 'done'"/>
-          <field name="state" widget="badge" nolabel="1" decoration-warning="state == 'pending'" decoration-success="state == 'confirmed'"/>
-          <field name="file_data" filename="name" readonly="1" nolabel="1"/>
+        <div class="o_nodo_drawing_filebar">
+          <div class="o_nodo_drawing_filename" title="下载原图">
+            <field name="file_data" filename="name" readonly="1" nolabel="1"/>
+          </div>
+          <div class="o_nodo_drawing_filemeta">
+            <field name="page_label" nolabel="1" readonly="1" invisible="not page_count"/>
+            <span invisible="recognition_state not in ('queued', 'processing')" class="o_nodo_local_status" role="status">
+              本地读取中 <field name="recognition_completed_pages" nolabel="1" readonly="1" class="oe_inline"/>
+              / <field name="page_count" nolabel="1" readonly="1" class="oe_inline"/>
+            </span>
+            <span invisible="recognition_state != 'failed'" class="o_nodo_local_status">本地未提取</span>
+            <span invisible="recognition_state != 'review'" class="o_nodo_local_status">本地结果待核</span>
+            <field name="state" widget="badge" nolabel="1" decoration-warning="state == 'pending'"
+                   decoration-success="state == 'confirmed'"/>
+          </div>
         </div>
         <div class="o_sale_drawing_review">
           <div class="o_sale_drawing_preview">
@@ -48,72 +60,92 @@
             <field name="file_data" id="drawing_image" widget="nodo_contract_drawing_image" readonly="1" nolabel="1" invisible="file_kind != 'image'"/>
             <div class="o_sale_drawing_cad text-center text-muted" invisible="file_kind != 'cad'">
               <i class="fa fa-file-code-o fa-3x mb-3" aria-hidden="true"/>
-              <p>下载 CAD 原图，核对后填写选型参数。</p>
-              <field name="file_data" id="drawing_cad" filename="name" readonly="1" nolabel="1"/>
+              <p>点击上方文件名下载 CAD，核对后填写选型参数。</p>
             </div>
           </div>
-          <div class="o_sale_drawing_parameters">
-            <div class="alert alert-info" role="status" invisible="recognition_state not in ('queued', 'processing')">
-
-                            后台正在识别，可继续处理其他单据。已处理
-
-                            <field name="recognition_completed_pages" readonly="1" nolabel="1" class="oe_inline"/>
-
-                            / <field name="page_count" readonly="1" nolabel="1" class="oe_inline"/> 页
-
-                        </div>
-            <field name="recognition_error" widget="nodo_contract_chinese_recognition_message" readonly="1" nolabel="1" class="text-warning" invisible="not recognition_error"/>
-            <group invisible="not active_recognition_id">
-              <field name="active_recognition_id" readonly="not can_edit_selection" options="{'no_create': True, 'no_open': True}"/>
-              <field name="recognition_summary" widget="nodo_contract_chinese_recognition_message" readonly="1"/>
-              <button name="action_apply_recognition" type="object" string="采用当前项目建议" class="btn-outline-primary" invisible="not can_edit_selection"/>
-            </group>
-            <field name="vision_state" widget="nodo_contract_drawing_vision" readonly="1" nolabel="1"
-                   invisible="file_kind != 'pdf'"/>
-            <group string="选型参数">
-              <field name="product_series" readonly="not can_edit_selection"/>
-              <field name="product_template_id" readonly="not can_edit_selection" options="{'no_create': True, 'no_open': True}"
-                     domain="[('sale_ok','=',True),('nodo_cabinet_series','!=',False),('company_id','in',[False,company_id])]"/>
-              <label for="quantity"/>
-              <div class="d-flex align-items-center gap-2">
-                <field name="quantity" readonly="not can_edit_selection"/>
-                <field name="uom_id" readonly="1" options="{'no_open': True}"/>
-              </div>
-            </group>
-            <group>
-              <field name="width_mm" widget="nodo_contract_drawing_dimension_value" readonly="not can_edit_selection" invisible="1"/>
-              <field string="宽度（毫米）" name="width_expression" widget="nodo_contract_cabinet_width" readonly="not can_edit_selection"/>
-              <field string="深度（毫米）" name="depth_mm" widget="nodo_contract_drawing_dimension_value" readonly="not can_edit_selection"/>
-              <field string="高度（毫米）" name="height_mm" widget="nodo_contract_drawing_dimension_value" readonly="not can_edit_selection"/>
-              <field name="material" widget="nodo_contract_drawing_material" placeholder="选择材质" readonly="not can_edit_selection"/>
-              <field name="door_type" widget="nodo_contract_drawing_door_type" placeholder="选择门型" readonly="not can_edit_selection" invisible="1"/>
-              <field name="cabinet_configuration" widget="nodo_contract_cabinet_doors" readonly="not can_edit_selection" nolabel="1" colspan="2"/>
-              <field string="箱体料厚（毫米）" name="thickness_mm" readonly="not can_edit_selection"/>
-              <field name="base_height_mm" readonly="not can_edit_selection"/>
-              <field name="coating_type" readonly="not can_edit_selection"/>
-              <field name="display_color" placeholder="填写色号或颜色，如 RAL7035 浅灰" readonly="not can_edit_selection"/>
-            </group>
-            <group>
-              <field name="accessory_selection_data" widget="nodo_contract_drawing_accessories" readonly="not can_edit_selection"/>
-              <field name="selection_notes" readonly="not can_edit_selection" placeholder="记录已核对的技术要求与附件说明"/>
-              <field name="order_line_id" readonly="1" options="{'no_open': True}"/>
-            </group>
-            <group invisible="state != 'confirmed'">
-              <field name="reviewed_by" options="{'no_open': True}"/>
-              <field name="reviewed_at"/>
-            </group>
-            <details invisible="not source_text">
-              <summary class="cursor-pointer mb-2">图纸文字</summary>
-              <field name="source_text" readonly="1" nolabel="1" class="o_drawing_source_text"/>
-            </details>
-          </div>
+          <aside class="o_nodo_drawing_sidebar">
+            <field name="page_count" widget="nodo_contract_drawing_sections" readonly="1" nolabel="1"/>
+            <div class="o_nodo_drawing_panels">
+              <section class="o_nodo_drawing_pane" data-drawing-pane="parameters">
+                <div class="o_nodo_dimension_heading">
+                  <h3>规格尺寸</h3>
+                  <span>毫米</span>
+                </div>
+                <div class="o_nodo_dimension_grid">
+                  <field name="width_mm" invisible="1"/>
+                  <div class="o_nodo_dimension_tile">
+                    <label for="width_expression" string="宽度"/>
+                    <field name="width_expression" widget="nodo_contract_cabinet_width" readonly="not can_edit_selection" nolabel="1"/>
+                  </div>
+                  <div class="o_nodo_dimension_tile">
+                    <label for="depth_mm" string="深度"/>
+                    <field name="depth_mm" widget="nodo_contract_drawing_dimension_value" options="{'hide_trailing_zeros': True}" readonly="not can_edit_selection" nolabel="1"/>
+                  </div>
+                  <div class="o_nodo_dimension_tile">
+                    <label for="height_mm" string="报价高度"/>
+                    <field name="height_mm" widget="nodo_contract_drawing_dimension_value" options="{'hide_trailing_zeros': True}" readonly="not can_edit_selection" nolabel="1"/>
+                  </div>
+                </div>
+                <group string="柜体配置">
+                  <field name="product_series" readonly="not can_edit_selection"/>
+                  <field name="product_template_id" readonly="not can_edit_selection" options="{'no_create': True, 'no_open': True}"
+                         domain="[('sale_ok','=',True),('nodo_cabinet_series','!=',False),('company_id','in',[False,company_id])]"/>
+                  <label for="quantity"/>
+                  <div class="d-flex align-items-center gap-2">
+                    <field name="quantity" readonly="not can_edit_selection"/>
+                    <field name="uom_id" readonly="1" options="{'no_open': True}"/>
+                  </div>
+                  <field name="door_type" invisible="1"/>
+                  <field name="cabinet_configuration" widget="nodo_contract_cabinet_doors" readonly="not can_edit_selection" nolabel="1" colspan="2"/>
+                </group>
+                <group string="材质与工艺">
+                  <field name="material" widget="nodo_contract_drawing_material" placeholder="选择材质" readonly="not can_edit_selection"/>
+                  <field string="箱体料厚（毫米）" name="thickness_mm" readonly="not can_edit_selection"/>
+                  <field name="base_height_mm" readonly="not can_edit_selection"/>
+                  <field name="coating_type" readonly="not can_edit_selection"/>
+                  <field name="display_color" placeholder="填写色号或颜色" readonly="not can_edit_selection"/>
+                </group>
+                <details class="o_nodo_drawing_details" invisible="not active_recognition_id and not recognition_error and not source_text">
+                  <summary>本地识图记录</summary>
+                  <div class="o_nodo_drawing_details_content">
+                    <field name="recognition_error" widget="nodo_contract_chinese_recognition_message" readonly="1" nolabel="1" class="text-muted" invisible="not recognition_error"/>
+                    <group invisible="not active_recognition_id">
+                      <field name="active_recognition_id" readonly="not can_edit_selection" options="{'no_create': True, 'no_open': True}"/>
+                      <field name="recognition_summary" widget="nodo_contract_chinese_recognition_message" readonly="1"/>
+                      <button name="action_apply_recognition" type="object" string="采用当前项目建议" class="btn btn-secondary btn-sm" invisible="not can_edit_selection"/>
+                    </group>
+                    <field name="source_text" readonly="1" nolabel="1" class="o_drawing_source_text" invisible="not source_text"/>
+                  </div>
+                </details>
+                <details class="o_nodo_drawing_details" invisible="state != 'confirmed'">
+                  <summary>选型确认记录</summary>
+                  <group class="o_nodo_drawing_details_content">
+                    <field name="order_line_id" readonly="1" options="{'no_open': True}"/>
+                    <field name="reviewed_by" readonly="1" options="{'no_open': True}"/>
+                    <field name="reviewed_at" readonly="1"/>
+                  </group>
+                </details>
+              </section>
+              <section class="o_nodo_drawing_pane" data-drawing-pane="vision" invisible="file_kind != 'pdf'">
+                <field name="vision_state" widget="nodo_contract_drawing_vision" readonly="1" nolabel="1"/>
+              </section>
+              <section class="o_nodo_drawing_pane" data-drawing-pane="accessories">
+                <field name="accessory_selection_data" widget="nodo_contract_drawing_accessories" readonly="not can_edit_selection" nolabel="1"/>
+                <div class="o_nodo_requirements">
+                  <label for="selection_notes" string="技术要求"/>
+                  <field name="selection_notes" readonly="not can_edit_selection" nolabel="1"
+                         placeholder="记录已核对的技术要求与附件说明"/>
+                </div>
+              </section>
+            </div>
+          </aside>
         </div>
         <footer>
-          <button string="重新识别" name="action_recognize" type="object" class="btn-secondary" invisible="not can_edit_selection or recognition_state in ('queued', 'processing')"/>
-          <button string="取消识别" name="action_cancel_recognition" type="object" class="btn-secondary" invisible="not can_edit_selection or recognition_state not in ('queued', 'processing')"/>
+          <button string="重新本地识别" name="action_recognize" type="object" class="btn-link" invisible="not can_edit_selection or recognition_state in ('queued', 'processing')"/>
+          <button string="取消本地识别" name="action_cancel_recognition" type="object" class="btn-link" invisible="not can_edit_selection or recognition_state not in ('queued', 'processing')"/>
+          <button string="关闭" special="cancel" class="btn-link o_nodo_drawing_close"/>
+          <button string="保存草稿" special="save" class="btn-secondary" invisible="not can_edit_selection"/>
           <button string="确认选型" name="action_confirm_selection" type="object" class="btn-primary" invisible="not can_edit_selection"/>
-          <button string="保存待选型" special="save" class="btn-secondary" invisible="not can_edit_selection"/>
-          <button string="关闭" special="cancel" class="btn-secondary"/>
         </footer>
       </form>
     </field>
