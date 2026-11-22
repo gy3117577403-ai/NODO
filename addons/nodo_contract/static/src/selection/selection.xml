@@ -78,19 +78,127 @@
   </t>
   <t t-name="nodo_contract.DrawingSections">
     <nav class="o_nodo_drawing_tabs" aria-label="选型工作区" t-att-data-active-pane="this.assist.state.pane">
-      <button t-foreach="this.panes" t-as="pane" t-key="pane.key" type="button"
-              t-att-aria-pressed="this.assist.state.pane === pane.key ? 'true' : 'false'"
-              t-on-click="() =&gt; this.assist.choosePane(pane.key)">
-        <span t-esc="pane.label"/>
-        <span t-if="pane.count" class="o_nodo_tab_count" t-esc="pane.count"/>
-      </button>
+      <button t-if="this.assist.state.pane !== 'results'" type="button" class="btn btn-link btn-sm"
+              t-on-click="() =&gt; this.assist.choosePane('results')">返回规格表</button>
+      <Dropdown>
+        <button type="button" class="btn btn-link btn-sm o_nodo_spec_more" aria-label="更多选型操作">
+          <i class="oi" data-icon="more_horiz" aria-hidden="true"/>
+        </button>
+        <t t-set-slot="content">
+          <DropdownItem t-foreach="this.panes" t-as="pane" t-key="pane.key"
+                        onSelected="() =&gt; this.assist.choosePane(pane.key)">
+            <t t-esc="pane.label"/>
+          </DropdownItem>
+        </t>
+      </Dropdown>
     </nav>
+  </t>
+  <t t-name="nodo_contract.DrawingResultsValue">
+    <button type="button" class="o_nodo_spec_value"
+            t-att-data-state="field.status" t-att-data-field="field.key"
+            t-att-aria-pressed="this.state.key === field.key ? 'true' : 'false'"
+            t-att-aria-label="this.resultLabel(field)"
+            t-on-click="this.activate">
+      <span t-if="field.conflict &amp;&amp; compare" class="o_nodo_spec_number">
+        <small>图纸</small> <t t-esc="field.candidate"/> <small t-if="field.candidateUnit" t-esc="field.candidateUnit"/>
+        <small>· 现值</small> <t t-esc="this.format(field.value)"/>
+        <small t-if="field.unit" t-esc="field.unit"/>
+      </span>
+      <span t-elif="field.conflict" class="o_nodo_spec_number">
+        <t t-esc="field.candidate"/> <small t-if="field.candidateUnit" t-esc="field.candidateUnit"/>
+      </span>
+      <span t-elif="field.value" class="o_nodo_spec_number" t-att-title="this.format(field.value)">
+        <t t-esc="this.format(field.value)"/> <small t-if="field.unit" t-esc="field.unit"/>
+      </span>
+      <span t-elif="!field.statusLabel" class="o_nodo_spec_empty">—</span>
+      <small t-if="field.statusLabel" class="o_nodo_spec_status" t-esc="field.statusLabel"/>
+    </button>
+  </t>
+  <t t-name="nodo_contract.DrawingResultsAction">
+    <t t-set="option" t-value="this.activeEvidence(field)"/>
+    <div class="o_nodo_spec_action" t-att-data-review-field="field.key">
+      <small t-if="option" class="o_nodo_spec_source">第 <t t-esc="option.page"/> 页</small>
+      <small t-if="field.conflict &amp;&amp; !compare" class="o_nodo_spec_source">
+        现值 <t t-esc="this.format(field.value)"/> <t t-if="field.unit" t-esc="field.unit"/>
+      </small>
+      <div t-if="field.options.length &gt; 1" class="o_nodo_spec_options">
+        <button t-foreach="field.options" t-as="reading" t-key="reading.key" type="button" class="btn btn-secondary btn-sm"
+                t-att-aria-pressed="option?.key === reading.key ? 'true' : 'false'"
+                t-on-click="() =&gt; this.selectEvidence(reading)" t-esc="this.optionLabel(field, reading)"/>
+      </div>
+      <t t-if="this.assist.editable">
+        <button t-if="option?.pending &amp;&amp; option.item.candidate !== null" type="button" class="btn btn-primary btn-sm"
+                t-att-disabled="this.assist.vision.state.saving" t-on-click="() =&gt; this.apply(field, option)">
+          <t t-esc="option.item.target === 'height_mm' ? '用作报价高度' : '采用此值'"/>
+        </button>
+        <button t-elif="option?.pending &amp;&amp; this.assist.vision.canConfirmMillimetres(option.item)" type="button"
+                class="btn btn-primary btn-sm" t-att-disabled="this.assist.vision.state.saving"
+                t-on-click="() =&gt; this.apply(field, option)">
+          <t t-esc="option.item.target === 'height_mm' ? '按毫米用作报价高度' : '按毫米采用'"/>
+        </button>
+        <button t-elif="option?.token &amp;&amp; !option.chosen &amp;&amp; field.key === 'height_mm'" type="button"
+                class="btn btn-primary btn-sm" t-on-click="() =&gt; this.apply(field, option)">用作报价高度</button>
+        <button t-elif="option?.pending &amp;&amp; option.item.status === 'explicit'" type="button"
+                class="btn btn-secondary btn-sm" t-att-disabled="this.assist.vision.state.saving"
+                t-on-click="() =&gt; this.assist.vision.confirm(option.run, option.item, 'note')">记入技术要求</button>
+        <button t-if="option?.pending" type="button" class="btn btn-link btn-sm"
+                t-att-disabled="this.assist.vision.state.saving"
+                t-on-click="() =&gt; this.assist.vision.confirm(option.run, option.item, 'keep')">
+          <t t-esc="option.item.target ? '保留现值' : '不采用'"/>
+        </button>
+        <button t-if="field.pane === 'accessories' || !option || (option.item &amp;&amp; option.item.candidate === null)"
+                type="button" class="btn btn-link btn-sm"
+                t-on-click="() =&gt; this.assist.choosePane(field.pane)">
+          <t t-esc="field.pane === 'accessories' ? '打开附件与要求' : '手工填写'"/>
+        </button>
+      </t>
+      <small t-if="option?.item?.decision" class="o_nodo_spec_source" t-esc="this.assist.vision.decisionLabel(option.item)"/>
+      <small t-if="!option &amp;&amp; field.value" class="o_nodo_spec_source">当前选型</small>
+    </div>
+  </t>
+  <t t-name="nodo_contract.DrawingResults">
+    <div class="o_nodo_drawing_specs">
+      <t t-set="entries" t-value="this.entries"/>
+      <t t-set="active" t-value="entries[this.state.key]"/>
+      <section t-foreach="this.groups" t-as="group" t-key="group.label">
+        <t t-set="compare" t-value="false"/>
+        <h3 class="o_nodo_spec_heading" t-esc="group.label"/>
+        <div t-if="group.sizes" class="o_nodo_spec_sizes">
+          <div t-foreach="group.sizes" t-as="key" t-key="key" class="o_nodo_spec_size">
+            <t t-set="field" t-value="entries[key]"/>
+            <span class="o_nodo_spec_label" t-esc="field.label"/>
+            <t t-call="nodo_contract.DrawingResultsValue"/>
+          </div>
+        </div>
+        <t t-if="active &amp;&amp; group.sizes?.includes(active.key)">
+          <t t-set="field" t-value="active"/>
+          <t t-call="nodo_contract.DrawingResultsAction"/>
+        </t>
+        <t t-foreach="group.rows" t-as="row" t-key="row_index">
+          <t t-set="compare" t-value="row.length === 1"/>
+          <div class="o_nodo_spec_row" t-att-class="{ 'o_nodo_spec_wide': row.length === 1 }">
+            <t t-foreach="row" t-as="key" t-key="key">
+              <t t-set="field" t-value="entries[key]"/>
+              <span class="o_nodo_spec_label" t-esc="field.label"/>
+              <t t-call="nodo_contract.DrawingResultsValue"/>
+            </t>
+          </div>
+          <t t-if="active &amp;&amp; row.includes(active.key)">
+            <t t-set="field" t-value="active"/>
+            <t t-call="nodo_contract.DrawingResultsAction"/>
+          </t>
+        </t>
+      </section>
+      <div t-if="this.assist.vision.state.error || this.assist.vision.state.review?.error"
+           class="o_nodo_drawing_notice" role="alert"
+           t-esc="this.assist.vision.state.error || this.assist.vision.state.review.error"/>
+    </div>
   </t>
   <t t-name="nodo_contract.DrawingDimensions">
     <div class="o_drawing_dimension_tools" t-ref="this.toolbarRef">
       <div class="o_drawing_dimension_bar" role="group" aria-label="图纸工具">
         <button type="button" class="btn btn-secondary btn-sm o_nodo_drawing_fit"
-                t-att-disabled="!this.assist.state.viewerReady" t-on-click="() =&gt; this.assist.fit()">适合窗口</button>
+                t-att-disabled="!this.assist.state.viewerReady" t-on-click="() =&gt; this.assist.fit()">回到全图</button>
         <div t-if="this.assist.editable" class="o_nodo_frame_modes" role="group" aria-label="框选视图">
           <button t-foreach="this.views" t-as="view" t-key="view.key" type="button" class="o_nodo_frame_tool"
                   t-att-aria-pressed="this.assist.state.tool === view.key ? 'true' : 'false'"
@@ -120,7 +228,7 @@
           </t>
         </Dropdown>
       </div>
-      <div class="o_nodo_drawing_instruction">
+      <div t-if="this.assist.hint || this.assist.vision.state.region || this.assist.activeTool" class="o_nodo_drawing_instruction">
         <span class="o_drawing_dimension_hint" role="status" t-esc="this.assist.hint"/>
         <button t-if="this.assist.vision.state.region" type="button" class="btn btn-primary btn-sm"
                 t-att-disabled="!this.assist.vision.canSend"

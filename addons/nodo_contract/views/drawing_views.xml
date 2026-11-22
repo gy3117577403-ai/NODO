@@ -27,6 +27,7 @@
         <field name="order_id" invisible="1"/>
         <field name="name" invisible="1"/>
         <field name="file_kind" invisible="1"/>
+        <field name="state" invisible="1"/>
         <field name="can_edit_selection" invisible="1"/>
         <field name="drawing_recognition_pending" invisible="1"/>
         <field name="drawing_recognition_version" invisible="1"/>
@@ -42,15 +43,12 @@
             <field name="file_data" filename="name" readonly="1" nolabel="1"/>
           </div>
           <div class="o_nodo_drawing_filemeta">
-            <field name="page_label" nolabel="1" readonly="1" invisible="not page_count"/>
             <span invisible="recognition_state not in ('queued', 'processing')" class="o_nodo_local_status" role="status">
               本地读取中 <field name="recognition_completed_pages" nolabel="1" readonly="1" class="oe_inline"/>
               / <field name="page_count" nolabel="1" readonly="1" class="oe_inline"/>
             </span>
             <span invisible="recognition_state != 'failed'" class="o_nodo_local_status">本地未提取</span>
             <span invisible="recognition_state != 'review'" class="o_nodo_local_status">本地结果待核</span>
-            <field name="state" widget="badge" nolabel="1" decoration-warning="state == 'pending'"
-                   decoration-success="state == 'confirmed'"/>
           </div>
         </div>
         <div class="o_sale_drawing_review">
@@ -66,6 +64,9 @@
           <aside class="o_nodo_drawing_sidebar">
             <field name="page_count" widget="nodo_contract_drawing_sections" readonly="1" nolabel="1"/>
             <div class="o_nodo_drawing_panels">
+              <section class="o_nodo_drawing_pane" data-drawing-pane="results">
+                <field id="drawing_results" name="page_count" widget="nodo_contract_drawing_results" readonly="1" nolabel="1"/>
+              </section>
               <section class="o_nodo_drawing_pane" data-drawing-pane="parameters">
                 <div class="o_nodo_dimension_heading">
                   <h3>规格尺寸</h3>

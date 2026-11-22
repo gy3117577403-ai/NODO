@@ -21,6 +21,7 @@ import { CheckBox } from "@web/core/checkbox/checkbox";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { saleOrderFormView } from "@sale/views/sale_order_form_view/sale_order_form_view";
 import { DrawingVisionSession, cropDrawingPage } from "./vision";
+import { drawingSpecifications, specificationGroups, specificationValue } from "./drawing_results";
 
 class ChineseRecognitionMessage extends Component {
     static template="nodo_contract.ChineseRecognitionMessage";
@@ -907,18 +908,28 @@ function rotateDrawingRect(rect, angle) {
     return rect;
 }
 
+function evidenceMagnification(width, height, pageWidth, pageHeight, rect) {
+    return Math.max(1, Math.min(1.7, (width - 40) / (pageWidth * rect[2]),
+        (height - 40) / (pageHeight * rect[3])));
+}
+
+function evidenceCenter(point, pageSpan, viewportSpan) {
+    const margin = Math.max(0, Math.min(.5, (viewportSpan / 2 - 14) / pageSpan));
+    return Math.max(margin, Math.min(1 - margin, point));
+}
+
 function drawingDimensionSession(record, orm) {
     if (drawingDimensionSessions.has(record)) {
         return drawingDimensionSessions.get(record);
     }
     const clone = (value) => JSON.parse(JSON.stringify(value));
     const session = {
-        record, orm, listeners: new Set(), navigators: new Set(), history: [], request: 0,
+        record, orm, axes: dimensionAxes, listeners: new Set(), navigators: new Set(), history: [], request: 0,
         pendingUpdates: 0, clients: 0, contextCandidate: record.data.active_recognition_id?.id || 0,
         saving: Promise.resolve(), orientationLoads: new Map(), orientationAngles: new Map(),
         state: proxy({ boxes: {}, values: {}, chosen: {}, busy: false, error: "", applied: false,
             heightReviewed: false, focus: null, focusToken: null, orienting: false,
-            pane: "parameters", tool: null, viewerReady: false, pendingSelection: null }),
+            pane: "results", tool: null, viewerReady: false, pendingSelection: null }),
         get editable() { return Boolean(record.data.can_edit_selection); },
         get candidate() { return record.data.active_recognition_id?.id || 0; },
         get canFrame() {
@@ -937,10 +948,11 @@ function drawingDimensionSession(record, orm) {
         get hint() {
             if (!this.state.viewerReady || this.state.orienting) return "正在准备原图…";
             if (this.state.busy) return `正在读取${drawingViewLabels[this.state.pendingSelection?.role] || "选区"}…`;
+            if (this.vision.active) return "正在识读选区…";
             if (this.vision.state.selecting) return "拖动框住需要补读的标注或文字";
-            if (this.vision.state.region) return `第 ${this.vision.state.region.page} 页已框选，确认后发送局部图像`;
+            if (this.vision.state.region) return `第 ${this.vision.state.region.page} 页已框选`;
             if (this.state.tool) return `拖动框选${drawingViewLabels[this.state.tool]}，包含尺寸标注`;
-            return "滚轮缩放 · 按住中键平移";
+            return "";
         },
         choosePane(pane) {
             this.state.pane = pane;
@@ -952,7 +964,7 @@ function drawingDimensionSession(record, orm) {
             this.vision.state.focus = null;
             this.state.tool = tool;
             this.state.error = "";
-            if (tool) this.choosePane("parameters");
+            if (tool) this.choosePane("results");
             this.emit();
         },
         cancelTool() {
@@ -1104,18 +1116,22 @@ function drawingDimensionSession(record, orm) {
             [this.state.boxes.front, this.state.boxes.side] = [this.state.boxes.side, this.state.boxes.front];
             this.readRole("front"); this.readRole("side"); this.state.focusToken = null; this.persist();
         },
-        edit(axis, value, id = "") {
+        edit(axis, value, id = "", role = this.role(axis)) {
             if (!this.editable || this.state.busy) return;
             this.remember(); this.state.values[axis.key] = Number(value) || 0;
+            if (axis.key === "height_mm") this.state.heightRole = role;
             this.state.chosen[axis.key] = id; this.persist();
         },
         focus(axis) {
+            this.focusDimension(this.role(axis), this.token(axis));
+        },
+        focusDimension(role, token) {
             this.vision.state.focus = null;
-            this.state.focus = this.role(axis); this.state.focusToken = this.token(axis)?.id || null;
-            const box = this.state.boxes[this.role(axis)];
+            this.state.focus = role; this.state.focusToken = token?.id || null;
+            const box = this.state.boxes[role];
             if (box) {
                 this.revealPreview?.();
-                for (const navigate of this.navigators) navigate(box, this.token(axis));
+                for (const navigate of this.navigators) navigate(box, token);
             }
             this.emit();
         },
@@ -1214,6 +1230,7 @@ class DrawingVisionField extends Component {
 
 class DrawingSectionsField extends Component {
     static template = "nodo_contract.DrawingSections";
+    static components = { Dropdown, DropdownItem };
     props = useProps({ ...standardFieldProps });
     setup() {
         this.assist = drawingDimensionSession(this.props.record, useService("orm"));
@@ -1221,12 +1238,80 @@ class DrawingSectionsField extends Component {
     get panes() {
         const panes = [{ key: "parameters", label: "参数" }];
         if (this.props.record.data.file_kind === "pdf") {
-            panes.push({ key: "vision", label: "智能补读", count: this.assist.vision.pendingCount });
+            panes.push({ key: "vision", label: "补读记录" });
         }
         panes.push({ key: "accessories", label: "附件与要求" });
         return panes;
     }
 }
+
+class DrawingResultsField extends Component {
+    static template = "nodo_contract.DrawingResults";
+    props = useProps({ ...standardFieldProps });
+
+    setup() {
+        this.assist = drawingDimensionSession(this.props.record, useService("orm"));
+        this.groups = specificationGroups;
+        this.format = specificationValue;
+        this.state = proxy({ key: "", option: "" });
+        useOnChange(() => [this.assist.candidate, this.props.record.data.recognition_token], () => {
+            this.state.key = "";
+            this.state.option = "";
+        });
+    }
+
+    get entries() { return drawingSpecifications(this.assist); }
+
+    resultLabel(field) {
+        const current = this.format(field.value);
+        const values = field.conflict
+            ? ["图纸", field.candidate, field.candidateUnit, "现值", current, field.unit]
+            : [current, current && field.unit];
+        return [field.label, ...values, field.statusLabel].filter(Boolean).join(" ");
+    }
+
+    activate(event) {
+        const key = event.currentTarget.dataset.field;
+        const field = this.entries[key];
+        this.state.key = key;
+        this.selectEvidence(field.evidence);
+    }
+
+    selectEvidence(option) {
+        this.state.option = option?.key || "";
+        if (option?.item) this.assist.vision.focus(option.run, option.item);
+        else if (option?.token) this.assist.focusDimension(option.role, option.token);
+        else {
+            this.assist.state.focusToken = null;
+            this.assist.vision.state.focus = null;
+            this.assist.emit();
+        }
+    }
+
+    activeEvidence(field) {
+        return field.options.find((option) => option.key === this.state.option) || field.evidence;
+    }
+
+    optionLabel(field, option) {
+        const value = this.format(option.value);
+        if (field.key === "height_mm") return [option.label, value, option.unit].filter(Boolean).join(" ");
+        return value ? [value, option.unit].filter(Boolean).join(" ") : option.label;
+    }
+
+    apply(field, option) {
+        if (option.item) {
+            const choice = this.assist.vision.canConfirmMillimetres(option.item) ? "apply_mm" : "apply";
+            return this.assist.vision.confirm(option.run, option.item, choice);
+        }
+        const axis = dimensionAxes.find((entry) => entry.key === field.key);
+        if (!axis || !this.assist.editable || this.assist.state.busy) return;
+        this.assist.edit(axis, option.value, option.token.id, option.role);
+    }
+}
+
+registry.category("fields").add("nodo_contract_drawing_results", {
+    component: DrawingResultsField, supportedTypes: ["integer"],
+});
 
 registry.category("fields").add("nodo_contract_drawing_sections", {
     component: DrawingSectionsField, supportedTypes: ["integer"],
@@ -1716,6 +1801,37 @@ function setupDrawingPdfControls(frame, application, positions) {
     };
     cleanup.fit = () => restorePosition(true);
     cleanup.restore = () => restorePosition();
+    cleanup.focus = (box, rect) => {
+        if (!viewer.pdfDocument || !rect) return;
+        restoring = true;
+        view.cancelAnimationFrame(restoreFrame);
+        view.cancelAnimationFrame(finishFrame);
+        activePage = box.page;
+        viewer.currentPageNumber = box.page;
+        viewer.pagesRotation = box.rotation;
+        restoreFrame = view.requestAnimationFrame(() => {
+            if (disposed) return;
+            viewer.currentScaleValue = "page-fit";
+            const page = pageRect(box.page);
+            if (!page?.width || viewer.currentPageNumber !== box.page) {
+                restoring = false;
+                return;
+            }
+            const [x, y, w, h] = rotateDrawingRect(rect, viewer.pagesRotation - box.rotation);
+            const factor = evidenceMagnification(container.clientWidth, container.clientHeight, page.width,
+                page.height, [x, y, w, h]);
+            fitted = false;
+            viewer.currentScale = Math.min(DRAWING_GESTURES.maxScale, viewer.currentScale * factor);
+            requestedScale = viewer.currentScale;
+            const zoomedPage = pageRect();
+            centerAt(evidenceCenter(x + w / 2, zoomedPage.width, container.clientWidth),
+                evidenceCenter(y + h / 2, zoomedPage.height, container.clientHeight));
+            finishFrame = view.requestAnimationFrame(() => {
+                restoring = false;
+                savePosition();
+            });
+        });
+    };
     return cleanup;
 }
 
@@ -1757,20 +1873,7 @@ class DrawingPdfViewerField extends PdfViewerField {
                         return viewer.pdfDocument ? { element: viewer.getPageView(viewer.currentPageNumber-1)?.div,
                             page: viewer.currentPageNumber, rotation: viewer.pagesRotation,
                             orientation: assist.orientationAngles.get(viewer.currentPageNumber) || 0 } : null;
-                    }, assist, (box, token) => {
-                        const viewer = application.pdfViewer;
-                        viewer.pagesRotation = box.rotation;
-                        viewer.currentPageNumber = box.page;
-                        frame.contentWindow.requestAnimationFrame(() => frame.contentWindow.requestAnimationFrame(() => {
-                            const page = viewer.getPageView(box.page-1)?.div;
-                            if (!page?.isConnected || viewer.currentPageNumber !== box.page || !token) return;
-                            const r = page.getBoundingClientRect(), c = viewer.container;
-                            const b = c.getBoundingClientRect(), p = rotateDrawingRect(token.rect,viewer.pagesRotation-box.rotation);
-                            c.scrollLeft += r.left + (p[0]+p[2]/2)*r.width - b.left - c.clientWidth/2;
-                            c.scrollTop += r.top + (p[1]+p[3]/2)*r.height - b.top - c.clientHeight/2;
-                            viewer.update(); dimensions.render();
-                        }));
-                    });
+                    }, assist, (box, token) => removeMouse.focus(box, token?.rect));
                     const events = ["pagerendered", "pagechanging", "rotationchanging", "scalechanging"];
                     for (const name of events) application.eventBus.on(name, dimensions.render);
                     const removeOrientation = bindDrawingPdfOrientation(application, assist, removeMouse, dimensions.render);
@@ -1882,10 +1985,13 @@ class DrawingImageField extends ImageField {
             const dimensions = bindDrawingDimensionSelection(surface,
                 () => ({ element: image, page: 1, rotation: view.angle,
                     orientation: assist.orientationAngles.get(1) || 0 }), assist, (box, token) => {
-                    if (!token) return;
+                    if (!token || !image.naturalWidth) return;
                     const p = rotateDrawingRect(token.rect,view.angle-box.rotation), [w,h] = displaySize();
-                    view.x = surface.clientWidth/2 - (p[0]+p[2]/2)*w*view.scale;
-                    view.y = surface.clientHeight/2 - (p[1]+p[3]/2)*h*view.scale;
+                    const fitScale = Math.min(surface.clientWidth / w, surface.clientHeight / h);
+                    const factor = evidenceMagnification(surface.clientWidth, surface.clientHeight, w * fitScale, h * fitScale, p);
+                    view.scale = Math.min(DRAWING_GESTURES.maxScale, fitScale * factor);
+                    view.x = surface.clientWidth / 2 - evidenceCenter(p[0] + p[2] / 2, w * view.scale, surface.clientWidth) * w * view.scale;
+                    view.y = surface.clientHeight / 2 - evidenceCenter(p[1] + p[3] / 2, h * view.scale, surface.clientHeight) * h * view.scale;
                     view.fitted = false; apply();
                 });
             const resize = new ResizeObserver(() => {

@@ -6,7 +6,7 @@ from uuid import uuid4
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..services.drawing_vision import normalize_crop, read_region, valid_region, vision_config
+from ..services.drawing_vision import confirmed_millimetres, normalize_crop, read_region, valid_region, vision_config
 
 
 _logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ class DrawingVision(models.Model):
         self.ensure_one()
         self._check_editable()
         self.invalidate_recordset()
-        if decision not in ('apply', 'keep', 'note'):
+        if decision not in ('apply', 'apply_mm', 'keep', 'note'):
             raise ValidationError('请选择有效的复核操作。')
         history = deepcopy(self.vision_history or [])
         run = next((entry for entry in history if entry['id'] == run_id and entry['source'] == self._vision_source()), None)
@@ -140,13 +140,17 @@ class DrawingVision(models.Model):
             raise ValidationError('这条补读证据不属于当前选型。')
         if item.get('decision'):
             raise UserError('此项已复核，请刷新查看记录。')
-        if decision == 'apply':
-            target, candidate = item['target'], item['candidate']
+        if decision in ('apply', 'apply_mm'):
+            target = item['target']
+            candidate = confirmed_millimetres(item) if decision == 'apply_mm' else item['candidate']
             if not target or candidate is None:
                 raise ValidationError('此补读项需要按原图人工核对，可保存为备注。')
             if (self[target] or None) != expected:
                 raise UserError('选型值已变化，请核对当前值后再采用。')
             self.write({target: candidate})
+            if decision == 'apply_mm':
+                item.update(reviewed_unit='mm', reviewed_value=candidate)
+                decision = 'apply'
         elif decision == 'note':
             if item['status'] != 'explicit':
                 raise ValidationError('此项原文待核，请对照原图后手工填写。')

@@ -38,6 +38,7 @@ export class DrawingVisionSession {
     }
 
     decisionLabel(item) {
+        if (item.reviewed_unit === "mm") return "已按毫米确认";
         if (item.decision === "apply") return "已采用";
         if (item.decision === "note") return "已记入技术要求";
         return item.target ? "已保留现值" : "未采用";
@@ -79,7 +80,6 @@ export class DrawingVisionSession {
         if (!this.canSend) return;
         this.assist.state.tool = null;
         this.assist.state.error = "";
-        this.assist.choosePane("vision");
         Object.assign(this.state, { selecting: true, region: null, focus: null, error: "" });
         this.assist.emit();
         this.assist.revealPreview?.();
@@ -121,6 +121,11 @@ export class DrawingVisionSession {
 
     current(item) {
         return item.target ? this.record.data[item.target] || null : null;
+    }
+
+    canConfirmMillimetres(item) {
+        return item.status === "explicit" && !item.unit?.trim() && item.target?.endsWith("_mm") &&
+            /^\d{1,6}(?:\.\d{1,3})?$/.test(item.value);
     }
 
     conflict(item) {

@@ -137,10 +137,12 @@ class TestDrawingSelection(TransactionCase):
         encoded = base64.b64encode(crop.getvalue()).decode()
         values = [
             ('width_mm', '890', 'mm', '宽 890 mm'),
-            ('overall_height_mm', '1900', 'mm', '含底座总高 1900 mm'),
+            ('overall_height_mm', '1900', None, '含底座总高 1900'),
             ('thickness_mm', '105.4', 'mm', '板厚 10.54 mm'),
             ('requirement', None, None, '配焊铰链'),
             ('accessory', None, None, '配安装板'),
+            ('cabinet_height_mm', '1800', 'mm', '柜体净高 1800 mm'),
+            ('thickness_mm', '1.4', 'mm', '箱体料厚 1.4 mm'),
         ]
         payload = {'items': [
             {'field': field, 'value': value, 'unit': unit, 'text': text, 'status': 'explicit',
@@ -176,12 +178,26 @@ class TestDrawingSelection(TransactionCase):
         with self.assertRaises(ValidationError):
             drawing.review_drawing_vision(run['id'], '3', 'apply', 1.5)
         drawing.review_drawing_vision(run['id'], '1', 'keep')
-        drawing.review_drawing_vision(run['id'], '2', 'apply', 1800)
+        with self.assertRaises(ValidationError):
+            drawing.review_drawing_vision(run['id'], '2', 'apply', 1800)
+        with self.assertRaises(ValidationError):
+            drawing.review_drawing_vision(run['id'], '3', 'apply_mm', 1.5)
+        drawing.review_drawing_vision(run['id'], '2', 'apply_mm', 1800)
         drawing.review_drawing_vision(run['id'], '4', 'note')
+        drawing.review_drawing_vision(run['id'], '7', 'apply', 1.5)
         self.assertIn('配焊铰链', drawing.selection_notes)
         drawing.action_confirm_selection()
         line = drawing.order_line_id
         self.assertEqual((line.nodo_width, line.nodo_height, line.price_unit), (900, 1900, 0))
+        self.assertAlmostEqual(drawing.thickness_mm, 1.4)
+        drawing.invalidate_recordset()
+        saved_run, = drawing.get_drawing_vision()['runs']
+        self.assertEqual([(entry['field'], entry.get('reviewed_value', entry['candidate'])) for entry in saved_run['items']
+                          if entry['field'] in ('cabinet_height_mm', 'overall_height_mm')],
+                         [('overall_height_mm', 1900), ('cabinet_height_mm', 1800)])
+        self.assertEqual(saved_run['items'][1]['unit'], '')
+        self.assertEqual(saved_run['items'][1]['reviewed_unit'], 'mm')
+        self.assertEqual(saved_run['items'][6]['decision'], 'apply')
         self.assertFalse(line.nodo_attachments)
 
     def test_vision_missing_and_incomplete_do_not_offer_a_result(self):
@@ -220,8 +236,9 @@ class TestDrawingSelection(TransactionCase):
         model = self.env['nodo.contract.drawing'].with_user(self.seller)
         arch = etree.fromstring(model.get_view(view_id, 'form')['arch'])
         self.assertEqual(arch.xpath('.//*[@data-drawing-pane]/@data-drawing-pane'),
-                         ['parameters', 'vision', 'accessories'])
+                         ['results', 'parameters', 'vision', 'accessories'])
         self.assertTrue(arch.xpath('.//field[@widget="nodo_contract_drawing_sections"]'))
+        self.assertTrue(arch.xpath('.//*[@data-drawing-pane="results"]//field[@widget="nodo_contract_drawing_results"]'))
         self.assertTrue(arch.xpath('.//*[@data-drawing-pane="parameters"]//field[@name="height_mm"]'))
         self.assertTrue(arch.xpath('.//*[@data-drawing-pane="vision"]//field[@name="vision_state"]'))
         self.assertTrue(arch.xpath('.//*[@data-drawing-pane="accessories"]//field[@name="selection_notes"]'))

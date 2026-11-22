@@ -136,6 +136,14 @@ def _field_value(field, value, unit, text):
     return value if len(value) <= 80 else None
 
 
+def confirmed_millimetres(item):
+    target = FIELD_TARGETS.get(item['field'])
+    if item['status'] != 'explicit' or item['unit'].strip() or not (target or '').endswith('_mm'):
+        return None
+    value, text = (unicodedata.normalize('NFKC', item[key]).strip() for key in ('value', 'text'))
+    return _field_value(item['field'], value, 'mm', text)
+
+
 def reading_items(payload, rect):
     if not isinstance(payload, dict) or not isinstance(payload.get('items'), list):
         raise ValueError('invalid vision items')
