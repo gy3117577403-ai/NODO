@@ -39,9 +39,12 @@ class SaleSelection(models.Model):
         for product in products:
             name = product.nodo_quote_accessory_name
             item = catalog.setdefault(name, {
-                'name': name, 'category': product.nodo_quote_accessory_category or '附件', 'product_ids': [],
+                'name': name, 'category': product.nodo_quote_accessory_category or '附件',
+                'product_ids': [], 'part_numbers': [],
             })
             item['product_ids'].append(product.id)
+            if product.default_code:
+                item['part_numbers'].append(product.default_code)
         return catalog
 
     def _nodo_drawing_line(self, drawing, candidate):

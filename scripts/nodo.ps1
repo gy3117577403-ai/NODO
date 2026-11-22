@@ -39,6 +39,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
+$LocalComposeFile = Join-Path $Root 'config\compose.local.yml'
 $EnvFile = Join-Path $Root '.env'
 $ConfFile = Join-Path $Root 'config\odoo.conf'
 $ConfTemplate = Join-Path $Root 'config\odoo.conf.example'
@@ -60,7 +61,11 @@ function New-Secret([int]$Bytes = 24) {
 }
 
 function Invoke-Compose {
-    & docker compose --project-directory $Root -f $ComposeFile @args
+    $files = @('-f', $ComposeFile)
+    if (Test-Path -LiteralPath $LocalComposeFile -PathType Leaf) {
+        $files += @('-f', $LocalComposeFile)
+    }
+    & docker compose --project-directory $Root @files @args
     if ($LASTEXITCODE -ne 0) { throw "docker compose $($args -join ' ') 失败（退出码 $LASTEXITCODE）" }
 }
 

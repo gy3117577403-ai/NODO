@@ -96,7 +96,11 @@ def accessory_overlap(name, text_counts):
     }
 
 
-def accessory_values(data, catalog, candidate_id, signature, suggested=()):
+def drawing_part_numbers(text):
+    return frozenset(re.findall(r'[A-Z0-9][A-Z0-9_.-]*', unicodedata.normalize('NFKC', text).upper()))
+
+
+def accessory_values(data, catalog, candidate_id, signature, *, require_quantity=False):
     data = data or {}
     if not isinstance(data, dict):
         raise ValidationError('附件选配数据无效。')
@@ -109,14 +113,14 @@ def accessory_values(data, catalog, candidate_id, signature, suggested=()):
             or any(type(selected) is not bool for selected in choices.values())
             or any(not isinstance(row, dict) or not isinstance(row.get('name'), str) for row in rows)):
         raise ValidationError('附件选配数据无效，请重新选择。')
-    names = dict.fromkeys([*suggested, *choices, *manual, *(row['name'] for row in rows)])
+    names = dict.fromkeys([*choices, *manual, *(row['name'] for row in rows)])
     if len(names) > 100 or set(names) - set(catalog):
         raise ValidationError('有附件不在当前公司附件目录中，请核对选配。')
     prior = {row['name']: row for row in rows}
     allocations = []
     for name in names:
         row = prior.get(name, {})
-        quantity = row.get('quantity', 1)
+        quantity = row.get('quantity', None if require_quantity else 1)
         if quantity is not None:
             quantity = number(quantity, '附件每台用量')
             if not quantity:

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from lxml import etree
+
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
@@ -87,6 +89,14 @@ class TestContract(TransactionCase):
             quote.action_nodo_quote_excel()
         with self.assertRaises(UserError):
             quote.with_user(self.approval).action_confirm()
+
+    def test_sales_quotation_form_excludes_unreadable_native_cost_columns(self):
+        view_id = self.env.ref('sale.view_order_form').id
+        arch = etree.fromstring(self.orders.with_user(self.sales).get_view(view_id, 'form')['arch'])
+        self.assertTrue(arch.xpath(".//field[@name='nodo_quote_drawing_ids']"))
+        self.assertTrue(arch.xpath(".//field[@name='tax_totals']"))
+        names = {node.get('name') for node in arch.xpath(".//field[@name='order_line']//field")}
+        self.assertFalse(names & {'margin', 'margin_percent', 'purchase_price'})
 
     def test_selected_version_is_approved_issued_accepted_and_confirmed(self):
         quote = self._quote()

@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+from lxml import etree
 from markupsafe import Markup
 
 from odoo import Command, api, fields, models
@@ -31,6 +32,29 @@ COST_TOTAL_FIELDS = {'margin', 'margin_percent'}
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
+
+    @api.model
+    def get_view(self, view_id=None, view_type='form', **options):
+        result = super().get_view(view_id, view_type, **options)
+        if view_type != 'form':
+            return result
+        lines = self.env['sale.order.line']
+        restricted = {name for name in COST_TOTAL_FIELDS | {'purchase_price'}
+                      if name in lines._fields and not lines.has_field_access(lines._fields[name], 'read')}
+        if not restricted:
+            return result
+        # Optional sale_margin fields can occur in a nested product column.
+        # Remove unavailable fields before the browser parses the embedded list.
+        arch = etree.fromstring(result['arch'])
+        for field in arch.xpath(".//field[@name='order_line']//field[@name]"):
+            if field.get('name') in restricted:
+                field.getparent().remove(field)
+        # The optional totals widget invokes sale_margin's computed summary.
+        # Ordinary sales retain the public tax totals above it.
+        if (margin := self._fields.get('margin')) and not self.has_field_access(margin, 'read'):
+            for field in arch.xpath(".//field[@name='extra_total_fields']"):
+                field.getparent().remove(field)
+        return {**result, 'arch': etree.tostring(arch, encoding='unicode')}
 
     nodo_contract = fields.Boolean(string='单柜报价', index=True, copy=False, default=lambda self: self._nodo_default_contract())
     nodo_quote_stage = fields.Selection(STAGES, string='报价阶段', default='selection', index=True, copy=False, readonly=True)

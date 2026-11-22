@@ -20,6 +20,7 @@ import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_d
 import { CheckBox } from "@web/core/checkbox/checkbox";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { saleOrderFormView } from "@sale/views/sale_order_form_view/sale_order_form_view";
+import { DrawingVisionSession, cropDrawingPage } from "./vision";
 
 class ChineseRecognitionMessage extends Component {
     static template="nodo_contract.ChineseRecognitionMessage";
@@ -95,6 +96,13 @@ class CabinetWidthField extends Component {
     }
     focusSource() {
         this.assist.focus(dimensionAxes[0]);
+    }
+    get options() {
+        return this.assist.options(dimensionAxes[0]);
+    }
+    chooseOption(event) {
+        const token = this.options.find(item => item.id === event.target.value);
+        if (token) this.assist.edit(dimensionAxes[0], token.value, token.id);
     }
     change(event){
         this.state.draft=event.target.value;
@@ -803,7 +811,9 @@ class DrawingAccessoriesField extends Component {
     }
     async changeAllocations(data){await this.props.record.update({[this.props.name]:data});}
     get selectedCount() { return this.state.items.filter(item=>this.selected(item.name)).length; }
-    selected(name) { return this.overrides[name] ?? this.decisions[name] ?? true; }
+    selected(name) {
+        return this.overrides[name] ?? this.decisions[name] ?? this.state.items.find(item => item.name === name)?.selected ?? false;
+    }
     async refresh() {
         const revision=++this.revision,candidate=this.candidate;
         this.state.loading=true;
@@ -820,10 +830,6 @@ class DrawingAccessoriesField extends Component {
             }
         })();
         await this.loadingPromise;
-        if(!this.props.readonly&&!this.disposed&&!this.initializingAllocations&&!this.saved.allocations&&this.state.items.length){
-            this.initializingAllocations=true;
-            try{await this.flush();}finally{this.initializingAllocations=false;}
-        }
     }
     toggle(name,checked) {
         if(this.props.readonly)return;
@@ -866,8 +872,7 @@ class DrawingAccessoriesField extends Component {
         if(this.props.readonly||this.disposed)return;
         await this.loadingPromise;
         if(this.disposed||this.state.error)return;
-        const choices={...this.decisions,...this.overrides,
-            ...Object.fromEntries(this.state.items.map(item=>[item.name,this.selected(item.name)]))};
+        const choices={...this.decisions,...this.overrides};
         const value={...this.saved,version:1,candidate_id:this.candidate,choices,manual_names:[...this.manualNames]};
         if(Array.isArray(value.allocations))value.allocations=value.allocations.map(item=>
             Object.hasOwn(this.overrides,item.name)?{...item,selected:this.overrides[item.name]}:item);
@@ -921,6 +926,8 @@ function drawingDimensionSession(record, orm) {
         get hint() {
             if (!this.editable) return "当前单据只读";
             if (this.state.orienting) return "图纸正在后台准备…";
+            if (this.vision.state.selecting) return "在图纸上拖动，框选要智能补读的局部";
+            if (this.vision.state.region) return "已选局部，请确认后开始补读";
             if (this.state.busy) return "正在读取框选范围内的尺寸…";
             if (!this.state.boxes.front) return "拖动框选正视图，请包含尺寸标注";
             if (!this.state.boxes.side) return "正视图已框选，请拖动框选侧视图";
@@ -981,7 +988,9 @@ function drawingDimensionSession(record, orm) {
         role(axis) { return axis.key === "height_mm" ? this.state.heightRole || "front" : axis.role; },
         options(axis) {
             return this.state.boxes[this.role(axis)]?.tokens.filter((item) => item.axis ===
-                (axis.direction === "horizontal" ? "horizontal" : "vertical")) || [];
+                (axis.direction === "horizontal" ? "horizontal" : "vertical") &&
+                (!item.dimension_key || item.dimension_key === axis.key ||
+                    (axis.key === "height_mm" && ["total_height", "cabinet_height"].includes(item.dimension_key)))) || [];
         },
         source(axis) {
             const role = this.role(axis), token = this.token(axis), box = this.state.boxes[role];
@@ -992,7 +1001,7 @@ function drawingDimensionSession(record, orm) {
             const box = this.state.boxes[role];
             for (const axis of dimensionAxes.filter((axis) => axis.role === role)) {
                 const token = box?.tokens.find((item) => item.id === box[axis.direction]);
-                if (token) {
+                if (token && (!token.dimension_key || token.dimension_key === axis.key)) {
                     this.state.values[axis.key] = token.value;
                     this.state.chosen[axis.key] = token.id;
                     if (axis.key === "height_mm") this.state.heightRole = "front";
@@ -1070,12 +1079,14 @@ function drawingDimensionSession(record, orm) {
             this.state.chosen[axis.key] = id; this.persist();
         },
         focus(axis) {
+            this.vision.state.focus = null;
             this.state.focus = this.role(axis); this.state.focusToken = this.token(axis)?.id || null;
             const box = this.state.boxes[this.role(axis)];
             if (box) for (const navigate of this.navigators) navigate(box, this.token(axis));
             this.emit();
         },
     };
+    session.vision = new DrawingVisionSession(session);
     session.restore(record.data.dimension_assist_data);
     drawingDimensionSessions.set(record, session);
     return session;
@@ -1129,6 +1140,29 @@ class DrawingDimensionValueField extends FloatField {
     }
 }
 
+class DrawingVisionField extends Component {
+    static template = "nodo_contract.DrawingVision";
+    props = useProps({ ...standardFieldProps });
+
+    setup() {
+        this.assist = drawingDimensionSession(this.props.record, useService("orm"));
+        this.vision = this.assist.vision;
+        useOnChange(() => [this.props.record.data.active_recognition_id?.id,
+            this.props.record.data.recognition_token], () => {
+            this.vision.reset();
+            this.vision.refresh();
+        });
+        const timer = setInterval(() => {
+            if (this.vision.active && !this.vision.state.saving) this.vision.refresh();
+        }, 2200);
+        onWillUnmount(() => { clearInterval(timer); this.vision.reset(); });
+    }
+}
+
+registry.category("fields").add("nodo_contract_drawing_vision", {
+    component: DrawingVisionField, supportedTypes: ["selection"],
+});
+
 registry.category("fields").add("nodo_contract_drawing_dimension_value", {
     ...floatField, component: DrawingDimensionValueField,
 });
@@ -1147,6 +1181,7 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         .o_drawing_dimension_overlay{position:absolute;pointer-events:none;z-index:12;inset:0}
         .o_drawing_dimension_region{position:absolute;border:1.5px dashed #366a9e;background:rgba(54,106,158,.06);box-sizing:border-box}
         .o_drawing_dimension_region[data-role=side]{border-color:#22776e;background:rgba(34,119,110,.06)}
+        .o_drawing_dimension_region[data-role=supplement]{border-color:#71507f;background:rgba(113,80,127,.10)}
         .o_drawing_dimension_region[data-focus=true]{border-style:solid}
         .o_drawing_dimension_tag{position:absolute;left:-1px;top:0;background:white;color:#244c74;white-space:nowrap;font:12px/20px sans-serif;padding:0 4px;pointer-events:auto}
         .o_drawing_dimension_tag button{border:0;background:transparent;color:inherit;font:inherit;padding:0 4px;cursor:pointer}
@@ -1174,10 +1209,21 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
                 width: `${r.width}px`, height: `${r.height}px`, right: "auto", bottom: "auto" });
         } else if (overlay.parentElement !== page.element) page.element.appendChild(overlay);
         overlay.replaceChildren();
+        const vision = assist.vision.state;
+        for (const region of [vision.region, vision.focus]) {
+            if (!region || region.page !== page.page) continue;
+            const r = rotateDrawingRect(region.rect, page.rotation - region.rotation);
+            const mark = doc.createElement("div");
+            mark.className = region === vision.focus ? "o_drawing_dimension_evidence" : "o_drawing_dimension_region";
+            mark.dataset.role = "supplement";
+            Object.assign(mark.style, { left: `${r[0] * 100}%`, top: `${r[1] * 100}%`,
+                width: `${r[2] * 100}%`, height: `${r[3] * 100}%` });
+            overlay.appendChild(mark);
+        }
         if (pointer?.rect) {
             const r=pointer.rect;
             Object.assign(selection.style,{left:`${r[0]*100}%`,top:`${r[1]*100}%`,width:`${r[2]*100}%`,height:`${r[3]*100}%`});
-            selection.dataset.role=assist.state.boxes.front ? "side" : "front";
+            selection.dataset.role=vision.selecting ? "supplement" : assist.state.boxes.front ? "side" : "front";
             overlay.appendChild(selection);
         }
         for (const role of ["front", "side"]) {
@@ -1211,7 +1257,8 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
     }
     function schedule() { view.cancelAnimationFrame(frame); frame = view.requestAnimationFrame(render); }
     surface.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || !assist.editable || assist.state.busy || assist.state.orienting || event.target.closest(".o_drawing_dimension_tag")) return;
+        if (event.button !== 0 || !assist.editable || assist.state.busy || assist.state.orienting ||
+            assist.vision.state.region || event.target.closest(".o_drawing_dimension_tag")) return;
         const page = currentPage(); if (!page?.element) return;
         const r = page.element.getBoundingClientRect();
         const u=(event.clientX-r.left)/r.width,v=(event.clientY-r.top)/r.height;
@@ -1230,7 +1277,11 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
         event.preventDefault();event.stopPropagation();schedule();
         if (Math.hypot(event.clientX-start.x,event.clientY-start.y)<8 || rect[2]<.005 || rect[3]<.005) return;
-        assist.select(start.page,rect,start.rotation,start.orientation || 0);
+        if (assist.vision.state.selecting) {
+            assist.vision.select(start.page, rect, start.rotation);
+        } else {
+            assist.select(start.page,rect,start.rotation,start.orientation || 0);
+        }
     }, options);
     const cancel = () => { pointer=null;schedule(); };
     surface.addEventListener("pointercancel",cancel,options);
@@ -1599,6 +1650,13 @@ class DrawingPdfViewerField extends PdfViewerField {
                 }
                 await application.initializedPromise;
                 if (currentRevision === revision && frame.contentDocument === document) {
+                    const renderCrop = (region) => cropDrawingPage(document, application.pdfDocument, region);
+                    assist.vision.renderCrop = renderCrop;
+                    const updateCropReady = () => {
+                        assist.vision.state.viewerReady = Boolean(application.pdfDocument);
+                    };
+                    updateCropReady();
+                    application.eventBus.on("pagesinit", updateCropReady);
                     const removeMouse = setupDrawingPdfControls(frame, application, this.drawingPagePositions);
                     const dimensions = bindDrawingDimensionSelection(application.pdfViewer.container, () => {
                         const viewer = application.pdfViewer;
@@ -1623,6 +1681,11 @@ class DrawingPdfViewerField extends PdfViewerField {
                     for (const name of events) application.eventBus.on(name, dimensions.render);
                     const removeOrientation = bindDrawingPdfOrientation(application, assist, removeMouse, dimensions.render);
                     removeControls = () => {
+                        application.eventBus.off("pagesinit", updateCropReady);
+                        if (assist.vision.renderCrop === renderCrop) {
+                            assist.vision.renderCrop = null;
+                            assist.vision.state.viewerReady = false;
+                        }
                         for (const name of events) application.eventBus.off(name, dimensions.render);
                         removeOrientation(); dimensions.destroy(); removeMouse();
                     };

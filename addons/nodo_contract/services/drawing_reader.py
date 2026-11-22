@@ -6,6 +6,8 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
+from collections import defaultdict
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -26,12 +28,30 @@ EXTENSIONS = {
     '.pdf': 'pdf', '.dwg': 'cad', '.dxf': 'cad', '.png': 'image', '.jpg': 'image',
     '.jpeg': 'image', '.bmp': 'image', '.tif': 'image', '.tiff': 'image',
 }
-DIMENSION = re.compile(r'(?<![\d.])(\d{1,6}(?:\.\d{1,3})?)(?![\d.])')
-LABELS = {
-    'width_mm': r'(?:总宽|宽度|宽|width)',
-    'depth_mm': r'(?:总深|深度|深|depth)',
-    'height_mm': r'(?:总高|高度|高|height)',
-}
+DIMENSION_VALUE = r'(\d{1,6}(?:\.\d{1,3})?)\s*(?:mm|毫米)?'
+DIMENSION_LABELS = (
+    ('width_mm', r'(?:柜体|箱体)?(?:总宽|宽度|宽)|(?:cabinet\s+)?width'),
+    ('depth_mm', r'(?:柜体|箱体)?(?:总深|深度|深)|(?:cabinet\s+)?depth'),
+    ('height_mm', r'(?:报价)?(?:高度|高)|(?:quote\s+)?height'),
+    ('total_height', r'(?:含底座)?(?:外形)?(?:总高(?:度)?|整体高度)|(?:overall|total)\s+height'),
+    ('cabinet_height', r'(?:柜体|箱体)(?:净高(?:度)?|高度|高)|(?:cabinet|body|net)\s+height'),
+    ('base_height', r'底座高(?:度)?|(?:base|plinth)\s+height'),
+)
+LABELED_DIMENSIONS = tuple(
+    (key, re.compile(rf'(?:{label})\s*[:=]?\s*{DIMENSION_VALUE}', re.I))
+    for key, label in DIMENSION_LABELS
+)
+PLAIN_DIMENSION = re.compile(DIMENSION_VALUE, re.I)
+
+
+def labeled_dimension(text):
+    text = unicodedata.normalize('NFKC', text).strip()
+    for key, pattern in LABELED_DIMENSIONS:
+        if match := pattern.fullmatch(text):
+            value = float(match.group(1))
+            if value > 0:
+                return key, value
+    return None
 
 
 def inspect_file(name, content):
@@ -77,8 +97,13 @@ def text_suggestions(page):
     cabinet_codes = sorted((item[0] for item in CABINET_SERIES), key=len, reverse=True)
     match = re.compile(r'(?<![A-Z0-9])(' + '|'.join(map(re.escape, cabinet_codes)) + r')(?![A-Z])')
     series = {item.group(1) for item in match.finditer(normalized)}
-    suggested = {key: float(found.group(1)) for key, label in LABELS.items()
-                 if (found := re.search(label + r'\s*[:：=]?\s*(\d+(?:\.\d+)?)', normalized, re.I))}
+    dimensions = defaultdict(set)
+    for line in source.splitlines():
+        if match := labeled_dimension(line):
+            key, value = match
+            dimensions[key].add(value)
+    suggested = {key: next(iter(dimensions[key])) for key in ('width_mm', 'depth_mm', 'height_mm')
+                 if len(dimensions[key]) == 1}
     if len(series) == 1:
         suggested['product_series'] = next(iter(series))
     page_number = page['source_page_number']
@@ -124,25 +149,24 @@ def pdf_dimension_view(content, page_index, rect, rotation, orientation):
         mid_x, mid_y = drawn[0] + drawn[2] / 2, drawn[1] + drawn[3] / 2
         if not sx <= mid_x <= sx + sw or not sy <= mid_y <= sy + sh:
             return
-        named = next((key for key, label in LABELS.items() if re.search(label, line, re.I)), None)
-        if not named and not re.fullmatch(r'[\sØφΦ⌀Rr\d.mmMM]+', line):
+        labeled = labeled_dimension(line)
+        plain = PLAIN_DIMENSION.fullmatch(unicodedata.normalize('NFKC', line)) if not labeled else None
+        if not labeled and not plain:
+            return
+        key, value = labeled or (None, float(plain.group(1)))
+        if value <= 0:
             return
         rotated_vertical = abs(transform[1] * a + transform[0] * b) > abs(transform[0] * a)
-        axis = ('vertical' if named == 'height_mm' else 'horizontal') if named else (
+        axis = ('horizontal' if key in ('width_mm', 'depth_mm') else 'vertical') if key else (
             'vertical' if rotated_vertical != (total_rotation in (90, 270)) else 'horizontal'
         )
-        for found in DIMENSION.finditer(line):
-            value = float(found.group(1))
-            if value > 0:
-                tokens.append({'id': f'pdf-{len(tokens)}', 'rect': drawn, 'text': line[:120],
-                               'axis': axis, 'value': value, 'named': bool(named)})
+        tokens.append({'id': f'pdf-{len(tokens)}', 'rect': drawn, 'text': line[:120],
+                       'axis': axis, 'value': value, 'dimension_key': key})
 
     page.extract_text(visitor_text=visit)
 
-    def best(axis):
-        available = [token for token in tokens if token['axis'] == axis]
-        named = [token for token in available if token['named']]
-        candidates = named or available
+    def best(axis, dimension_keys):
+        candidates = [token for token in tokens if token['axis'] == axis and token['dimension_key'] in dimension_keys]
         return candidates[0]['id'] if len({token['value'] for token in candidates}) == 1 else None
 
     if not tokens:
@@ -150,7 +174,7 @@ def pdf_dimension_view(content, page_index, rect, rotation, orientation):
     return {
         'selection_mode': 'manual', 'reader_version': 'pdf-text', 'page': page_index, 'rotation': rotation,
         'orientation': orientation, 'regions': [rect], 'body': rect, 'tokens': tokens,
-        'horizontal': best('horizontal'), 'vertical': best('vertical'),
+        'horizontal': best('horizontal', ('width_mm', 'depth_mm')), 'vertical': best('vertical', ('height_mm',)),
         'file_sha256': sha256(content).hexdigest(),
     }
 

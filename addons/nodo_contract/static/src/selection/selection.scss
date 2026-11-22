@@ -131,6 +131,17 @@
     }
 }
 
+.o_nodo_drawing_vision {
+    padding: map-get($spacers, 2);
+    margin-block: map-get($spacers, 2);
+    border-left: 2px solid $border-color;
+
+    .o_nodo_vision_item {
+        padding-block: map-get($spacers, 2);
+        border-bottom: 1px solid $border-color;
+    }
+}
+
 .o_quote_selection_table {
     display: block;
     width: 100%;

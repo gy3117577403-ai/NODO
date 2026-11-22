@@ -8,4 +8,12 @@
         <field name="interval_number">2</field>
         <field name="interval_type">minutes</field>
     </record>
+    <record id="ir_cron_drawing_vision" model="ir.cron">
+        <field name="name">报价图纸局部补读</field>
+        <field name="model_id" ref="model_nodo_contract_drawing"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_process_drawing_vision()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">minutes</field>
+    </record>
 </odoo>

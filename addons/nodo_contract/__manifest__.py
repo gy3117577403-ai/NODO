@@ -1,7 +1,7 @@
 {
     'name': 'NODO Contract',
     'summary': '单柜选型、报价核算、审批及转销售订单',
-    'version': '20.0.2.0.0',
+    'version': '20.0.2.1.0',
     'category': 'Sales',
     'author': 'NODO',
     'license': 'Other proprietary',
@@ -17,6 +17,7 @@
     ],
     'assets': {
         'web.assets_backend': [
+            'nodo_contract/static/src/selection/vision.js',
             'nodo_contract/static/src/selection/selection.js',
             'nodo_contract/static/src/selection/selection.xml',
             'nodo_contract/static/src/selection/selection.scss',

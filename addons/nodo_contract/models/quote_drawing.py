@@ -14,6 +14,7 @@ from ..services.drawing_reader import (
 )
 from ..services.drawing_selection import (
     SELECTION_DEFAULTS, TEXT_LIMIT, accessory_overlap, accessory_values, cabinet_values, chinese_characters,
+    drawing_part_numbers,
 )
 from ..services.quote_price import CABINET_SERIES, COATINGS, checked_number
 
@@ -156,7 +157,7 @@ class QuoteDrawing(models.Model):
         if 'accessory_selection_data' in vals or normalized['accessory_selection_data']:
             normalized['accessory_selection_data'] = accessory_values(
                 normalized['accessory_selection_data'], catalog, self.active_recognition_id.id or 0,
-                normalized['cabinet_configuration']['signature'],
+                normalized['cabinet_configuration']['signature'], require_quantity=True,
             )
         return {**vals, **normalized}
 
@@ -296,13 +297,17 @@ class QuoteDrawing(models.Model):
             pages = (self.recognition_data or {}).get('pages', [])
             text = '\n'.join(str(page.get('raw_text') or page.get('text') or '')
                              for page in pages if page.get('source_page_number') == candidate.page_number)
-        counts = Counter(chinese_characters(text or self.source_text))
+        text = text or self.source_text or ''
+        counts = Counter(chinese_characters(text))
+        part_numbers = drawing_part_numbers(text)
         for name, item in catalog.items():
             evidence = accessory_overlap(name, counts)
-            if evidence or name in manual:
-                source = 'manual' if name in manual else 'drawing'
+            reference = next((code for code in item['part_numbers'] if code.upper() in part_numbers), None)
+            if evidence or reference or name in manual:
+                source = 'manual' if name in manual else 'part_number' if reference else 'drawing'
                 result.append({
                     **item, 'source': source, 'overlap': (evidence or {}).get('text', ''),
+                    'part_number': reference,
                     'match_rate': (evidence or {}).get('rate'),
                     'matched_count': (evidence or {}).get('matched_count', 0),
                     'name_count': (evidence or {}).get('name_count', 0),
@@ -324,7 +329,7 @@ class QuoteDrawing(models.Model):
             raise ValidationError('附件数据无效，请从附件库重新选择。')
         items = self._accessory_rows(candidate, manual)
         for item in items:
-            item['selected'] = data.get('choices', {}).get(item['name'], True)
+            item['selected'] = data.get('choices', {}).get(item['name'], item['source'] == 'manual')
         return {'items': items, 'candidate_id': candidate_id, 'pending': self.drawing_recognition_pending,
                 'recognition_token': self.recognition_token or ''}
 
@@ -505,11 +510,9 @@ class QuoteDrawing(models.Model):
             ], limit=2)
         if len(product) != 1 or len(product.product_variant_ids) != 1:
             raise UserError('请为此柜型选择唯一的可销售产品。')
-        candidate = self.active_recognition_id
-        suggested = [item['name'] for item in self._accessory_rows(candidate, [])]
         values['accessory_selection_data'] = accessory_values(
             values['accessory_selection_data'], self.order_id._nodo_accessory_catalog(),
-            candidate.id or 0, values['cabinet_configuration']['signature'], suggested,
+            self.active_recognition_id.id or 0, values['cabinet_configuration']['signature'], require_quantity=True,
         )
         line = self.order_id._nodo_save_drawing_line(self, product.product_variant_id, values)
         self._trusted_write({
