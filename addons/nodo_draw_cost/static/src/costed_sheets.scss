@@ -1,0 +1,11 @@
+.nd-work {
+    .nd-usage-summary .nd-price-badge {padding:1px 5px;border-radius:4px;font-size:11px;background:#f8ebce;color:#744f0e;}
+    .nd-usage-summary strong[data-usage-weight] {font-size:22px;}
+    .nd-rate-status {color:#805517;}
+    .nd-usage-table [data-unit-price] small {font-size:10px;color:#855e22;}
+    .nd-usage-basis {display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;margin:6px 0 10px;font-size:11px;color:#52675c;}
+    .nd-usage-basis a,.nd-cost-link {color:#276651;}
+    .nd-stock-price {display:flex;align-items:center;justify-content:space-between;gap:7px;margin-top:5px;font-size:12px;color:var(--muted);}
+    .nd-stock-price b {color:var(--forest);}
+    .nd-stock-price select {width:108px;padding:2px 5px;font-size:12px;}
+}

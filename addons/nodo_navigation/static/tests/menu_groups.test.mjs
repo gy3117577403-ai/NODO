@@ -6,11 +6,12 @@ test("nodo navigation groups visible apps by menu identity", () => {
     const chat = { id: 1, xmlid: "mail.menu_root_discuss", name: "内部沟通" };
     const employees = { id: 2, xmlid: "hr.menu_hr_root", name: "员工" };
     const purchase = { id: 3, xmlid: "nodo_supply.menu_supply_root", name: "采购协作" };
+    const costs = { id: 4, xmlid: "nodo_cost.menu_root", name: "成本库" };
 
-    const groups = groupApplications([employees, purchase, chat]);
+    const groups = groupApplications([employees, purchase, costs, chat]);
 
     assert.deepEqual(groups.map(({ key }) => key), ["collaboration", "operations", "organization"]);
-    assert.deepEqual(groups.flatMap(({ items }) => items.map(({ app }) => app)), [chat, purchase, employees]);
+    assert.deepEqual(groups.flatMap(({ items }) => items.map(({ app }) => app)), [chat, purchase, costs, employees]);
 });
 
 test("nodo navigation preserves unfamiliar entries and places system tools last", () => {

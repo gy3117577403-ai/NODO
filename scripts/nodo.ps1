@@ -17,6 +17,7 @@ NODO 开发环境脚本。只操作 Compose 项目 nodo-dev，不碰预览环境
   seed-users      为每个角色各建一个测试用户（只建缺少的），密码写入本地账号文件
   draw-start [refresh] 启动本机 CAD 计算进程；refresh 在空闲时重载工作进程
   seed-draw       在开发库准备 AE 单门、双门基础柜
+  seed-sheet-cost 在开发库登记 AE-202 三条板料测试价
   seed-draw-catalog 在开发库登记待核对附件及预览
   seed-supply-pilot  准备采购协作验收账号和采购资料
   init-staff-pilot  创建独立人员试点库 nodo_staff_pilot
@@ -232,6 +233,7 @@ switch ($Command) {
         Write-Host '已请求启动 CAD 服务'
     }
     'seed-draw' { Assert-Initialized; Invoke-OdooShellScript 'seed_draw_boms.py' }
+    'seed-sheet-cost' { Assert-Initialized; Invoke-OdooShellScript 'seed_sheet_cost.py' }
     'seed-draw-catalog' { Assert-Initialized; Invoke-OdooShellScript 'seed_draw_catalog.py' }
     'seed-users' {
         Assert-Initialized

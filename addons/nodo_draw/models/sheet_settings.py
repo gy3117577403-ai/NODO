@@ -3,8 +3,9 @@ import copy
 import json
 from pathlib import Path
 
+from odoo.addons.nodo_base.sheet_materials import MATERIALS
+
 DATA = Path(__file__).resolve().parents[1] / 'data'
-MATERIALS = json.loads((DATA / 'materials.json').read_text('utf-8'))
 SHEETS = json.loads((DATA / 'sheet-rules.json').read_text('utf-8'))
 CATALOG = {'materials': MATERIALS, 'sheets': SHEETS}
 GROUP_PARTS = {'body': 'wrap', 'door': 'door', 'mount': 'mount'}

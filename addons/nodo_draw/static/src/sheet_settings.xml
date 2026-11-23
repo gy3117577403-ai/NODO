@@ -18,7 +18,7 @@
                         t-att-value="choice[0]" t-att-selected="row.material.category===choice[0]" t-out="choice[1].name"/>
             </select>
             <label class="nd-gauge">
-                <input type="number" step="0.1" t-att-min="row.rule.min" t-att-max="row.rule.max" t-att-value="row.thickness ?? ''"
+                <input type="number" step="0.001" t-att-min="row.rule.min" t-att-max="row.rule.max" t-att-value="row.thickness ?? ''"
                        t-att-aria-label="row.name+(this.byPart()?'独立厚度':'厚度')" t-att-disabled="this.props.disabled"
                        t-on-input="ev => this.changeThickness(row.key,ev.target.value)"/><small>mm</small>
             </label>

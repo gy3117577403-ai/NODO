@@ -16,7 +16,7 @@ function partMaterial(materials, catalog, part) {
 
 export class SheetSettings extends Component {
     static template = "nodo_draw.SheetSettings";
-    props = useProps({catalog: Object, values: Object, disabled: Boolean, change: Function, save: Function});
+    props = useProps({designId: Number, catalog: Object, values: Object, disabled: Boolean, change: Function, save: Function});
     byPart = signal(false);
     detail = signal(null);
 
@@ -70,6 +70,10 @@ export class SheetSettings extends Component {
     }
 
     writeMaterial(key, choice, setGroupFinish = false) {
+        this.props.change({materials:this.materialValues(key, choice, setGroupFinish)});
+    }
+
+    materialValues(key, choice, setGroupFinish = false) {
         const before = this.props.values.materials;
         const catalog = this.props.catalog.materials;
         const finishes = {...before.finishes};
@@ -87,15 +91,18 @@ export class SheetSettings extends Component {
         }
         if (Object.keys(finishes).length) next.finishes = finishes;
         else delete next.finishes;
-        this.props.change({materials: next});
+        return next;
     }
 
     changeThickness(key, text) {
-        const value = text === "" ? null : Number(text);
+        this.props.change({thickness:this.thicknessValues(key, text === "" ? null : Number(text))});
+    }
+
+    thicknessValues(key, value) {
         const thickness = {...this.props.values.thickness};
         if (this.byPart()) thickness.parts = {...thickness.parts, [key]: value};
         else thickness[key] = value;
-        this.props.change({thickness});
+        return thickness;
     }
 
     restore(part) {

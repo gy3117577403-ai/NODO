@@ -17,6 +17,7 @@ const APPS = new Map(Object.entries({
     "stock.menu_stock_root": ["operations", "inventory_2"],
     "mrp.menu_mrp_root": ["operations", "precision_manufacturing"],
     "nodo_draw.menu_root": ["operations", "design_services"],
+    "nodo_cost.menu_root": ["operations", "calculate"],
     "contacts.menu_contacts": ["organization", "contact_page"],
     "hr.menu_hr_root": ["organization", "groups"],
     "base.menu_management": ["system", "extension"],

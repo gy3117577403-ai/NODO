@@ -26,7 +26,7 @@
                                 </button>
                                 <small t-out="row.material"/>
                             </th>
-                            <td t-out="row.thickness.toFixed(1)"/><td t-out="row.quantity"/>
+                            <td t-out="row.thickness % 1 ? row.thickness : row.thickness.toFixed(1)"/><td t-out="row.quantity"/>
                             <td t-out="row.area.toFixed(6)"/><td t-out="row.weight.toFixed(3)"/>
                         </tr>
                     </tbody>

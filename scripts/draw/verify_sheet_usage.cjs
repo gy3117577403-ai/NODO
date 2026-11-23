@@ -82,7 +82,7 @@ async function main() {
         for (const [key, name, area, quantity, kg] of expected) {
             await selectSheet(page,key,name);
             const cells = await table(page).locator(`tr[data-usage-key="${key}"] td`).allTextContents();
-            assert.deepEqual(cells.slice(1), [String(quantity),area,kg]);
+            assert.deepEqual(cells.slice(1,4), [String(quantity),area,kg]);
             const rendered = await page.locator(".nd-three-host canvas").screenshot();
             assert.ok(await highlightedPixels(page, rendered) > 40, name + "在三维中应有可见的选中色");
             seen.add(crypto.createHash("sha256").update(rendered).digest("hex"));

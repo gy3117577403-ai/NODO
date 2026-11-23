@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+<t t-name="nodo_draw_cost.SheetUsage" t-inherit="nodo_draw.SheetUsage" t-inherit-mode="primary">
+    <xpath expr="//div[hasclass('nd-usage-summary')]" position="replace">
+        <t t-set="prices" t-value="this.prices().value"/>
+        <div class="nd-usage-summary">
+            <div><span>每台板料成本 <b t-if="prices?.trial" class="nd-price-badge" t-out="prices.trial===usage.rows.length?'测试价':'含测试价'"/></span>
+                <strong data-total-cost="" t-if="prices?.total != null"><t t-out="prices.total.toFixed(2)"/> <small>元</small></strong>
+                <b t-else="" class="nd-rate-status" t-out="this.prices().error?'价格读取失败':prices?prices.missing+' 种待补价':'正在读取价格…'"/>
+            </div>
+            <div><span>每台板料重量</span><strong data-usage-weight=""><t t-out="usage.weight.toFixed(3)"/> <small>kg</small></strong></div>
+            <div><b><t t-out="usage.rows.length"/> 种 · <t t-out="usage.pieces"/> 件</b><span>合计 <t t-out="usage.area.toFixed(6)"/> m²</span></div>
+        </div>
+    </xpath>
+    <xpath expr="//thead/tr" position="inside">
+        <th scope="col">单价<small>元/kg</small></th><th scope="col">板料成本<small>元/台</small></th>
+    </xpath>
+    <xpath expr="//tbody/tr" position="inside">
+        <t t-set="rate" t-value="prices?.lines[row.key]"/>
+        <td data-unit-price=""><t t-if="rate"><t t-out="this.unitPrice(rate.unit)"/><small t-if="rate.basis==='trial'">测试价</small></t>
+            <span t-else="" t-att-class="{'nd-rate-status':prices}" t-out="prices?'待补价':'—'"/></td>
+        <td data-row-cost="" t-out="rate?rate.amount.toFixed(3):'—'"/>
+    </xpath>
+    <xpath expr="//p[hasclass('nd-usage-basis')]" position="replace">
+        <div class="nd-usage-basis"><span>面积含开孔 · 密度 <t t-out="usage.density"/> g/cm³ · 整柜按原值汇总至分</span>
+            <a href="/odoo/sheet-costs" target="_blank" rel="noopener">板料成本库 ↗</a></div>
+    </xpath>
+</t>
+<t t-name="nodo_draw_cost.SheetSettings" t-inherit="nodo_draw.SheetSettings" t-inherit-mode="primary">
+    <xpath expr="//div[hasclass('nd-stock-fields')]" position="after">
+        <div class="nd-stock-price" t-att-data-stock-key="row.key">
+            <t t-set="rate" t-value="this.rateFor(row)"/>
+            <span t-if="rate"><b t-out="this.unitPrice(rate.price_per_kg)"/> 元/kg · <t t-out="rate.basis==='trial'?'测试价':'业务价'"/></span>
+            <span t-else="" class="nd-rate-status" t-out="this.rates().error?'价格读取失败':this.rates().value?'该规格待补价':'正在读取价格…'"/>
+            <select t-if="this.rates().value?.length" t-att-disabled="this.props.disabled" t-att-aria-label="row.name+'选用库内板料'"
+                    t-on-change="ev => this.chooseStock(row, ev.target)">
+                <option value="">选库内规格</option>
+                <t t-foreach="this.rates().value" t-as="price" t-key="price.id">
+                    <option t-if="price.thickness_mm >= row.rule.min &amp;&amp; price.thickness_mm &lt;= row.rule.max"
+                            t-att-value="price.id"><t t-out="price.display_name"/> · <t t-out="this.unitPrice(price.price_per_kg)"/> 元/kg · <t t-out="price.basis==='trial'?'测试价':'业务价'"/></option>
+                </t>
+            </select>
+        </div>
+    </xpath>
+    <xpath expr="//button[hasclass('nd-wide')]" position="after">
+        <a class="nd-cost-link" href="/odoo/sheet-costs" target="_blank" rel="noopener">打开板料成本库 ↗</a>
+    </xpath>
+</t>
+</templates>

@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+sheet_costing,核算维护板料价格,nodo.cost.sheet.price,nodo_base.group_role_costing,cru,
+sheet_engineering,技术查看板料价格,nodo.cost.sheet.price,nodo_base.group_role_engineering,r,
+sheet_admin,管理员维护板料价格,nodo.cost.sheet.price,base.group_system,cru,
+sheet_company,本公司板料成本,nodo.cost.sheet.price,,crud,"[('company_id','in',company_ids)]"

@@ -57,7 +57,7 @@ export class Workbench extends Component {
     directoryHidden=signal(false);
     panelHidden=signal(false);
     panelWidth=signal(306);
-    usageWidth=signal(540);
+    usageWidth=signal(this.constructor.usagePanelWidth ?? 540);
     partsView=signal("usage");
     selectedParts=signal(noParts);
     hiddenParts=signal(noParts);

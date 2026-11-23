@@ -111,7 +111,7 @@
                 <button class="nd-wide" t-att-disabled="this.busy()" t-on-click="() => this.apply('save')">保存并预览柜体</button>
             </div>
             <div class="nd-fields" t-if="!this.panelHidden() &amp;&amp; this.tab()==='materials'">
-                <SheetSettings catalog="doc.sheet_catalog" values="form" disabled="this.busy()"
+                <SheetSettings designId="doc.id" catalog="doc.sheet_catalog" values="form" disabled="this.busy()"
                                change="values => this.patch(values)" save="() => this.apply('save')"/>
             </div>
             <t t-if="!this.panelHidden() &amp;&amp; this.tab()==='parts'">
