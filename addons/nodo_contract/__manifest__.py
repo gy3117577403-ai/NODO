@@ -19,6 +19,7 @@
         'web.assets_backend': [
             'nodo_contract/static/src/selection/vision.js',
             'nodo_contract/static/src/selection/drawing_results.js',
+            'nodo_contract/static/src/selection/drawing_overview.js',
             'nodo_contract/static/src/selection/selection.js',
             'nodo_contract/static/src/selection/selection.xml',
             'nodo_contract/static/src/selection/selection.scss',

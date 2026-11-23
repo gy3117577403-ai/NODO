@@ -117,7 +117,9 @@
   <t t-name="nodo_contract.DrawingResultsAction">
     <t t-set="option" t-value="this.activeEvidence(field)"/>
     <div class="o_nodo_spec_action" t-att-data-review-field="field.key">
-      <small t-if="option" class="o_nodo_spec_source">第 <t t-esc="option.page"/> 页</small>
+      <small t-if="option" class="o_nodo_spec_source" t-att-title="option.item?.text">
+        第 <t t-esc="option.page"/> 页<t t-if="option.sourceLabel"> · <t t-esc="option.sourceLabel"/></t>
+      </small>
       <small t-if="field.conflict &amp;&amp; !compare" class="o_nodo_spec_source">
         现值 <t t-esc="this.format(field.value)"/> <t t-if="field.unit" t-esc="field.unit"/>
       </small>
@@ -192,6 +194,8 @@
       <div t-if="this.assist.vision.state.error || this.assist.vision.state.review?.error"
            class="o_nodo_drawing_notice" role="alert"
            t-esc="this.assist.vision.state.error || this.assist.vision.state.review.error"/>
+      <div t-elif="this.assist.vision.state.review?.notice"
+           class="o_nodo_drawing_notice" role="status" t-esc="this.assist.vision.state.review.notice"/>
     </div>
   </t>
   <t t-name="nodo_contract.DrawingDimensions">
@@ -223,13 +227,14 @@
             <i t-if="this.assist.state.boxes[view.key]" class="oi" data-icon="check" aria-hidden="true"/>
             <span t-esc="view.label"/>
           </button>
-          <button t-if="this.props.record.data.file_kind === 'pdf'" type="button" class="o_nodo_frame_tool"
-                  t-att-aria-pressed="this.assist.vision.state.selecting || this.assist.vision.state.region ? 'true' : 'false'"
-                  t-att-disabled="!this.assist.vision.canSend"
-                  t-on-click="() =&gt; this.assist.vision.chooseRegion()">
-            <i class="oi" data-icon="search" aria-hidden="true"/> 智能补读
-          </button>
         </div>
+        <button t-if="this.assist.editable &amp;&amp; this.props.record.data.file_kind === 'pdf'" type="button"
+                class="btn btn-primary btn-sm o_nodo_drawing_recognize"
+                t-att-title="this.assist.vision.state.review?.configuration_message || '使用 GPT 读取当前单柜页'"
+                t-att-aria-busy="this.assist.vision.active ? 'true' : 'false'"
+                t-att-disabled="!this.assist.vision.canSend" t-on-click="() =&gt; this.assist.vision.send()">
+          <t t-esc="this.assist.vision.progress || '一键识图'"/>
+        </button>
         <Dropdown t-if="this.assist.editable &amp;&amp; (this.assist.history.length || this.assist.state.boxes.front || this.assist.state.boxes.side)">
           <button type="button" class="btn btn-link btn-sm o_nodo_drawing_more" aria-label="选框操作"
                   t-att-disabled="this.assist.state.busy">
@@ -242,12 +247,9 @@
           </t>
         </Dropdown>
       </div>
-      <div t-if="this.assist.hint || this.assist.vision.state.region || this.assist.activeTool" class="o_nodo_drawing_instruction">
+      <div t-if="this.assist.hint || this.assist.activeTool" class="o_nodo_drawing_instruction">
         <span class="o_drawing_dimension_hint" role="status" t-esc="this.assist.hint"/>
-        <button t-if="this.assist.vision.state.region" type="button" class="btn btn-primary btn-sm"
-                t-att-disabled="!this.assist.vision.canSend"
-                t-on-click="() =&gt; this.assist.vision.send()">识读选区</button>
-        <button t-if="this.assist.activeTool || this.assist.vision.state.region" type="button" class="btn btn-link btn-sm"
+        <button t-if="this.assist.activeTool" type="button" class="btn btn-link btn-sm"
                 t-att-disabled="this.assist.vision.state.saving"
                 t-on-click="() =&gt; this.assist.cancelTool()">退出框选</button>
       </div>
@@ -273,7 +275,7 @@
       <div t-if="this.vision.state.loading || this.vision.active" class="o_nodo_vision_activity" role="status">
         <span class="o_nodo_status_dot" aria-hidden="true"/>
         <t t-if="this.vision.state.loading">正在读取复核记录…</t>
-        <t t-else="" t-esc="this.vision.state.review.state === 'queued' ? '选区已排队' : '正在识读选区，可继续核对参数'"/>
+        <t t-else="" t-esc="this.vision.progress"/>
       </div>
       <div t-if="this.vision.state.review?.configuration_message &amp;&amp; this.assist.editable" class="small text-muted"
            t-esc="this.vision.state.review.configuration_message"/>
@@ -285,9 +287,7 @@
       <div t-if="!runs.length &amp;&amp; !this.vision.active &amp;&amp; this.assist.editable &amp;&amp; this.vision.state.review?.configured"
            class="o_nodo_vision_empty">
         <i class="oi" data-icon="search" aria-hidden="true"/>
-        <p>在原图上框住难读的标注或技术要求。</p>
-        <button type="button" class="btn btn-secondary btn-sm" t-att-disabled="!this.vision.canSend"
-                t-on-click="() =&gt; this.vision.chooseRegion()">开始框选</button>
+        <p>从原图上方打开「一键识图」。</p>
       </div>
       <div t-if="this.vision.itemCount" class="o_nodo_review_overview">
         <strong>待确认 <t t-esc="this.vision.pendingCount"/> 项</strong>
@@ -306,7 +306,7 @@
           <span>第 <t t-esc="run.page"/> 页</span>
           <small class="text-muted"><t t-esc="run.items.length"/> 条候选</small>
         </summary>
-        <div t-if="!run.items.length" class="small text-muted mt-1">所选区域没有可引用的标注。</div>
+        <div t-if="!run.items.length" class="small text-muted mt-1">本次没有可引用的标注。</div>
         <div t-foreach="this.vision.itemsFor(run)" t-as="item" t-key="item.id" class="o_nodo_vision_item"
              t-att-data-focused="this.vision.isFocused(run, item) ? 'true' : 'false'">
           <header class="o_nodo_vision_item_head">
@@ -317,7 +317,7 @@
           </header>
           <div t-if="this.vision.conflict(item)" class="o_nodo_vision_comparison">
             <div><small>当前选型</small><span t-esc="this.vision.valueLabel(item, this.vision.current(item))"/></div>
-            <div><small>补读候选</small><span t-esc="this.vision.valueLabel(item)"/></div>
+            <div><small>图纸候选</small><span t-esc="this.vision.valueLabel(item)"/></div>
           </div>
           <div t-elif="item.value" class="o_nodo_vision_value" t-esc="this.vision.valueLabel(item)"/>
           <div t-if="this.vision.hasAlternative(run, item)" class="o_nodo_review_warning small">同一字段有不同候选</div>

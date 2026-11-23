@@ -7,13 +7,19 @@ export class DrawingVisionSession {
         this.orm = assist.orm;
         this.revision = 0;
         this.state = proxy({
-            review: null, loading: true, saving: false, selecting: false,
-            region: null, focus: null, error: "", viewerReady: false, onlyPending: false,
+            review: null, loading: true, saving: false, focus: null, error: "", onlyPending: false,
         });
     }
 
     get active() {
         return ["queued", "processing"].includes(this.state.review?.state);
+    }
+
+    get progress() {
+        if (this.state.review?.state === "queued") return "识图排队中";
+        if (this.state.review?.stage === "reread") return "局部复读中";
+        if (this.state.review?.stage === "overview") return "读取其余项";
+        return this.active ? "整页识图中" : "";
     }
 
     get runs() {
@@ -45,19 +51,22 @@ export class DrawingVisionSession {
     }
 
     get canSend() {
-        return this.assist.editable && this.state.review?.configured && this.state.viewerReady &&
-            !this.state.loading && !this.active && !this.state.saving && !this.assist.state.orienting
+        return this.assist.editable && this.state.review?.configured && this.assist.canView &&
+            !this.state.loading && !this.active && !this.state.saving
             && !this.assist.state.busy;
     }
 
     reset() {
         this.revision++;
-        Object.assign(this.state, { review: null, loading: true, saving: false, selecting: false,
-            region: null, focus: null, error: "", onlyPending: false });
+        this.refreshing = false;
+        Object.assign(this.state, { review: null, loading: true, saving: false,
+            focus: null, error: "", onlyPending: false });
         this.assist.emit();
     }
 
     async refresh() {
+        if (this.refreshing) return;
+        this.refreshing = true;
         const revision = ++this.revision;
         try {
             const review = await this.orm.call("nodo.contract.drawing", "get_drawing_vision", [[this.record.resId]]);
@@ -67,53 +76,33 @@ export class DrawingVisionSession {
             }
         } catch (error) {
             if (revision === this.revision) {
-                this.state.error = error.data?.message || "未能读取智能补读状态。";
+                this.state.error = error.data?.message || "未能读取识图状态。";
             }
         } finally {
             if (revision === this.revision) {
+                this.refreshing = false;
                 this.state.loading = false;
             }
         }
     }
 
-    chooseRegion() {
-        if (!this.canSend) return;
-        this.assist.state.tool = null;
-        this.assist.state.error = "";
-        Object.assign(this.state, { selecting: true, region: null, focus: null, error: "" });
-        this.assist.emit();
-        this.assist.revealPreview?.();
-    }
-
-    select(page, rect, rotation) {
-        if (!this.state.selecting || !this.canSend) return;
-        Object.assign(this.state, { region: { page, rect, rotation }, selecting: false });
-        this.assist.emit();
-    }
-
-    cancel() {
-        Object.assign(this.state, { selecting: false, region: null, error: "" });
-        this.assist.emit();
-    }
-
     async send() {
-        if (!this.state.region || !this.canSend) return;
-        const region = this.state.region;
+        const preview = this.previewPage?.();
+        if (!preview || !this.canSend) return;
+        this.assist.cancelTool();
         const revision = this.revision;
         const source = this.state.review.source;
         this.state.saving = true;
         this.state.error = "";
         try {
-            const crop = await this.renderCrop(region);
-            if (revision !== this.revision) return;
-            const review = await this.orm.call("nodo.contract.drawing", "queue_drawing_vision",
-                [[this.record.resId], source, region.page, region.rotation, region.rect, crop]);
+            const review = await this.orm.call("nodo.contract.drawing", "queue_drawing_vision_page",
+                [[this.record.resId], source, preview.page, preview.rotation]);
             if (revision === this.revision) {
                 this.state.review = review;
-                this.cancel();
+                this.assist.choosePane("results");
             }
         } catch (error) {
-            if (revision === this.revision) this.state.error = error.data?.message || error.message || "无法提交选区，请重试。";
+            if (revision === this.revision) this.state.error = error.data?.message || error.message || "无法提交识图，请重试。";
         } finally {
             if (revision === this.revision) this.state.saving = false;
         }
@@ -170,23 +159,4 @@ export class DrawingVisionSession {
             this.state.saving = false;
         }
     }
-}
-
-export async function cropDrawingPage(document, pdf, region) {
-    const page = await pdf.getPage(region.page);
-    const rotation = (page.rotate + region.rotation) % 360;
-    const unit = page.getViewport({ scale: 1, rotation });
-    const viewport = page.getViewport({ scale: Math.min(4.2, 3500 / Math.max(unit.width, unit.height)), rotation });
-    const [x, y, width, height] = region.rect;
-    const left = Math.floor(x * viewport.width);
-    const top = Math.floor(y * viewport.height);
-    const crop = document.createElement("canvas");
-    crop.width = Math.min(Math.floor(viewport.width) - left, Math.ceil(width * viewport.width));
-    crop.height = Math.min(Math.floor(viewport.height) - top, Math.ceil(height * viewport.height));
-    if (crop.width < 20 || crop.height < 20) throw new Error("选区太小，请把完整标注框进来。");
-    await page.render({
-        canvasContext: crop.getContext("2d"), viewport, transform: [1, 0, 0, 1, -left, -top],
-        background: "white",
-    }).promise;
-    return crop.toDataURL("image/png").split(",")[1];
 }

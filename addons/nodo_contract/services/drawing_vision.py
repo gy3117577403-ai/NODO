@@ -12,7 +12,7 @@ from PIL import Image
 
 from odoo.exceptions import UserError, ValidationError
 
-from .quote_price import MATERIALS, checked_number
+from .quote_price import CABINET_SERIES, COATINGS, MATERIALS, checked_number
 
 
 ENDPOINT = 'https://api.openai.com/v1/responses'
@@ -24,11 +24,13 @@ FIELD_LABELS = {
     'thickness_mm': '箱体料厚', 'door_thickness_mm': '门板板厚', 'mounting_thickness_mm': '安装板板厚',
     'material': '材质', 'display_color': '颜色', 'coating': '表面处理',
     'accessory': '附件', 'requirement': '技术要求', 'weight': '图示重量',
+    'product_series': '柜体系列', 'door_type': '图示门型', 'quantity': '整柜数量',
 }
 FIELD_TARGETS = {
     'width_mm': 'width_mm', 'depth_mm': 'depth_mm', 'height_mm': 'height_mm',
     'cabinet_height_mm': 'height_mm', 'overall_height_mm': 'height_mm', 'base_height_mm': 'base_height_mm',
     'thickness_mm': 'thickness_mm', 'material': 'material', 'display_color': 'display_color',
+    'product_series': 'product_series', 'quantity': 'quantity', 'coating': 'coating_type',
 }
 NUMERAL = re.compile(r'(?<![\d.])\d{1,6}(?:\.\d{1,3})?(?![\d.])')
 
@@ -133,6 +135,12 @@ def _field_value(field, value, unit, text):
         return None
     if target == 'material':
         return value.upper() if value.upper() in dict(MATERIALS) else None
+    if target == 'product_series':
+        return value.upper() if value.upper() in dict(CABINET_SERIES) else None
+    if target == 'quantity':
+        return int(value) if unit == '台' and re.fullmatch(r'[1-9][0-9]{0,5}', value) else None
+    if target == 'coating_type':
+        return {**{label: code for code, label in COATINGS}, '桔纹': 'orange'}.get(value)
     return value if len(value) <= 80 else None
 
 
@@ -177,30 +185,65 @@ def reading_items(payload, rect):
     return items
 
 
-def read_region(config, encoded, rect):
+def _stream_vision(response, on_delta):
+    for line in response.iter_lines(chunk_size=256):
+        if not line.startswith(b'data: '):
+            continue
+        event = json.loads(line[6:])
+        event_type = event.get('type')
+        if event_type == 'response.output_text.delta':
+            on_delta(event['delta'])
+        elif event_type in ('response.completed', 'response.incomplete', 'response.failed'):
+            return event['response']
+        elif event_type == 'error':
+            break
+    return {'status': 'incomplete'}
+
+
+def request_vision(config, request, timeout, *, action, incomplete, on_delta=None):
     key, model = config
+    response = None
+    try:
+        response = requests.post(
+            ENDPOINT, headers={'Authorization': 'Bearer ' + key},
+            json={**request, 'model': model, 'store': False, **({'stream': True} if on_delta else {})},
+            timeout=timeout, allow_redirects=False, **({'stream': True} if on_delta else {}),
+        )
+        if response.status_code != 200:
+            raise UserError(f'{action}服务返回状态码 {response.status_code}，请联系管理员核对连接与模型权限。')
+        request_id = response.headers.get('x-request-id', '')
+        request_id = request_id[:150] if isinstance(request_id, str) else ''
+        result = _stream_vision(response, lambda delta: on_delta(delta, request_id)) if on_delta else response.json()
+        if result.get('status') != 'completed':
+            raise UserError(incomplete)
+        text = ''.join(part['text'] for message in result['output'] if message['type'] == 'message'
+                       for part in message['content'] if part['type'] == 'output_text')
+        return json.loads(text), {
+            'model': str(result.get('model') or model)[:80],
+            'request_id': request_id,
+        }
+    except requests.RequestException as error:
+        raise UserError(f'{action}连接超时或失败，请重新点击识图。') from error
+    except (TypeError, AttributeError, ValueError, KeyError) as error:
+        raise UserError(f'{action}未返回有效的原图证据，请重新读取。') from error
+    finally:
+        if on_delta and response is not None:
+            response.close()
+
+
+def read_region(config, encoded, rect):
     request = {
-        'model': model, 'store': False, 'reasoning': {'effort': 'medium'}, 'max_output_tokens': 6500,
+        'reasoning': {'effort': 'medium'}, 'max_output_tokens': 6500,
         'instructions': INSTRUCTIONS,
         'input': [{'role': 'user', 'content': [{
             'type': 'input_image', 'detail': 'high', 'image_url': 'data:image/png;base64,' + encoded,
         }]}],
         'text': {'format': {'type': 'json_schema', 'name': 'drawing_region', 'strict': True, 'schema': SCHEMA}},
     }
+    payload, metadata = request_vision(
+        config, request, (10, 70), action='智能补读', incomplete='智能补读未完整返回，请缩小选区后再试。',
+    )
     try:
-        response = requests.post(ENDPOINT, headers={'Authorization': 'Bearer ' + key}, json=request,
-                                 timeout=(10, 70), allow_redirects=False)
-    except requests.RequestException as error:
-        raise UserError('智能补读连接超时或失败，可重新提交当前选区。') from error
-    if response.status_code != 200:
-        raise UserError(f'智能补读服务返回状态码 {response.status_code}，请联系管理员核对连接与模型权限。')
-    try:
-        result = response.json()
-        if result.get('status') != 'completed':
-            raise UserError('智能补读未完整返回，请缩小选区后再试。')
-        text = ''.join(part['text'] for message in result['output'] if message['type'] == 'message'
-                       for part in message['content'] if part['type'] == 'output_text')
-        return {'model': str(result.get('model') or model)[:80], 'items': reading_items(json.loads(text), rect),
-                'request_id': (response.headers.get('x-request-id') or '')[:150]}
-    except (TypeError, AttributeError, ValueError, KeyError) as error:
+        return {**metadata, 'items': reading_items(payload, rect)}
+    except (TypeError, ValueError, KeyError) as error:
         raise UserError('智能补读未返回有效的原图证据，请缩小选区后再试。') from error

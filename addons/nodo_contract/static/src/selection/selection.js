@@ -20,7 +20,8 @@ import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_d
 import { CheckBox } from "@web/core/checkbox/checkbox";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { saleOrderFormView } from "@sale/views/sale_order_form_view/sale_order_form_view";
-import { DrawingVisionSession, cropDrawingPage } from "./vision";
+import { DrawingVisionSession } from "./vision";
+import { bindDrawingOverview } from "./drawing_overview";
 import { drawingSpecifications, specificationGroups, specificationValue } from "./drawing_results";
 
 class ChineseRecognitionMessage extends Component {
@@ -937,7 +938,7 @@ function drawingDimensionSession(record, orm) {
             return this.editable && this.canView && !this.state.busy
                 && !this.vision.state.saving;
         },
-        get activeTool() { return this.vision.state.selecting ? "vision" : this.state.tool; },
+        get activeTool() { return this.state.tool; },
         get heightCheck() {
             const box = this.state.boxes.side;
             return box?.tokens.find((token) => token.id === box.vertical)?.value;
@@ -949,9 +950,6 @@ function drawingDimensionSession(record, orm) {
         get hint() {
             if (!this.state.viewerReady || this.state.orienting) return "正在准备原图…";
             if (this.state.busy) return `正在读取${drawingViewLabels[this.state.pendingSelection?.role] || "选区"}…`;
-            if (this.vision.active) return "正在识读选区…";
-            if (this.vision.state.selecting) return "拖动框住需要补读的标注或文字";
-            if (this.vision.state.region) return `第 ${this.vision.state.region.page} 页已框选`;
             if (this.state.tool) return `拖动框选${drawingViewLabels[this.state.tool]}，包含尺寸标注`;
             return "";
         },
@@ -961,7 +959,6 @@ function drawingDimensionSession(record, orm) {
         chooseTool(role) {
             if (!this.canFrame) return;
             const tool = this.state.tool === role ? null : role;
-            this.vision.cancel();
             this.vision.state.focus = null;
             this.state.tool = tool;
             this.state.error = "";
@@ -969,10 +966,10 @@ function drawingDimensionSession(record, orm) {
             this.emit();
         },
         cancelTool() {
-            if (!(this.activeTool || this.vision.state.region) || this.vision.state.saving) return false;
+            if (!this.activeTool || this.vision.state.saving) return false;
             this.state.tool = null;
             this.state.error = "";
-            this.vision.cancel();
+            this.emit();
             return true;
         },
         fit() {
@@ -1230,7 +1227,7 @@ class DrawingVisionField extends Component {
         });
         const timer = setInterval(() => {
             if (this.vision.active && !this.vision.state.saving) this.vision.refresh();
-        }, 2200);
+        }, 900);
         onWillUnmount(() => { clearInterval(timer); this.vision.reset(); });
     }
 }
@@ -1245,7 +1242,7 @@ class DrawingSectionsField extends Component {
     get panes() {
         const panes = [{ key: "parameters", label: "参数" }];
         if (this.props.record.data.file_kind === "pdf") {
-            panes.push({ key: "vision", label: "补读记录" });
+            panes.push({ key: "vision", label: "识图记录" });
         }
         panes.push({ key: "accessories", label: "附件与要求" });
         return panes;
@@ -1351,7 +1348,6 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         .o_drawing_dimension_overlay{position:absolute;pointer-events:none;z-index:12;inset:0}
         .o_drawing_dimension_region{position:absolute;border:1.5px dashed ${ink};background:${fill};box-sizing:border-box}
         .o_drawing_dimension_region[data-role=side]{border-style:dotted;border-width:2px}
-        .o_drawing_dimension_region[data-role=supplement]{border-color:${evidenceInk};background:${evidenceFill}}
         .o_drawing_dimension_region[data-focus=true]{border-style:solid}
         .o_drawing_dimension_tag{position:absolute;left:-1px;top:0;background:white;color:${ink};white-space:nowrap;font:600 12px/24px system-ui,sans-serif;padding:0 6px;border:1px solid ${ink};border-radius:0 0 4px 0;pointer-events:auto}
         .o_drawing_manual_select .o_drawing_dimension_tag{pointer-events:none}
@@ -1381,13 +1377,11 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
                 width: `${r.width}px`, height: `${r.height}px`, right: "auto", bottom: "auto" });
         } else if (overlay.parentElement !== page.element) page.element.appendChild(overlay);
         overlay.replaceChildren();
-        const vision = assist.vision.state;
-        for (const region of [vision.region, vision.focus]) {
-            if (!region || region.page !== page.page) continue;
-            const r = rotateDrawingRect(region.rect, page.rotation - region.rotation);
+        const focus = assist.vision.state.focus;
+        if (focus?.page === page.page) {
+            const r = rotateDrawingRect(focus.rect, page.rotation - focus.rotation);
             const mark = doc.createElement("div");
-            mark.className = region === vision.focus ? "o_drawing_dimension_evidence" : "o_drawing_dimension_region";
-            mark.dataset.role = "supplement";
+            mark.className = "o_drawing_dimension_evidence";
             Object.assign(mark.style, { left: `${r[0] * 100}%`, top: `${r[1] * 100}%`,
                 width: `${r[2] * 100}%`, height: `${r[3] * 100}%` });
             overlay.appendChild(mark);
@@ -1395,7 +1389,7 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         if (pointer?.rect) {
             const r=pointer.rect;
             Object.assign(selection.style,{left:`${r[0]*100}%`,top:`${r[1]*100}%`,width:`${r[2]*100}%`,height:`${r[3]*100}%`});
-            selection.dataset.role = pointer.role === "vision" ? "supplement" : pointer.role;
+            selection.dataset.role = pointer.role;
             overlay.appendChild(selection);
         }
         for (const role of ["front", "side"]) {
@@ -1451,11 +1445,7 @@ function bindDrawingDimensionSelection(surface, currentPage, assist, navigate) {
         event.preventDefault();event.stopPropagation();schedule();
         if (Math.hypot(event.clientX-start.x,event.clientY-start.y)<8 || rect[2]<.005 || rect[3]<.005) return;
         if (start.role !== assist.activeTool) return;
-        if (start.role === "vision") {
-            assist.vision.select(start.page, rect, start.rotation);
-        } else {
-            assist.select(start.role,start.page,rect,start.rotation,start.orientation || 0);
-        }
+        assist.select(start.role,start.page,rect,start.rotation,start.orientation || 0);
     }, options);
     const cancel = () => { pointer=null;schedule(); };
     surface.addEventListener("pointercancel",cancel,options);
@@ -1754,6 +1744,12 @@ function setupDrawingPdfControls(frame, application, positions) {
         fit() { restorePosition(true); },
     };
     const controls = bindDrawingMouseControls(container, gestures);
+    const removeOverview = bindDrawingOverview(doc, application, (x, y) => {
+        if (restoring) return;
+        fitted = false;
+        centerAt(x, y);
+        savePosition();
+    });
 
     const onPageChange = ({ pageNumber }) => {
         if (restoring) {
@@ -1798,6 +1794,7 @@ function setupDrawingPdfControls(frame, application, positions) {
         savePosition();
         disposed = true;
         controls.destroy();
+        removeOverview();
         resize.disconnect();
         view.cancelAnimationFrame(restoreFrame);
         view.cancelAnimationFrame(finishFrame);
@@ -1881,14 +1878,16 @@ class DrawingPdfViewerField extends PdfViewerField {
                 }
                 await application.initializedPromise;
                 if (currentRevision === revision && frame.contentDocument === document) {
-                    const renderCrop = (region) => cropDrawingPage(document, application.pdfDocument, region);
-                    assist.vision.renderCrop = renderCrop;
-                    const updateCropReady = () => {
-                        assist.vision.state.viewerReady = Boolean(application.pdfDocument);
-                        assist.state.viewerReady = assist.vision.state.viewerReady;
+                    const viewer = application.pdfViewer;
+                    const previewPage = () => viewer.pdfDocument ? {
+                        page: viewer.currentPageNumber, rotation: viewer.pagesRotation,
+                    } : null;
+                    assist.vision.previewPage = previewPage;
+                    const updateViewerReady = () => {
+                        assist.state.viewerReady = Boolean(application.pdfDocument);
                     };
-                    updateCropReady();
-                    application.eventBus.on("pagesinit", updateCropReady);
+                    updateViewerReady();
+                    application.eventBus.on("pagesinit", updateViewerReady);
                     const removeMouse = setupDrawingPdfControls(frame, application, this.drawingPagePositions);
                     assist.fitPreview = removeMouse.fit;
                     assist.rotatePreview = removeMouse.rotate;
@@ -1914,10 +1913,9 @@ class DrawingPdfViewerField extends PdfViewerField {
                     for (const name of events) application.eventBus.on(name, dimensions.render);
                     const removeOrientation = bindDrawingPdfOrientation(application, assist, removeMouse, dimensions.render);
                     removeControls = () => {
-                        application.eventBus.off("pagesinit", updateCropReady);
-                        if (assist.vision.renderCrop === renderCrop) {
-                            assist.vision.renderCrop = null;
-                            assist.vision.state.viewerReady = false;
+                        application.eventBus.off("pagesinit", updateViewerReady);
+                        if (assist.vision.previewPage === previewPage) {
+                            assist.vision.previewPage = null;
                             assist.state.viewerReady = false;
                             assist.fitPreview = null;
                             assist.rotatePreview = null;

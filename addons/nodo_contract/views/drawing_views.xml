@@ -47,8 +47,8 @@
               本地读取中 <field name="recognition_completed_pages" nolabel="1" readonly="1" class="oe_inline"/>
               / <field name="page_count" nolabel="1" readonly="1" class="oe_inline"/>
             </span>
-            <span invisible="recognition_state != 'failed'" class="o_nodo_local_status">本地未提取</span>
-            <span invisible="recognition_state != 'review'" class="o_nodo_local_status">本地结果待核</span>
+            <span invisible="file_kind == 'pdf' or recognition_state != 'failed'" class="o_nodo_local_status">本地未提取</span>
+            <span invisible="file_kind == 'pdf' or recognition_state != 'review'" class="o_nodo_local_status">本地结果待核</span>
           </div>
         </div>
         <div class="o_sale_drawing_review">
@@ -142,7 +142,7 @@
           </aside>
         </div>
         <footer>
-          <button string="重新本地识别" name="action_recognize" type="object" class="btn-link" invisible="not can_edit_selection or recognition_state in ('queued', 'processing')"/>
+          <button string="重新本地识别" name="action_recognize" type="object" class="btn-link" invisible="file_kind == 'pdf' or not can_edit_selection or recognition_state in ('queued', 'processing')"/>
           <button string="取消本地识别" name="action_cancel_recognition" type="object" class="btn-link" invisible="not can_edit_selection or recognition_state not in ('queued', 'processing')"/>
           <button string="关闭" special="cancel" class="btn-link o_nodo_drawing_close"/>
           <button string="保存草稿" special="save" class="btn-secondary" invisible="not can_edit_selection"/>

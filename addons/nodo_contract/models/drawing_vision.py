@@ -1,11 +1,15 @@
 import logging
 from copy import deepcopy
 from datetime import timedelta
+from time import monotonic, time
 from uuid import uuid4
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
+from ..services.drawing_page_vision import (
+    MIN_REFINE_SECONDS, WAIT_SECONDS, read_drawing_page, render_drawing_page, reread_drawing_page,
+)
 from ..services.drawing_vision import confirmed_millimetres, normalize_crop, read_region, valid_region, vision_config
 
 
@@ -17,7 +21,7 @@ class DrawingVision(models.Model):
     _inherit = 'nodo.contract.drawing'
 
     vision_state = fields.Selection([
-        ('queued', '补读排队中'), ('processing', '正在补读'), ('ready', '候选待复核'), ('failed', '补读未完成'),
+        ('queued', '识图排队中'), ('processing', '正在识图'), ('ready', '候选待复核'), ('failed', '识图未完成'),
     ], readonly=True, index=True, copy=False)
     vision_job = fields.Json(readonly=True, copy=False, groups='base.group_system')
     vision_history = fields.Json(readonly=True, copy=False)
@@ -43,12 +47,46 @@ class DrawingVision(models.Model):
             self._vision_config()
         except UserError as error:
             problem = str(error)
+        runs = [run for run in (self.vision_history or []) if run['source'] == source][-8:]
+        state = self.vision_state if active else False
+        error = job.get('error', '') if active else ''
+        notice = job.get('notice', '') if active else ''
+        if state in ACTIVE and job.get('deadline_at', time() + 1) <= time():
+            if any(run['id'] == job['id'] for run in runs):
+                state, notice = 'ready', '识图已到等待上限，保留已返回的候选。'
+            else:
+                state, error = 'failed', '识图已到等待上限，可重新点击识图。'
         return {
             'source': source, 'configured': not problem, 'configuration_message': problem,
-            'state': self.vision_state if active else False,
-            'error': job.get('error', '') if active else '',
-            'runs': [run for run in (self.vision_history or []) if run['source'] == source][-8:],
+            'state': state, 'stage': job.get('stage', '') if active else '',
+            'error': error, 'notice': notice, 'runs': runs,
         }
+
+    def queue_drawing_vision_page(self, source, page, rotation):
+        self.ensure_one()
+        self._check_editable()
+        self.invalidate_recordset()
+        if (self.file_kind != 'pdf' or type(page) is not int or not 1 <= page <= self.page_count
+                or type(rotation) is not int or rotation not in (0, 90, 180, 270)
+                or self.page_count > 1 and self.file_data_page != page):
+            raise ValidationError('请打开当前选型对应的 PDF 页后识图。')
+        if source != self._vision_source():
+            raise ValidationError('原图或选型项目已变化，请重新打开后识图。')
+        job = self.sudo().vision_job or {}
+        if self.vision_state in ACTIVE and job.get('deadline_at', time() + 1) > time():
+            if job.get('source') == source and job.get('page') == page:
+                return self.get_drawing_vision()
+            raise UserError('这份图纸已有识图任务，请等待完成。')
+        self._vision_config()
+        self._trusted_write({
+            'vision_state': 'queued', 'vision_started_at': False,
+            'vision_job': {
+                'id': uuid4().hex, 'mode': 'page', 'source': source, 'page': page, 'rotation': rotation,
+                'rect': [0, 0, 1, 1], 'requested_by': self.env.uid, 'deadline_at': time() + WAIT_SECONDS,
+            },
+        })
+        self.env.ref('nodo_contract.ir_cron_drawing_vision').sudo()._trigger()
+        return self.get_drawing_vision()
 
     def queue_drawing_vision(self, source, page, rotation, rect, crop):
         self.ensure_one()
@@ -96,7 +134,9 @@ class DrawingVision(models.Model):
                 if drawing.vision_state != 'queued' or drawing.vision_job['id'] != job['id']:
                     return
                 if job['source'] != drawing._vision_source():
-                    raise UserError('原图或选型项目已变化，请重新框选。')
+                    raise UserError('原图或选型项目已变化，请重新打开后识图。')
+                if job.get('deadline_at', time() + 1) <= time():
+                    raise UserError('识图已到等待上限，请重新点击识图。')
                 config = drawing._vision_config()
                 drawing._trusted_write({'vision_state': 'processing', 'vision_started_at': fields.Datetime.now()})
         except (AccessError, UserError) as error:
@@ -105,26 +145,90 @@ class DrawingVision(models.Model):
         cron._commit_progress(remaining=1)
         result, error = None, ''
         try:
-            result = read_region(config, job['crop'], job['rect'])
+            if job.get('mode') == 'page':
+                drawing._process_page_vision(config, job, cron)
+            else:
+                result = read_region(config, job['crop'], job['rect'])
         except UserError as exc:
             error = str(exc)
         except Exception as exc:
             _logger.warning('NODO drawing vision failed on %s: %s', drawing.id, type(exc).__name__)
-            error = '智能补读异常结束，请重新提交选区。'
-        self.env.invalidate_all()
-        if drawing.exists():
-            drawing.order_id._nodo_lock()
-            drawing.invalidate_recordset()
-            if drawing.vision_state == 'processing' and drawing.vision_job['id'] == job['id']:
-                drawing._finish_drawing_vision(job, result, error)
+            error = '识图异常结束，请重新点击识图。'
+        if job.get('mode') != 'page' or error:
+            drawing._publish_vision(job, result, error)
         cron._commit_progress(1, remaining=self.sudo().search_count(pending))
 
-    def _finish_drawing_vision(self, job, result=None, error=''):
+    def _process_page_vision(self, config, job, cron):
+        deadline = monotonic() + job['deadline_at'] - time()
+        image = render_drawing_page(self.file_data.content, job['page'], job['rotation'], deadline)
+        early = None
+
+        def publish_dimensions(result):
+            nonlocal early
+            result['first_ready_ms'] = round((WAIT_SECONDS - (deadline - monotonic())) * 1000)
+            if self._publish_vision(job, result, stage='overview'):
+                early = result
+                cron._commit_progress(remaining=1)
+
+        try:
+            result, regions, areas = read_drawing_page(config, image, deadline, publish_dimensions)
+        except UserError:
+            if not early:
+                raise
+            self._publish_vision(job, early, notice='识图未完整返回，保留已返回的尺寸。')
+            return
+        result['first_ready_ms'] = early['first_ready_ms'] if early else round(
+            (WAIT_SECONDS - (deadline - monotonic())) * 1000)
+        if not areas or deadline - monotonic() < MIN_REFINE_SECONDS:
+            self._publish_vision(job, result)
+            return
+        if not self._publish_vision(job, result, stage='reread'):
+            return
+        if not cron._commit_progress(remaining=1):
+            self._publish_vision(job, result, notice='整页候选已返回，可继续人工核对。')
+            return
+        try:
+            items, request_id = reread_drawing_page(config, image, regions, areas, deadline)
+        except UserError:
+            self._publish_vision(job, result, notice='局部复读未完成，保留整页候选。')
+            return
+        originals = result['items']
+        for index, item in enumerate(items, len(originals) + 1):
+            item['id'] = str(index)
+        found = {item['field'] for item in items}
+        self._publish_vision(job, {
+            **result, 'items': [*items, *originals],
+            'missing_fields': [field for field in result['missing_fields'] if field not in found],
+            'reread_request_id': request_id,
+        })
+
+    def _publish_vision(self, job, result=None, error='', *, stage='', notice=''):
+        self.env.invalidate_all()
+        if not self.exists():
+            return False
+        self.order_id._nodo_lock()
+        self.invalidate_recordset()
+        if self.vision_state != 'processing' or self.vision_job['id'] != job['id']:
+            return False
+        if job['source'] != self._vision_source():
+            self._finish_drawing_vision(job, error='原图或选型项目已变化，请重新打开后识图。')
+            return False
+        self._finish_drawing_vision(job, result, error, stage=stage, notice=notice)
+        return True
+
+    def _finish_drawing_vision(self, job, result=None, error='', *, stage='', notice=''):
         job = {key: value for key, value in job.items() if key != 'crop'}
-        values = {'vision_job': {**job, 'error': error}, 'vision_state': 'failed' if error else 'ready'}
+        state = 'processing' if stage else 'failed' if error else 'ready'
+        values = {'vision_job': {**job, 'error': error, 'stage': stage, 'notice': notice}, 'vision_state': state}
         if result is not None:
-            run = {**job, **result, 'created_at': fields.Datetime.to_string(fields.Datetime.now())}
-            values['vision_history'] = [*(self.vision_history or []), run]
+            history = self.vision_history or []
+            previous = next((run for run in history if run['id'] == job['id']), {})
+            decisions = {item['id']: item for item in previous.get('items', []) if item.get('decision')}
+            run = {
+                **job, **result, 'created_at': fields.Datetime.to_string(fields.Datetime.now()),
+                'items': [decisions.get(item['id'], item) for item in result['items']],
+            }
+            values['vision_history'] = [*(run for run in history if run['id'] != job['id']), run]
         self._trusted_write(values)
 
     def review_drawing_vision(self, run_id, item_id, decision, expected=None):

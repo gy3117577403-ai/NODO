@@ -7,12 +7,14 @@ from unittest.mock import Mock, patch
 from lxml import etree
 from PIL import Image
 from reportlab.pdfgen import canvas
+from requests import ReadTimeout
 
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tests.common import new_test_user
 
+from ..services.drawing_page_vision import DIMENSIONS
 from ..services.drawing_selection import accessory_overlap, chinese_characters
 
 
@@ -223,6 +225,142 @@ class TestDrawingSelection(TransactionCase):
         self.assertEqual(review['state'], 'failed')
         self.assertIn('未完整返回', review['error'])
         self.assertFalse(review['runs'])
+
+    def _vision_page_response(self, fields, regions, missing=(), reread=(), accessories=(), on_dimensions=None):
+        response = Mock(status_code=200, headers={'x-request-id': 'page-fixture'})
+        output = {
+            'productScope': 'single', 'regions': regions,
+            'dimensions': [row for row in fields if row['field'] in DIMENSIONS],
+            'fields': [row for row in fields if row['field'] not in DIMENSIONS],
+            'accessories': list(accessories), 'missing': list(missing), 'reread': list(reread),
+        }
+        text = json.dumps(output)
+        completed = {'status': 'completed', 'output': [
+            {'type': 'message', 'content': [{'type': 'output_text', 'text': text}]},
+        ]}
+        response.json.return_value = completed
+
+        def stream():
+            boundary = text.index('"fields":') + len('"fields":')
+            for delta in (text[:boundary - 3], text[boundary - 3:boundary]):
+                yield b'data: ' + json.dumps({'type': 'response.output_text.delta', 'delta': delta}).encode()
+            if on_dimensions:
+                on_dimensions()
+            yield b'data: ' + json.dumps({'type': 'response.completed', 'response': completed}).encode()
+
+        response.iter_lines.side_effect = lambda **_kwargs: stream()
+        return response
+
+    def test_vision_page_uses_view_dimensions_and_reviewed_selection(self):
+        pdf = BytesIO()
+        Image.new('RGB', (300, 180), 'white').save(pdf, format='PDF')
+        drawing = self._upload(self._new_order(), '单柜识图.pdf', pdf.getvalue())
+        source = drawing.get_drawing_vision()['source']
+        regions = [
+            {'id': 'right-front', 'kind': 'front', 'box': [460, 100, 910, 730]},
+            {'id': 'left-side', 'kind': 'side', 'box': [60, 130, 360, 740]},
+            {'id': 'materials', 'kind': 'material', 'box': [430, 820, 940, 985]},
+            {'id': 'size-table', 'kind': 'specification', 'box': [40, 810, 400, 985]},
+            {'id': 'accessories', 'kind': 'accessories', 'box': [45, 20, 435, 90]},
+        ]
+
+        def item(field, value, text, region, box, scope='cabinet'):
+            return {'field': field, 'value': value, 'text': text, 'unit': 'mm', 'scope': scope,
+                    'status': 'explicit', 'region_id': region, 'box': box, 'model_code': None, 'quantity': None}
+
+        fields = [
+            item('width_mm', '1050', '1050', 'right-front', [655, 110, 723, 132]),
+            item('depth_mm', '400', '400', 'left-side', [140, 142, 185, 162]),
+            item('overall_height_mm', '2000', '2000', 'right-front', [880, 410, 910, 455]),
+            item('width_mm', '900', '900', 'materials', [625, 850, 693, 875]),
+            item('width_mm', '1100', '1100', 'right-front', [612, 870, 663, 885]),
+            item('width_mm', '330', '330', 'right-front', [525, 310, 560, 338], scope='component'),
+            item('depth_mm', '520', '深度 520', 'size-table', [140, 855, 265, 871]),
+            item('base_height_mm', '100', '底座高度 100', 'size-table', [120, 882, 240, 904]),
+        ]
+        def check_first_result():
+            review = drawing.get_drawing_vision()
+            self.assertEqual(review['stage'], 'overview')
+            self.assertEqual(review['runs'][0]['items'][0]['candidate'], 1050)
+            self.assertFalse(drawing.width_mm)
+
+        response = self._vision_page_response(
+            fields, regions, missing=['cabinet_height_mm'], on_dimensions=check_first_result,
+            accessories=[{'value': '安装板', 'text': '安装板 AP-04，每台 1 块。', 'region_id': 'accessories',
+                          'box': [73, 38, 280, 63], 'status': 'explicit', 'model_code': 'AP-04', 'quantity': '1 件/台'}],
+        )
+        with (patch.object(type(drawing), '_vision_config', return_value=('fixture-key', 'gpt-6.1-sol')),
+              patch.object(type(self.env['ir.cron']), '_commit_progress', return_value=120),
+              patch('odoo.addons.nodo_contract.services.drawing_vision.requests.post', return_value=response) as post):
+            with self.assertRaises(AccessError):
+                drawing.with_user(self.other).queue_drawing_vision_page(source, 1, 90)
+            with self.assertRaises(ValidationError):
+                drawing.queue_drawing_vision_page({**source, 'sha256': 'stale'}, 1, 90)
+            with self.assertRaises(ValidationError):
+                drawing.queue_drawing_vision_page(source, 2, 90)
+            self.assertEqual(drawing.queue_drawing_vision_page(source, 1, 90)['state'], 'queued')
+            job_id = drawing.sudo().vision_job['id']
+            drawing.queue_drawing_vision_page(source, 1, 90)
+            self.assertEqual(drawing.sudo().vision_job['id'], job_id)
+            drawing._cron_process_drawing_vision()
+        post.assert_called_once()
+        request = post.call_args.kwargs['json']
+        self.assertEqual(request['text']['format']['name'], 'drawing_intake')
+        self.assertFalse(request['store'])
+        self.assertTrue(request['stream'])
+        image_url = request['input'][0]['content'][1]['image_url']
+        with Image.open(BytesIO(base64.b64decode(image_url.split(',')[1]))) as rendered:
+            self.assertGreater(rendered.height, rendered.width)
+        review = drawing.get_drawing_vision()
+        self.assertEqual(review['state'], 'ready')
+        run, = review['runs']
+        self.assertEqual(run['rotation'], 90)
+        self.assertNotIn('crop', drawing.sudo().vision_job)
+        self.assertEqual(run['missing_fields'], ['cabinet_height_mm'])
+        self.assertEqual([(row['field'], row['candidate'], row['source_kind']) for row in run['items']], [
+            ('width_mm', 1050, 'front'), ('depth_mm', 400, 'side'),
+            ('overall_height_mm', 2000, 'front'), ('base_height_mm', 100, 'specification'),
+            ('accessory', None, 'accessories'),
+        ])
+        self.assertEqual((run['items'][-1]['model_code'], run['items'][-1]['quantity']), ('AP-04', '每台 1 块'))
+        self.assertFalse(drawing.width_mm)
+        drawing.review_drawing_vision(run['id'], '1', 'apply')
+        self.assertEqual(drawing.width_mm, 1050)
+        self.assertFalse(drawing.order_line_id)
+
+    def test_vision_page_timeout_in_reread_keeps_first_candidates(self):
+        pdf = BytesIO()
+        Image.new('RGB', (180, 200), 'white').save(pdf, format='PDF')
+        drawing = self._upload(self._new_order(), '复读超时.pdf', pdf.getvalue())
+        response = self._vision_page_response(
+            [{'field': 'depth_mm', 'value': '400', 'unit': 'mm', 'text': '400', 'region_id': 'side',
+              'status': 'explicit', 'scope': 'cabinet', 'box': [190, 700, 248, 730]}],
+            [{'id': 'side', 'kind': 'side', 'box': [100, 120, 400, 790]},
+             {'id': 'front', 'kind': 'front', 'box': [460, 120, 940, 790]}],
+            reread=[{'field': 'width_mm', 'region_id': 'front', 'box': [490, 125, 910, 240]}],
+        )
+
+        def recognize(_url, **kwargs):
+            if kwargs['json']['input'][0]['content'][0]['text'].startswith('核读本页'):
+                return response
+            review = drawing.get_drawing_vision()
+            self.assertEqual(review['stage'], 'reread')
+            run, = review['runs']
+            drawing.review_drawing_vision(run['id'], '1', 'apply')
+            raise ReadTimeout()
+
+        with (patch.object(type(drawing), '_vision_config', return_value=('fixture-key', 'gpt-6.1-sol')),
+              patch.object(type(self.env['ir.cron']), '_commit_progress', return_value=120),
+              patch('odoo.addons.nodo_contract.services.drawing_vision.requests.post', side_effect=recognize) as post):
+            drawing.queue_drawing_vision_page(drawing.get_drawing_vision()['source'], 1, 0)
+            drawing._cron_process_drawing_vision()
+        self.assertEqual(post.call_count, 2)
+        review = drawing.get_drawing_vision()
+        self.assertEqual(review['state'], 'ready')
+        self.assertIn('保留整页', review['notice'])
+        run, = review['runs']
+        self.assertEqual(run['items'][0]['decision'], 'apply')
+        self.assertEqual(drawing.depth_mm, 400)
 
     def test_accessory_match_counts_repeated_hanzi_without_model_digits(self):
         counts = Counter(chinese_characters('安装，序号 100'))

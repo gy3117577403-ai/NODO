@@ -12,25 +12,30 @@ const definitions = {
     width_mm: { label: "宽度", unit: "mm", local: ["width_mm"], model: ["width_mm"], stored: true },
     depth_mm: { label: "深度", unit: "mm", local: ["depth_mm"], model: ["depth_mm"], stored: true },
     overall_height_mm: { label: "外形总高", unit: "mm", local: ["total_height"], model: ["overall_height_mm"] },
-    product_series: { label: "柜体系列", stored: true },
+    product_series: { label: "柜体系列", model: ["product_series"], stored: true },
     material: { label: "箱体材质", model: ["material"], stored: true },
     cabinet_height_mm: { label: "柜体净高", unit: "mm", local: ["cabinet_height"], model: ["cabinet_height_mm"] },
     base_height_mm: { label: "底座高度", unit: "mm", local: ["base_height"], model: ["base_height_mm"], stored: true },
-    quantity: { label: "数量", unit: "台", stored: true },
+    quantity: { label: "数量", unit: "台", model: ["quantity"], stored: true },
     height_mm: { label: "报价高度", unit: "mm", local: ["height_mm", "cabinet_height", "total_height"],
         model: ["height_mm", "cabinet_height_mm", "overall_height_mm"], stored: true },
     thickness_mm: { label: "箱体料厚", unit: "mm", model: ["thickness_mm"], stored: true },
-    door_type: { label: "门型", stored: true },
+    door_type: { label: "门型", model: ["door_type"], stored: true },
     display_color: { label: "色号", model: ["display_color"], stored: true },
     coating_type: { label: "表面处理", model: ["coating"], stored: true },
     accessory: { label: "附件", model: ["accessory"], pane: "accessories" },
-    accessory_details: { label: "型号/用量", pane: "accessories" },
+    accessory_details: { label: "型号/用量", model: ["accessory"], pane: "accessories" },
     requirement: { label: "技术要求", model: ["requirement", "mounting_thickness_mm", "door_thickness_mm"],
         pane: "accessories" },
 };
 
 const coatingLabels = { orange: "橘纹", gloss: "平光", none: "不喷塑" };
 const localLabels = { total_height: "外形总高", cabinet_height: "柜体净高", height_mm: "图示高度" };
+const sourceLabels = {
+    front: "正视图", side: "侧视图", top: "俯视图", view: "视图",
+    specification: "规格栏", title: "标题栏", material: "材料说明", finish: "工艺",
+    requirements: "技术要求", handwriting: "手写", accessories: "附件", notes: "备注",
+};
 const formatter = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 3 });
 
 export function specificationValue(value) {
@@ -56,20 +61,25 @@ function localEvidence(assist, key, definition) {
     return options;
 }
 
-function modelEvidence(runs, fields) {
+function modelEvidence(runs, fields, details) {
     if (!fields) return [];
     const seen = new Set();
     const options = [];
     for (const run of runs) {
         for (const item of run.items) {
             if (!fields.includes(item.field)) continue;
-            const key = JSON.stringify([item.field, item.candidate, item.value, item.unit, item.status, run.page]);
+            if (details && !item.model_code && !item.quantity) continue;
+            const key = JSON.stringify([item.field, item.candidate, item.value, item.unit, item.status, run.page,
+                item.field === "accessory" ? item.text : null]);
             if (seen.has(key)) continue;
             seen.add(key);
+            let value = item.candidate ?? item.value;
+            if (details) value = [item.model_code, item.quantity].filter(Boolean).join(" · ");
+            if (item.field === "coating") value = coatingLabels[value] || value;
             options.push({
                 key: `vision-${run.id}-${item.id}`, run, item, page: run.page, label: item.label,
-                value: item.candidate ?? item.value, unit: item.unit,
-                pending: !item.decision,
+                value, unit: item.field === "accessory" ? "" : item.unit,
+                pending: !item.decision, sourceLabel: sourceLabels[item.source_kind],
             });
         }
     }
@@ -80,6 +90,7 @@ export function drawingSpecifications(assist) {
     const { record, vision } = assist;
     const data = record.data;
     const runs = vision.runs;
+    const missing = new Set(runs.find((run) => run.mode === "page")?.missing_fields || []);
     const startedReading = runs.length || Object.keys(assist.state.boxes).length ||
         ["review", "done", "failed"].includes(data.recognition_state);
     const selections = (data.accessory_selection_data?.allocations || []).filter((item) => item.selected !== false);
@@ -87,7 +98,7 @@ export function drawingSpecifications(assist) {
     for (const [key, definition] of Object.entries(definitions)) {
         const current = definition.stored ? data[key] || "" : "";
         const local = localEvidence(assist, key, definition);
-        const model = modelEvidence(runs, definition.model);
+        const model = modelEvidence(runs, definition.model, key === "accessory_details");
         const chosen = local.find((option) => option.chosen) || model.find((option) =>
             option.item.decision === "apply" && (option.item.reviewed_value ?? option.item.candidate) === current);
         const pending = key === "height_mm" && chosen ? undefined : model.find((option) => option.pending);
@@ -110,6 +121,8 @@ export function drawingSpecifications(assist) {
             const complete = selections.every((item) => item.model_code && item.quantity > 0);
             if (first && complete) {
                 value = selections.length === 1 ? `${first.model_code} · ${first.quantity} 件/台` : `已录 ${selections.length} 项`;
+            } else if (!first && evidence) {
+                value = evidence.value;
             } else if (selections.length || entries.accessory.value) {
                 status = "missing";
                 statusLabel = "缺失";
@@ -120,12 +133,14 @@ export function drawingSpecifications(assist) {
             status = "pending";
             statusLabel = "待确认";
         } else if (!value && !status && key !== "accessory_details") {
-            status = definition.model || definition.local ? startedReading ? "unread" : "idle" : "missing";
+            const absent = definition.model?.every((name) => missing.has(name));
+            status = absent || (!definition.model && !definition.local) ? "missing" : startedReading ? "unread" : "idle";
             statusLabel = { unread: "未识别", idle: "待识读", missing: "缺失" }[status];
         }
         const candidateValue = definition.stored && key !== "height_mm" && pending?.value;
+        const comparison = pending?.item.candidate ?? candidateValue;
         const conflict = Boolean(candidateValue && current &&
-            String(candidateValue).toUpperCase() !== String(current).toUpperCase());
+            String(comparison).toUpperCase() !== String(current).toUpperCase());
         if (candidateValue && !current) {
             value = candidateValue;
             unit = pending.unit || "";
