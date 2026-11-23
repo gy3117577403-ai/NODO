@@ -211,6 +211,7 @@ async function singleDoor(page, mesh) {
 
 async function doubleDoor(page, mesh, positionModel) {
     await btn(page,"零件").click();
+    await btn(page,"零件结构").click();
     const fitted = positionModel(mesh), part = id => fitted.parts.find(part=>part.id===id);
     assert.deepEqual(part("stud_0").explode,part("wrap").explode);
     assert.deepEqual(part("hinge_top_right").explode,part("door_right").explode);

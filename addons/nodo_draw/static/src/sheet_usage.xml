@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="nodo_draw.SheetUsage">
+    <section class="nd-sheet-usage" aria-label="每台板料用量">
+        <div t-if="this.error()" class="nd-empty" role="alert">
+            <span t-out="this.error()"/> <button type="button" t-on-click="this.load">重新读取</button>
+        </div>
+        <div t-elif="!this.usage()" class="nd-empty" role="status">正在读取展开用量…</div>
+        <t t-else="">
+            <t t-set="usage" t-value="this.usage()"/>
+            <t t-set="active" t-value="this.activeRow()"/>
+            <div class="nd-usage-summary">
+                <div><span>每台板料重量</span><strong data-usage-weight=""><t t-out="usage.weight.toFixed(3)"/> <small>kg</small></strong></div>
+                <div><b><t t-out="usage.rows.length"/> 种 · <t t-out="usage.pieces"/> 件</b><span>合计 <t t-out="usage.area.toFixed(6)"/> m²</span></div>
+            </div>
+            <div class="nd-usage-table-wrap">
+                <table class="nd-usage-table" aria-label="逐件板料用量">
+                    <thead><tr><th scope="col">板件 / 材质</th><th scope="col">板厚<small>mm</small></th><th scope="col">件数<small>每台</small></th>
+                        <th scope="col">单件展开<small>m²</small></th><th scope="col">用量<small>kg/台</small></th></tr></thead>
+                    <tbody>
+                        <tr t-foreach="usage.rows" t-as="row" t-key="row.key" t-att-data-usage-key="row.key"
+                            t-att-class="{'nd-usage-active':active?.key === row.key}" t-on-click="() => this.selectRow(row)">
+                            <th scope="row">
+                                <button type="button" t-att-aria-label="'选择'+row.name+'并查看展开图'" t-att-aria-pressed="active?.key === row.key ? 'true' : 'false'">
+                                    <b t-out="row.name"/><span t-if="row.needs_review" class="nd-usage-pending">待校核</span>
+                                </button>
+                                <small t-out="row.material"/>
+                            </th>
+                            <td t-out="row.thickness.toFixed(1)"/><td t-out="row.quantity"/>
+                            <td t-out="row.area.toFixed(6)"/><td t-out="row.weight.toFixed(3)"/>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="nd-usage-basis">面积含开孔，按展开外轮廓计 · 密度 <t t-out="usage.density"/> g/cm³</p>
+            <section class="nd-usage-flat" t-if="active" aria-label="选中板件展开图" t-att-data-flat-key="active.key">
+                <header><div><h3><t t-out="active.name"/>展开图</h3><small t-out="active.code"/></div>
+                    <span t-if="active.needs_review" class="nd-usage-pending" title="缺独立展开原图，按成形截面及样件生成">展开待校核</span>
+                    <small t-else="">有原图依据</small>
+                </header>
+                <div class="nd-usage-instances" t-if="active.instances.length > 1" role="group" aria-label="加强件安装位置">
+                    <button type="button" t-foreach="active.instances" t-as="part" t-key="part.id"
+                        t-att-aria-pressed="this.props.selected.includes(part.id) ? 'true' : 'false'"
+                        t-on-click="() => this.props.select([part.id])" t-out="part.name.replace('加强件','')"/>
+                </div>
+                <DrawingViewport t-key="active.key" src="this.drawingUrl(active.key)" title="active.name+'展开图'"
+                                 showTitle="false" initialView="this.fitView" remember="() => {}"/>
+            </section>
+            <p t-else="" class="nd-empty">选择表中板件查看展开图</p>
+        </t>
+    </section>
+</t>
+</templates>

@@ -1,0 +1,57 @@
+import {Component, onMounted, onWillUnmount, signal, useProps} from "@odoo/owl";
+import {useService} from "@web/core/utils/hooks";
+import {DrawingViewport, fitView} from "./archive_preview";
+
+const MODEL = "nodo.draw.design";
+
+export class SheetUsage extends Component {
+    static template = "nodo_draw.SheetUsage";
+    static components = {DrawingViewport};
+    props = useProps({designId: Number, edit: Number, meshId: Number, selected: Array, select: Function});
+    usage = signal(null);
+    error = signal("");
+
+    setup() {
+        this.orm = useService("orm");
+        this.fitView = fitView;
+        onMounted(() => this.load());
+        onWillUnmount(() => this.request?.abort());
+    }
+    activeRow() {
+        const ids = this.props.selected;
+        return this.usage()?.rows.find(row => row.instances.some(part => ids.includes(part.id)));
+    }
+    selectRow(row) {
+        this.props.select(row.instances.map(part => part.id));
+    }
+    drawingUrl(key) {
+        return "/nodo/draw/file/" + this.jobId + "/" + key;
+    }
+    async load() {
+        this.request?.abort();
+        const request = this.request = new AbortController();
+        const args = [[this.props.designId], this.props.edit, this.props.meshId];
+        this.error.set("");
+        try {
+            const id = await this.orm.call(MODEL, "request_sheet_usage", args);
+            while (!request.signal.aborted) {
+                const job = await this.orm.call(MODEL, "cabinet_preview_status", [args[0], id]);
+                if (request.signal.aborted) return;
+                if (job.state === "failed") throw Error(job.error || "板料展开计算失败");
+                if (job.state === "done") {
+                    this.jobId = id;
+                    const response = await fetch(this.drawingUrl("usage"), {signal:request.signal});
+                    if (!response.ok) throw Error("板料清单读取失败");
+                    const usage = await response.json();
+                    if (request.signal.aborted) return;
+                    this.usage.set(usage);
+                    if (!this.activeRow()) this.selectRow(usage.rows[0]);
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 750));
+            }
+        } catch (error) {
+            if (!request.signal.aborted) this.error.set(error.data?.message || error.message);
+        }
+    }
+}

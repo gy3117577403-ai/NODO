@@ -9,7 +9,19 @@ module.exports = function extendViewer(source) {
     const fitCorners = "for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){";
     const changes = [
         [imports, imports + "\nimport {pickDrillPlane} from '@nodo/drill-pick';\nimport {createInstallationHighlight} from '@nodo/installation-highlight';"],
-        [props, "catalogPreview?:boolean;installationFace?:string;drill?:{pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
+        [props, "catalogPreview?:boolean;installationFace?:string;sheetSelection?:boolean;drill?:{pick:(point:ReturnType<typeof pickDrillPlane>)=>void};" + props],
+        // On the usage table, tint the actual selected solids. For interior parts,
+        // let the surrounding assembly show their installation position through the skin.
+        ["const nextPartsKey=", "const nextPartsKey=String(!!p.sheetSelection)+"],
+        ["if(nextPartsKey!==partsKey){", "if(nextPartsKey!==partsKey){\n" +
+            "    const sheets=p.sheetSelection?p.highlighted:undefined;\n" +
+            "    const interior=sheets?.some(id=>id==='mount'||id.startsWith('brace_'));"],
+        ["const transparent=!!p.display?.transparent", "const dimmed=interior&&!sheets?.includes(o.part.id);\n" +
+            "     const transparent=!!dimmed||!!p.display?.transparent"],
+        ["o.mat.depthWrite=!transparent;", "o.mat.depthWrite=!transparent;\n" +
+            "     if(!conflict&&sheets?.includes(o.part.id)){o.mat.color.setHex(0x35b38b);" +
+            "o.mat.emissive.setHex(0x1a664b);o.edgeMat.color.setHex(0x0f6650);}\n" +
+            "     else if(dimmed){o.mat.opacity=.17;o.edgeMat.opacity=.16;}"],
         ["const accessories=createAccessoryGizmo", "const installationHighlight=createInstallationHighlight(scene);\n  const accessories=createAccessoryGizmo"],
         ["renderer.render(scene,camera);", "installationHighlight.update(p.installationFace&&p.model.faces.find(face=>face.id===p.installationFace),objects);\n   renderer.render(scene,camera);"],
         ["gizmo.dispose();controls.removeEventListener", "gizmo.dispose();installationHighlight.dispose();controls.removeEventListener"],

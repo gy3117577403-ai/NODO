@@ -87,7 +87,7 @@
     <t t-set="assembly" t-value="this.assemblyOpen()"/>
     <t t-set="picker" t-value="this.accessoryPicker()"/>
     <div class="nd-layout" t-att-class="{'nd-archive-layout':this.showFiles(),'nd-assembly-layout':assembly,'nd-layout-folded':this.panelHidden() &amp;&amp; !this.showFiles() &amp;&amp; !assembly}"
-            t-att-style="'--nd-panel-width:'+this.panelWidth()+'px'">
+            t-att-style="'--nd-panel-width:'+this.currentPanelWidth()+'px'">
         <aside class="nd-panel nd-inspector" t-if="!this.showFiles() &amp;&amp; !assembly">
             <div class="nd-inspector-bar">
                 <div class="nd-tabs" role="group" aria-label="设计工具">
@@ -114,10 +114,24 @@
                 <SheetSettings catalog="doc.sheet_catalog" values="form" disabled="this.busy()"
                                change="values => this.patch(values)" save="() => this.apply('save')"/>
             </div>
-            <PartsPanel t-if="!this.panelHidden() &amp;&amp; this.tab()==='parts'" parts="this.cabinetParts()"
-                        selected="this.selectedParts()" hidden="this.hiddenParts()"
-                        select="(ids, locate) => this.selectParts(ids, locate)" toggle="ids => this.toggleParts(ids)"
-                        showAll="() => this.hiddenParts.set([])"/>
+            <t t-if="!this.panelHidden() &amp;&amp; this.tab()==='parts'">
+                <div t-if="this.hasSheetUsage()" class="nd-parts-views" role="group" aria-label="零件视图">
+                    <button type="button" t-att-aria-pressed="this.partsView()==='usage' ? 'true':'false'"
+                            t-on-click="() => this.partsView.set('usage')">板料用量</button>
+                    <button type="button" t-att-aria-pressed="this.partsView()==='structure' ? 'true':'false'"
+                            t-on-click="() => this.partsView.set('structure')">零件结构</button>
+                </div>
+                <t t-if="this.usageOpen()">
+                    <t t-set="meshId" t-value="this.sheetMeshId()"/>
+                    <SheetUsage t-if="meshId" t-key="meshId" designId="doc.id" edit="doc.edit_number" meshId="meshId"
+                               selected="this.selectedParts()" select="ids => this.selectParts(ids)"/>
+                    <p t-else="" class="nd-empty" role="status"
+                       t-out="this.dirty() ? '请保存并预览已修改的柜体，再查看板料用量' : '正在等待当前版本的三维模型'"/>
+                </t>
+                <PartsPanel t-else="" parts="this.cabinetParts()" selected="this.selectedParts()" hidden="this.hiddenParts()"
+                            select="(ids, locate) => this.selectParts(ids, locate)" toggle="ids => this.toggleParts(ids)"
+                            showAll="() => this.hiddenParts.set([])"/>
+            </t>
             <div class="nd-fields" t-if="!this.panelHidden() &amp;&amp; this.tab()==='holes'">
                 <div class="nd-board-controls" t-if="this.board()">
                     <details class="nd-face-overview">
@@ -225,7 +239,8 @@
             </div>
         </aside>
         <div t-if="!this.showFiles() &amp;&amp; !assembly &amp;&amp; !this.panelHidden()" class="nd-splitter" role="separator" tabindex="0"
-             aria-label="调整设计栏宽度" aria-orientation="vertical" aria-valuemin="270" aria-valuemax="440" t-att-aria-valuenow="this.panelWidth()"
+             aria-label="调整设计栏宽度" aria-orientation="vertical" t-att-aria-valuemin="this.usageOpen()?390:270"
+             t-att-aria-valuemax="this.usageOpen()?660:440" t-att-aria-valuenow="this.currentPanelWidth()"
              t-on-pointerdown="this.startPanelResize" t-on-pointermove="this.movePanelResize" t-on-pointerup="this.endPanelResize"
              t-on-pointercancel="this.endPanelResize" t-on-lostpointercapture="this.endPanelResize" t-on-keydown="this.keyPanelResize"/>
         <section class="nd-panel nd-stage">

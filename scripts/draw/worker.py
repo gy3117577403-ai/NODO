@@ -99,17 +99,29 @@ def run_job(folder, uv):
     state = dict(state='running', run=work.name, stage='准备工程参数', progress=1)
     publish(status, state)
     try:
-        p = payload['parameters']
         preview = payload['operation'] == 'preview'
-        install_assets(work, p)
-        if not preview and (work/'library').exists():
-            # The engine enters the component script's directory for each native STEP.
-            # Mirror the relative library there so published parameters stay portable.
-            shutil.copytree(work/'library', work/'component-cache'/work.name/'library')
-        publish(work / 'input.json', p)
-        script = ENGINE / 'src/accessory_io.py' if preview else Path(__file__).with_name('build_cabinet.py')
-        args = [str(script), str(work/'input.json'), str(work/'mesh.json' if preview else work)]
-        args += ['--preview'] if preview else ['--component-root', str(work / 'component-cache')]
+        usage = payload['operation'] == 'sheet_usage'
+        if usage:
+            token = payload['model_token']
+            if not re.fullmatch('[0-9a-f]{32}', token):
+                raise ValueError('用量表的模型编号无效')
+            model_folder = EXCHANGE / token
+            model = read(model_folder / 'status.json')
+            if (model['state'] != 'done' or model.get('files', {}).get('mesh') != 'mesh.json'
+                    or not re.fullmatch('run-[0-9a-f]{32}', model['run'])):
+                raise ValueError('用量表的来源模型尚未就绪')
+            args = [str(Path(__file__).with_name('sheet_usage.py')),
+                    str(model_folder / model['run'] / 'mesh.json'), str(work)]
+        else:
+            p = payload['parameters']
+            install_assets(work, p)
+            if not preview and (work/'library').exists():
+                # STEP components use library paths relative to their script directory.
+                shutil.copytree(work/'library', work/'component-cache'/work.name/'library')
+            publish(work / 'input.json', p)
+            script = ENGINE / 'src/accessory_io.py' if preview else Path(__file__).with_name('build_cabinet.py')
+            args = [str(script), str(work/'input.json'), str(work/'mesh.json' if preview else work)]
+            args += ['--preview'] if preview else ['--component-root', str(work / 'component-cache')]
         env = {**os.environ, 'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8','PYTHONDONTWRITEBYTECODE':'1',
                'CADGEN_DAEMON':'0','OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'1','MKL_NUM_THREADS':'1'}
         log = work / 'engine.log'
@@ -118,7 +130,10 @@ def run_job(folder, uv):
                             '3.13','--from','cadgen==0.7.26','python',*args], cwd=work, env=env,
                            stdout=out, stderr=subprocess.STDOUT, check=True, timeout=3600,
                            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-        if preview:
+        if usage:
+            files = {r['key']: r['key'] + '.svg' for r in read(work/'usage.json')['rows']}
+            info = {'files': {**files, 'usage': 'usage.json'}}
+        elif preview:
             mesh = read(work/'mesh.json')
             issues = [v['message'] for v in mesh.get('accessoryValidation',{}).get('issues',[])]
             info = {'files':{'mesh':'mesh.json'},'issues':issues}

@@ -10,6 +10,7 @@ import {ArchivedCabinet, DrawingViewport, fitView} from "./archive_preview";
 import {ExplosionControls} from "./explosion_controls";
 import {conflictsWithPlate, holeCoordinate, holeDimensionsReady, holeRecord, linkedHole, openingAt, sameHole, sameThickness} from "./hole_editing";
 import {PartsPanel} from "./parts_panel";
+import {SheetUsage} from "./sheet_usage";
 import {SheetSettings} from "./sheet_settings";
 
 const MODEL="nodo.draw.design";
@@ -28,7 +29,7 @@ const noParts = [];
 
 export class Workbench extends Component {
     static template="nodo_draw.Workbench";
-    static components = {AccessoryCatalog, ArchivedCabinet, DrawingViewport, ExplosionControls, PartsPanel, Portal, SheetSettings};
+    static components = {AccessoryCatalog, ArchivedCabinet, DrawingViewport, ExplosionControls, PartsPanel, Portal, SheetSettings, SheetUsage};
     props=useProps({...standardActionServiceProps});
     docs=signal([]); doc=signal(null); form=signal(null); tab=signal("cabinet");
     settingsDirty=signal(false); busy=signal(false); issue=signal(""); mesh=signal(null);
@@ -56,6 +57,8 @@ export class Workbench extends Component {
     directoryHidden=signal(false);
     panelHidden=signal(false);
     panelWidth=signal(306);
+    usageWidth=signal(540);
+    partsView=signal("usage");
     selectedParts=signal(noParts);
     hiddenParts=signal(noParts);
     partFocus=signal(null);
@@ -96,9 +99,13 @@ export class Workbench extends Component {
             ]);
             this.docs.set(designs);
             this.referenceDrawings.set(references);
-            const initialId = new URLSearchParams(window.location.search).get("design");
+            const query = new URLSearchParams(window.location.search);
+            const initialId = query.get("design");
             const initial = designs.find(design => String(design.id) === initialId) || designs[0];
-            if (initial) await this.loadDesign(initial.id);
+            if (initial) {
+                await this.loadDesign(initial.id);
+                if (query.get("tab") === "parts") this.selectTab("parts");
+            }
         });
         useEffect(()=>{
             const host = this.threeHost();
@@ -166,9 +173,19 @@ export class Workbench extends Component {
         }
         const orientation = {view:boardView ? boardViews[boardView.face] : "iso", restore:this.cameraRestore()};
         this.threeView?.update(mesh, !boardView && open, paused, reset,
-            {parts, holePreview:overlay, drilling:drill, orientation, explode, installationFace:selection?.face});
+            {parts, holePreview:overlay, drilling:drill, orientation, explode, installationFace:selection?.face,
+                sheetSelection:this.usageOpen()});
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
+    hasSheetUsage() { return this.doc()?.sheet_usage_enabled && this.form()?.kind === "double"; }
+    usageOpen() { return this.tab() === "parts" && this.hasSheetUsage() && this.partsView() === "usage"; }
+    sheetMeshId() {
+        const mesh = this.displayMesh(), draft = this.draftPreview();
+        if (!mesh) return 0;
+        if (draft?.mesh === mesh) return draft.snapshot === this.form() ? draft.jobId : 0;
+        const job = this.modelJob();
+        return !this.dirty() && job?.edit_number === this.doc().edit_number ? job.id : 0;
+    }
     inspectPart(id, face = null) {
         this.inspectedPart.set(id ? {id, face} : null);
         if (this.tab() === "parts") this.selectParts(id ? [id] : noParts);
@@ -264,6 +281,7 @@ export class Workbench extends Component {
         this.cameraRestore.set(null);
         this.resetDraftPreview();
         this.resetParts();
+        this.partsView.set("usage");
         clearTimeout(this.poll);this.aborter?.abort();this.mesh.set(null);this.modelJob.set(null);
         this.meshRequest=null;this.issue.set("");this.settingsDirty.set(false);this.sheet.set(null);
         this.showFiles.set(false);this.batch.set(null);this.referenceKind.set(null);this.face.set("door");
@@ -476,10 +494,14 @@ export class Workbench extends Component {
     }
     startPanelResize(event) {
         if (!event.isPrimary || event.button !== 0) return;
-        this.panelDrag = {id:event.pointerId, x:event.clientX, width:this.panelWidth()};
+        this.panelDrag = {id:event.pointerId, x:event.clientX, width:this.currentPanelWidth()};
         event.currentTarget.setPointerCapture(event.pointerId);
     }
-    setPanelWidth(value) { this.panelWidth.set(Math.max(minPanel, Math.min(maxPanel, value))); }
+    currentPanelWidth() { return this.usageOpen() ? this.usageWidth() : this.panelWidth(); }
+    setPanelWidth(value) {
+        if (this.usageOpen()) this.usageWidth.set(Math.max(390, Math.min(660, value)));
+        else this.panelWidth.set(Math.max(minPanel, Math.min(maxPanel, value)));
+    }
     movePanelResize(event) {
         if (this.panelDrag?.id === event.pointerId) {
             this.setPanelWidth(this.panelDrag.width + event.clientX - this.panelDrag.x);
@@ -492,7 +514,7 @@ export class Workbench extends Component {
         const delta = {ArrowLeft:-16, ArrowRight:16}[event.key];
         if (!delta) return;
         event.preventDefault();
-        this.setPanelWidth(this.panelWidth() + delta);
+        this.setPanelWidth(this.currentPanelWidth() + delta);
     }
     focusPendingHole(){
         const pending = this.holeDraft().active ? this.face() :

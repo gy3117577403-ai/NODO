@@ -104,6 +104,7 @@ class DrawDesign(models.Model):
         jobs.filtered(lambda j: not j.final_state)._dispatch()
         return dict(id=self.id,name=self.name,bom=self.bom,library=self.library,
                     settings=sheet_settings.for_editor(self.settings),sheet_catalog=sheet_settings.CATALOG,
+                    sheet_usage_enabled=self.source == 'AE-202',
                     assembly_validated=self._assembly_validated(self.settings),
                     edit_number=self.edit_number,online=online(),jobs=[j._info() for j in jobs])
 
@@ -148,11 +149,30 @@ class DrawDesign(models.Model):
         owner = self.env.uid
         recent = self.env['nodo.draw.job'].search([
             ('design_id', '=', self.id), ('preview_user_id', '=', owner), ('edit_number', '=', self.edit_number),
+            ('operation', '=', payload['operation']),
         ], order='id desc', limit=8)
         for job in recent:
             if job.payload == payload and job._info()['state'] != 'failed':
                 return job.id
         return self._new_job(payload, 0, owner).id
+
+    def request_sheet_usage(self, expected, model_job_id):
+        """Measure the exact cabinet currently shown, including older cached mesh jobs."""
+        self._lock_editor(expected)
+        job = self.env['nodo.draw.job'].search([
+            ('id', '=', model_job_id), ('design_id', '=', self.id), ('edit_number', '=', expected),
+            ('operation', 'in', ('build', 'preview')),
+        ], limit=1)
+        if not job:
+            raise UserError('请更新当前柜体预览后再查看板料。')
+        parameters = job.payload['parameters']
+        if self.source != 'AE-202' or (parameters.get('configuration') or {}).get('templateId') != 'AE-DOUBLE-02':
+            raise UserError('当前柜体未启用板料用量表。')
+        info = job._info()
+        if info['state'] != 'done' or 'mesh' not in info.get('files', ()) or info.get('issues'):
+            raise UserError('请先完成当前柜体预览并处理工程校核问题。')
+        return self._private_preview(dict(operation='sheet_usage', model_token=job.token,
+                                          source=self.source, source_version=self.source_version))
 
     def _prepared_assembly(self, values):
         settings = spec.edit(self.settings, values, self.bom['lines'], self.library)
@@ -272,7 +292,7 @@ class DrawJob(models.Model):
     _description = '工程生成批次'
     design_id = fields.Many2one('nodo.draw.design', required=True, index=True, ondelete='cascade')
     company_id = fields.Many2one('res.company', required=True, index=True)
-    operation = fields.Selection([('preview','模型预览'),('build','一键出图')],required=True)
+    operation = fields.Selection([('preview','模型预览'),('build','一键出图'),('sheet_usage','板料用量')],required=True)
     preview_user_id = fields.Many2one('res.users', string='草稿预览人', index=True, ondelete='cascade')
     edit_number = fields.Integer(required=True)
     version = fields.Integer(required=True)

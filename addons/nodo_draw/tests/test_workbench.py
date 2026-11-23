@@ -278,6 +278,37 @@ class TestDrawWorkbench(TransactionCase):
             self.assertEqual(self.design.preview_cabinet(self.design.edit_number, saved, 'base'), preview_ids['single'])
             self.assertEqual(self.design.settings, saved)
 
+    def test_sheet_usage_binds_a_ready_current_model_without_editing_the_design(self):
+        sample = {**spec.SAMPLES[1], 'lines': []}
+        design = self.model.browse(self.model.with_user(self.sales).handoff_bom(sample)['design_id']).with_user(self.engineer)
+        version = design.edit_number
+        with tempfile.TemporaryDirectory() as tmp, patch.object(workbench, 'EXCHANGE', Path(tmp)), \
+                patch.object(workbench, 'online', return_value=True):
+            model_id = design.preview_cabinet(version, design.settings, 'cabinet')
+            model = self.env['nodo.draw.job'].browse(model_id)
+            with self.assertRaisesRegex(UserError, '完成当前柜体预览'):
+                design.request_sheet_usage(version, model_id)
+            model._folder().mkdir(exist_ok=True)
+            status = model._folder() / 'status.json'
+            status.write_text(json.dumps({'state':'done', 'files':{'mesh':'mesh.json'}}), 'utf-8')
+            with self.assertRaises(AccessError):
+                design.with_user(self.sales).request_sheet_usage(version, model_id)
+            with self.assertRaisesRegex(UserError, '更新当前柜体预览'):
+                self.design.request_sheet_usage(self.design.edit_number, model_id)
+            colleague = new_test_user(self.env, login='sheet.viewer@nodo.test', groups='nodo_base.group_role_engineering')
+            with self.assertRaisesRegex(UserError, '更新当前柜体预览'):
+                design.with_user(colleague).request_sheet_usage(version, model_id)
+            usage_id = design.request_sheet_usage(version, model_id)
+            usage = self.env['nodo.draw.job'].browse(usage_id)
+            self.assertEqual((usage.operation, usage.payload['model_token'], usage.preview_user_id),
+                             ('sheet_usage', model.token, self.engineer))
+            self.assertEqual(design.request_sheet_usage(version, model_id), usage_id)
+            self.assertEqual(design.preview_cabinet(version, design.settings, 'cabinet'), model_id)
+            self.assertEqual(design.workspace()['jobs'], [])
+            self.assertEqual(design.edit_number, version)
+            with self.assertRaisesRegex(UserError, '另一窗口已修改'):
+                design.request_sheet_usage(version + 1, model_id)
+
     def test_original_drawing_reuse_and_parameter_change(self):
         raw = {**self.raw, 'source': '基础柜体', 'lines': []}
         design = self.model.browse(self.model.with_user(self.sales).handoff_bom(raw)['design_id']).with_user(self.engineer)
