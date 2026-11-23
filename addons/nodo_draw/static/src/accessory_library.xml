@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
     <t t-name="nodo_draw.AccessoryLibrary">
         <main class="nd-library-page" aria-label="附件库">
-            <AccessoryCatalog/>
+            <AccessoryCatalog initialModelId="this.props.action.params?.modelId"/>
         </main>
     </t>
     <t t-name="nodo_draw.AccessoryCatalog">

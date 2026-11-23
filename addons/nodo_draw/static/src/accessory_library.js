@@ -80,7 +80,7 @@ export class AccessoryCatalog extends Component {
     static template = "nodo_draw.AccessoryCatalog";
     static components = {AccessoryMesh};
     props = useProps({picker:t.object().optional(), selectModel:t.function().optional(), selectFace:t.function().optional(),
-        apply:t.function().optional(), cancel:t.function().optional()});
+        apply:t.function().optional(), cancel:t.function().optional(), initialModelId:t.number().optional()});
     items = signal([]);
     filter = signal("");
     category = signal("");
@@ -99,11 +99,18 @@ export class AccessoryCatalog extends Component {
         onWillStart(async () => {
             try {
                 const rows = await orm.call("nodo.draw.accessory", "list_accessory_models", []);
-                this.items.set(rows);
+                const initialModelId = this.props.initialModelId;
                 const picker = this.props.picker;
-                const current = picker && rows.find(row => row.code === picker.code && row.version === picker.versions[row.code]);
+                const current = initialModelId ? rows.find(row => row.id === initialModelId) :
+                    picker && rows.find(row => row.code === picker.code && row.version === picker.versions[row.code]);
+                if (initialModelId && !current) {
+                    this.error.set("当前无法查看所关联的型号版本。");
+                    return;
+                }
+                this.items.set(rows);
                 const preferred = current || this.filtered().find(row => !accessoryRestriction(row,picker));
                 this.selectedId.set(preferred?.id ?? null);
+                this.rulesOpen.set(Boolean(initialModelId));
             } catch (error) {
                 this.error.set(error.data?.message || "附件库暂时无法读取");
             }

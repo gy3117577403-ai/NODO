@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="auxiliary_library_list" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.list</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="auxiliary_price_list"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <list position="attributes"><attribute name="string">辅料库</attribute></list>
+            <field name="price_per_unit" position="attributes"><attribute name="string">单价（元）</attribute></field>
+            <field name="scope" position="attributes"><attribute name="optional">show</attribute></field>
+            <field name="source_note" position="attributes"><attribute name="optional">hide</attribute></field>
+        </field>
+    </record>
+    <record id="auxiliary_library_form" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.form</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="auxiliary_price_form"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <form position="attributes"><attribute name="string">辅料档案</attribute></form>
+        </field>
+    </record>
+    <record id="auxiliary_library_search" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.search</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="auxiliary_price_search"/>
+        <field name="mode">primary</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <field name="variant" position="after"><field name="scope"/></field>
+        </field>
+    </record>
+    <record id="action_auxiliary_library" model="ir.actions.act_window">
+        <field name="name">辅料库</field>
+        <field name="res_model">nodo.cost.auxiliary.price</field>
+        <field name="path">auxiliary-library</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="auxiliary_library_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('auxiliary_library_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('auxiliary_library_form')})]"/>
+    </record>
+    <menuitem id="menu_auxiliary_library" name="辅料库" parent="menu_root" action="action_auxiliary_library" sequence="15"/>
+</odoo>

@@ -1,12 +1,12 @@
 {
     'name': 'NODO 技术工作台成本核算',
-    'version': '20.0.4.0.0',
+    'version': '20.0.5.0.0',
     'author': 'NODO',
     'category': 'Hidden',
-    'summary': '技术工作台的板料和柜体辅材使用成本库的当前价格',
+    'summary': '连接技术工作台、成本库现价和辅料模型版本',
     'license': 'Other proprietary',
     'depends': ['nodo_draw', 'nodo_cost'],
-    'data': ['security/ir.access.csv'],
+    'data': ['security/ir.access.csv', 'views/auxiliary_library.xml'],
     'assets': {'web.assets_backend': [
         'nodo_draw_cost/static/src/live_sheet_prices.js',
         'nodo_draw_cost/static/src/cost_history.js',

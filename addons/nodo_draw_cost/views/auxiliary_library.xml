@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="auxiliary_library_list_model" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.list.model</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="nodo_cost.auxiliary_library_list"/>
+        <field name="arch" type="xml">
+            <field name="scope" position="after">
+                <field name="cad_model_status" widget="badge" decoration-success="cad_model_status == 'available'"
+                    decoration-warning="cad_model_status == 'pending'" decoration-muted="cad_model_status in ('unlinked', 'retired')"/>
+                <field name="cad_model_label" optional="show"/>
+            </field>
+        </field>
+    </record>
+    <record id="auxiliary_library_form_model" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.form.model</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="nodo_cost.auxiliary_library_form"/>
+        <field name="arch" type="xml">
+            <sheet position="inside">
+                <field name="company_id" invisible="1"/>
+                <group string="三维模型与安装规则" name="cad_model">
+                    <group>
+                        <field name="cad_model_status" widget="badge" decoration-success="cad_model_status == 'available'"
+                            decoration-warning="cad_model_status == 'pending'" decoration-muted="cad_model_status in ('unlinked', 'retired')"/>
+                        <field name="cad_model_id" groups="base.group_system" options="{'no_create': True, 'no_open': True}"/>
+                        <field name="cad_model_label" groups="!base.group_system" invisible="cad_model_status == 'unlinked'"/>
+                    </group>
+                    <group>
+                        <div class="text-muted" colspan="2" invisible="cad_model_status != 'unlinked'">待实际型号核对后关联附件库中的对应版本。</div>
+                        <button name="action_open_cad_model" string="查看三维与安装规则" type="object" class="btn-secondary"
+                            groups="nodo_base.group_role_engineering,base.group_system"
+                            invisible="not id or cad_model_status in ('unlinked', 'retired')"/>
+                    </group>
+                </group>
+            </sheet>
+        </field>
+    </record>
+    <record id="auxiliary_library_search_model" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.library.search.model</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="inherit_id" ref="nodo_cost.auxiliary_library_search"/>
+        <field name="arch" type="xml">
+            <filter name="unpriced" position="after">
+                <separator/>
+                <filter name="model_unlinked" string="待关联模型" domain="[('cad_model_status', '=', 'unlinked')]"/>
+                <filter name="model_linked" string="已有模型关联" domain="[('cad_model_status', '!=', 'unlinked')]"/>
+            </filter>
+        </field>
+    </record>
+</odoo>

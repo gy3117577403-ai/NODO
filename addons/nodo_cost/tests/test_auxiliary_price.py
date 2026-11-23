@@ -30,3 +30,13 @@ class TestAuxiliaryPrice(TransactionCase):
         foreign = self.env['res.company'].create(dict(name='辅材核对乙'))
         with self.assertRaises(AccessError):
             self.book.create(dict(code='AUX-003', name='接地带', company_id=foreign.id))
+
+    def test_library_uses_the_same_records_and_its_own_views(self):
+        price = self.env.ref('nodo_cost.action_auxiliary_prices')
+        library = self.env.ref('nodo_cost.action_auxiliary_library')
+        self.assertEqual(library.res_model, price.res_model)
+        self.assertEqual(library.views, [
+            [self.env.ref('nodo_cost.auxiliary_library_list').id, 'list'],
+            [self.env.ref('nodo_cost.auxiliary_library_form').id, 'form'],
+        ])
+        self.assertEqual(self.env.ref('nodo_cost.menu_auxiliary_library').action, library)

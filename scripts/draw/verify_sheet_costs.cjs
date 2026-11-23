@@ -23,12 +23,13 @@ function call(ctx, name, method, args, kwargs={}) {
 }
 
 async function signInRole(browser, role) {
-    const login = role + "@nodo.test";
+    const logins = role === "admin" ? ["admin@nodo.test", "admin"] : [role + "@nodo.test"];
     const file = fs.readFileSync(path.join(root, "config/dev-accounts.local.md"), "utf8");
-    const row = file.split(/\r?\n/).map(line => line.split("|").map(cell=>cell.trim())).find(cells=>cells[3] === login && cells[2] === "nodo_dev");
+    const row = file.split(/\r?\n/).map(line => line.split("|").map(cell=>cell.trim()))
+        .find(cells => logins.includes(cells[3]) && cells[2] === "nodo_dev");
     if (!row) throw Error("未找到本机开发角色 " + role);
     const ctx = await browser.newContext({viewport});
-    await rpc(ctx, "/web/session/authenticate", {db:"nodo_dev", login, password:row[4]});
+    await rpc(ctx, "/web/session/authenticate", {db:"nodo_dev", login:row[3], password:row[4]});
     const session = await rpc(ctx, "/web/session/get_session_info", {});
     assert.equal(session.db,"nodo_dev");
     assert.ok(session.uid);

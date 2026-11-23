@@ -83,7 +83,7 @@
                         <span><b t-out="data.kind==='single'?'单开门':data.kind==='double'?'双开门':'待确认门型'"/>
                             <t t-if="data.height"> · 柜体高 <b t-out="data.height"/> mm</t><t t-if="data.variant"> · <t t-out="data.variant"/></t>
                         </span>
-                        <a href="/odoo/auxiliary-prices" target="_blank" rel="noopener">辅材单价库 ↗</a>
+                        <a href="/odoo/auxiliary-library" target="_blank" rel="noopener">辅料库 ↗</a>
                     </div>
                     <p t-if="this.props.dirty" class="nd-aux-issue" role="status">当前为规格预览，保存柜体规格后可保存辅材选配。</p>
                     <p t-if="ready &amp;&amp; data.missing" role="status" class="nd-aux-issue">
