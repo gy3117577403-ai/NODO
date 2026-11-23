@@ -1,4 +1,4 @@
-import {Component, onMounted, onWillUnmount, signal, useProps} from "@odoo/owl";
+import {Component, onMounted, onWillUnmount, signal, t, untrack, useEffect, useProps} from "@odoo/owl";
 import {useService} from "@web/core/utils/hooks";
 import {DrawingViewport, fitView} from "./archive_preview";
 
@@ -7,7 +7,8 @@ const MODEL = "nodo.draw.design";
 export class SheetUsage extends Component {
     static template = "nodo_draw.SheetUsage";
     static components = {DrawingViewport};
-    props = useProps({designId: Number, edit: Number, meshId: Number, selected: Array, select: Function});
+    props = useProps({designId: t.number(), edit: t.number(), meshId: t.number(), selected: t.array(t.string()), select: t.function(),
+        onPrices: t.function().optional(), visible: t.boolean().optional(true)});
     usage = signal(null);
     error = signal("");
     originalKey = signal("");
@@ -17,6 +18,12 @@ export class SheetUsage extends Component {
         this.fitView = fitView;
         onMounted(() => this.load());
         onWillUnmount(() => this.request?.abort());
+        useEffect(() => {
+            const usage = this.usage();
+            if (!this.props.visible || !usage || this.initialSelection) return;
+            this.initialSelection = true;
+            untrack(() => { if (!this.activeRow()) this.selectRow(usage.rows[0]); });
+        });
     }
     activeRow() {
         const ids = this.props.selected;
@@ -52,7 +59,6 @@ export class SheetUsage extends Component {
                     const usage = await response.json();
                     if (request.signal.aborted) return;
                     this.usage.set(usage);
-                    if (!this.activeRow()) this.selectRow(usage.rows[0]);
                     return;
                 }
                 await new Promise(resolve => setTimeout(resolve, 750));

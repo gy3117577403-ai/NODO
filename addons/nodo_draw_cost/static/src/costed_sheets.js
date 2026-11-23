@@ -1,4 +1,4 @@
-import {signal} from "@odoo/owl";
+import {onMounted, signal, useOnChange} from "@odoo/owl";
 import {useService} from "@web/core/utils/hooks";
 import {patch} from "@web/core/utils/patch";
 import {SheetSettings} from "@nodo_draw/sheet_settings";
@@ -21,6 +21,10 @@ class CostedSheetUsage extends SheetUsage {
             return this.usage() && this.jobId;
         },
             (orm, jobId) => orm.call("nodo.draw.design", "current_sheet_costs", [[this.props.designId], jobId]));
+        const mounted = signal(false);
+        onMounted(() => mounted.set(true));
+        useOnChange(() => mounted() ? [this.props.designId, this.props.meshId, this.props.edit, this.prices(), this.error()] : [],
+            (...args) => { if (args.length) this.props.onPrices?.(...args); });
     }
     async saveVersion() {
         const prices = this.prices().value;

@@ -1,4 +1,4 @@
-import {signal, useEffect, usePlugin} from "@odoo/owl";
+import {signal, useOnChange, usePlugin} from "@odoo/owl";
 import {BusPlugin} from "@bus/services/bus_plugin";
 import {useService} from "@web/core/utils/hooks";
 
@@ -6,22 +6,27 @@ const unitFormat = new Intl.NumberFormat("zh-CN", {minimumFractionDigits:2, maxi
 export const unitPrice = value => unitFormat.format(value);
 
 // A price edit invalidates only the figures on screen. The CAD mesh and flat files stay cached.
-export function useLiveSheetPrices(source, read, topic = "nodo.cost/sheet_prices_changed") {
+export function useLiveSheetPrices(source, read, topic = "nodo.cost/sheet_prices_changed", retain = false) {
     const bus = usePlugin(BusPlugin);
     const orm = useService("orm");
     const result = signal({});
-    useEffect(() => {
-        const key = source();
+    let previous;
+    useOnChange(() => [source()], key => {
         if (!key) return;
         let latest = 0;
-        result.set({});
+        result.set(retain ? {...previous, loading:true} : {});
         async function refresh() {
             const sequence = ++latest;
             try {
                 const value = await read(orm, key);
-                if (sequence === latest) result.set({value});
+                if (sequence === latest) {
+                    previous = {value, key};
+                    result.set(previous);
+                }
             } catch (error) {
-                if (sequence === latest) result.set({error:error.data?.message || error.message});
+                if (sequence === latest) result.set({
+                    ...(retain ? previous : null), error:error.data?.message || error.message, failedKey:key,
+                });
             }
         }
         const whenVisible = () => { if (!document.hidden) refresh(); };

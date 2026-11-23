@@ -4,6 +4,7 @@ const {createHash} = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
+const {openParts} = require("./verify_selection.cjs");
 
 const root = path.resolve(__dirname, "../..");
 const origin = "http://127.0.0.1:8079";
@@ -443,7 +444,7 @@ async function checkParts(page) {
     const before = await workspace();
     assert.equal(before.bom.source, "AE-101");
     assert.equal(single.parts.length, 15);
-    await tool(page, "零件").click();
+    await openParts(page);
     const region = page.getByRole("region", {name:"零件结构"});
     const count = text => region.getByText(text, {exact:true});
     await count("15 / 15 件").waitFor();
@@ -495,7 +496,7 @@ async function checkParts(page) {
     await region.locator(".nd-part-selected").waitFor({state:"detached"});
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await region.locator(".nd-part-selected").waitFor();
-    assert.equal(await tool(page, "零件").getAttribute("aria-pressed"), "true");
+    assert.equal(await exact(page, "零件").getAttribute("aria-pressed"), "true");
 
     const assembly = page.getByRole("complementary", {name:"装配"});
     await exact(page, "装配").click();
@@ -510,10 +511,11 @@ async function checkParts(page) {
     await exact(page, "关闭装配").click();
     await count("15 / 15 件").waitFor({timeout:75000});
 
+    await exact(page, "设计视图").click();
     await tool(page, "规格").click();
     const doubleBase = waitForBase("double");
     await exact(page, "双开门").click();
-    await tool(page, "零件").click();
+    await openParts(page);
     const double = await (await doubleBase).json();
     assert.equal(double.parts.length, 24);
     await count("24 / 24 件").waitFor();

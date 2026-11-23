@@ -1,17 +1,19 @@
-import {Component, signal, useProps} from "@odoo/owl";
-import {useService} from "@web/core/utils/hooks";
+import {Component, onMounted, signal, t, useOnChange, useProps} from "@odoo/owl";
+import {useOwnedDialogs, useService} from "@web/core/utils/hooks";
 import {patch} from "@web/core/utils/patch";
 import {Workbench} from "@nodo_draw/workbench";
 import {unitPrice, useLiveSheetPrices} from "./live_sheet_prices";
+import {AuxiliaryPicker} from "./auxiliary_picker";
 
 const MODEL = "nodo.draw.design";
 
 class AuxiliaryCost extends Component {
     static template = "nodo_draw_cost.AuxiliaryCost";
-    props = useProps({designId: Number, spec: Object, edit: Number, dirty: Boolean, visible: Boolean});
+    props = useProps({designId: t.number(), spec: t.string(), edit: t.number(), dirty: t.boolean(),
+        active: t.boolean(), visible: t.boolean(), onCosts: t.function()});
     draft = signal(null);
-    choice = signal("");
     lockEditor = signal(false);
+    lockExpanded = signal(true);
     saving = signal(false);
     refresh = signal(0);
     message = signal("");
@@ -20,38 +22,70 @@ class AuxiliaryCost extends Component {
 
     setup() {
         this.orm = useService("orm");
+        this.addDialog = useOwnedDialogs();
         this.costs = useLiveSheetPrices(() => {
-            if (!this.props.visible) return null;
+            if (!this.props.active) return null;
             this.refresh();
             return {designId: this.props.designId, spec: this.props.spec, edit: this.props.edit,
                 draft: this.draft()?.values ?? null};
-        }, (orm, key) => orm.call(MODEL, "preview_auxiliary_costs", [[key.designId], key.spec, key.draft]),
-        "nodo.cost/auxiliary_prices_changed");
+        }, (orm, key) => orm.call(MODEL, "preview_auxiliary_costs", [[key.designId], JSON.parse(key.spec), key.draft]),
+        "nodo.cost/auxiliary_prices_changed", true);
+        const mounted = signal(false);
+        onMounted(() => mounted.set(true));
+        useOnChange(() => mounted() ? [this.props.designId, this.props.edit, this.props.spec,
+            this.currentData(), this.readError(), Boolean(this.draft()) || this.saving()] : [],
+        (...args) => { if (args.length) this.props.onCosts(...args); });
+    }
+
+    sameSpec(key) {
+        return key?.designId === this.props.designId && key.edit === this.props.edit && key.spec === this.props.spec;
+    }
+
+    rowsData() {
+        const {key, value} = this.costs();
+        return this.sameSpec(key) && value?.spec_edit === this.props.edit ? value : null;
+    }
+
+    currentData() {
+        const {key, loading, error} = this.costs();
+        return !loading && !error && key?.draft === (this.draft()?.values ?? null) ? this.rowsData() : null;
+    }
+
+    readError() {
+        const {key, failedKey, value, error} = this.costs();
+        if (this.sameSpec(failedKey) && failedKey.draft === (this.draft()?.values ?? null)) return error;
+        if (this.sameSpec(key) && value?.spec_edit !== this.props.edit) return "柜体规格版本已更新，请重新打开后核对。";
+        return "";
     }
 
     choices() {
-        return this.draft()?.values ?? this.costs().value?.saved;
+        return this.draft()?.values ?? this.rowsData()?.saved;
     }
 
     remaining() {
         const selected = new Set(this.choices()?.items.map(row => row.id));
-        return (this.costs().value?.catalog ?? []).filter(row => !selected.has(row.id));
+        return (this.rowsData()?.catalog ?? []).filter(row => !selected.has(row.id));
     }
 
     change(mutator) {
         const current = this.draft();
-        const latest = this.costs().value;
+        const latest = this.rowsData();
         if (this.saving() || !latest) return;
         this.message.set("");
         this.saveError.set("");
         this.draft.set({revision: current?.revision ?? latest.revision, values: mutator(this.choices())});
     }
 
-    add() {
-        const id = Number(this.choice());
-        if (!this.remaining().some(row => row.id === id)) return;
-        this.choice.set("");
-        this.change(values => ({...values, items: [...values.items, {id, quantity: 1}]}));
+    openPicker() {
+        if (!this.currentData() || this.saving() || this.choices().items.length >= 100) return;
+        this.addDialog(AuxiliaryPicker, {
+            catalog: () => this.remaining(),
+            add: (id, quantity) => {
+                if (!this.remaining().some(row => row.id === id) || this.choices().items.length >= 100) return false;
+                this.change(values => ({...values, items: [...values.items, {id, quantity}]}));
+                return true;
+            },
+        });
     }
 
     setQuantity(row, input) {
@@ -78,7 +112,6 @@ class AuxiliaryCost extends Component {
 
     discard() {
         this.draft.set(null);
-        this.choice.set("");
         this.lockEditor.set(false);
         this.message.set("");
         this.saveError.set("");
@@ -87,7 +120,7 @@ class AuxiliaryCost extends Component {
 
     async save() {
         const draft = this.draft();
-        if (!draft || this.props.dirty || this.saving() || !this.costs().value) return;
+        if (!draft || this.props.dirty || this.saving() || !this.rowsData()) return;
         this.saving.set(true);
         this.saveError.set("");
         try {
@@ -109,21 +142,71 @@ patch(Workbench, {components: {...Workbench.components, AuxiliaryCost}});
 patch(Workbench.prototype, {
     setup() {
         super.setup(...arguments);
-        this.tabs = [...this.tabs, ["auxiliary", "辅材"]];
+        this.tabs = this.tabs.filter(([id]) => id !== "parts");
+        this.quotePage = signal("parts");
+        this.quoteSheetCosts = signal(null);
+        this.quoteAuxiliaryCosts = signal(null);
+        this.reportQuoteSheetCosts = (designId, meshId, edit, prices, error) => {
+            this.quoteSheetCosts.set({designId, meshId, edit, prices, error});
+        };
+        this.reportQuoteAuxiliaryCosts = (designId, edit, spec, value, error, pending) => {
+            this.quoteAuxiliaryCosts.set({designId, edit, spec, value, error, pending});
+        };
     },
-    currentPanelWidth() {
-        return this.tab() === "auxiliary" ? this.usageWidth() : super.currentPanelWidth();
+    openInitialTab(tab) {
+        if (tab === "auxiliary") this.openQuote("auxiliary");
+        else super.openInitialTab(tab);
     },
-    setPanelWidth(value) {
-        if (this.tab() === "auxiliary") {
-            this.usageWidth.set(Math.max(390, Math.min(660, value)));
-        } else {
-            super.setPanelWidth(value);
+    quoteOpen() { return !this.showFiles() && this.tab() === "parts"; },
+    auxiliaryOpen() { return this.quoteOpen() && this.quotePage() === "auxiliary"; },
+    openQuote(page = this.quotePage()) {
+        if (!this.quoteOpen()) {
+            this.quoteReturnTab = this.tabs.some(([id]) => id === this.tab()) ? this.tab() : "cabinet";
+            this.selectTab("parts");
         }
+        this.quotePage.set(page);
+    },
+    openDesign() {
+        if (this.tab() === "parts") this.selectTab(this.quoteReturnTab ?? "cabinet");
+        super.openDesign(...arguments);
+    },
+    showThree() {
+        if (this.auxiliaryOpen()) this.openDesign();
+        super.showThree(...arguments);
+    },
+    viewportPaused() {
+        return super.viewportPaused() || this.auxiliaryOpen();
+    },
+    hasUnsavedChanges() {
+        const auxiliary = this.quoteAuxiliaryCosts();
+        return super.hasUnsavedChanges() || (auxiliary?.designId === this.doc()?.id && auxiliary?.pending);
     },
     auxiliarySpec(doc, form) {
         const selected = form.materials.parts?.wrap ?? form.materials.body;
-        return {kind: form.kind, width: form.width, height: form.height, depth: form.depth,
-            material: selected?.category ?? doc.sheet_catalog.materials.groups.body};
+        return JSON.stringify({kind: form.kind, width: form.width, height: form.height, depth: form.depth,
+            material: selected?.category ?? doc.sheet_catalog.materials.groups.body});
+    },
+    quoteTotals(doc, form) {
+        const sheet = this.quoteSheetCosts();
+        const auxiliary = this.quoteAuxiliaryCosts();
+        const meshId = this.sheetMeshId();
+        const dirty = this.dirty() || this.busy();
+        const board = sheet?.designId === doc.id && sheet.meshId === meshId && sheet.edit === doc.edit_number
+            ? sheet : null;
+        const supplies = auxiliary?.designId === doc.id && auxiliary.edit === this.localEdit
+            && auxiliary.spec === this.auxiliarySpec(doc, form) ? auxiliary : null;
+        const boardsTotal = dirty || !doc.sheet_usage_enabled ? null : board?.prices.value?.total ?? null;
+        const suppliesTotal = supplies?.value?.total ?? null;
+        const sum = boardsTotal !== null && suppliesTotal !== null ? boardsTotal + suppliesTotal : null;
+        return {
+            boards: boardsTotal,
+            boardNote: !doc.sheet_usage_enabled ? "待匹配展开图" : dirty ? "待重算" :
+                board?.prices.value?.missing ? "待补价" : board?.error || board?.prices.error ? "读取失败" :
+                boardsTotal === null ? "核算中" : (board?.prices.value.trial ? "含测试价" : ""),
+            supplies: suppliesTotal,
+            auxiliaryNote: supplies?.error ? "读取失败" : supplies?.value && suppliesTotal === null ? "待核对" :
+                suppliesTotal === null ? "核算中" : (supplies?.value.reference_count ? "含参考价" : ""),
+            sum,
+        };
     },
 });

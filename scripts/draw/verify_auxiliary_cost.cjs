@@ -9,26 +9,44 @@ const designModel = "nodo.draw.design";
 const priceModel = "nodo.cost.auxiliary.price";
 const sampleCode = "AE-REF-EARTH-200";
 const lockEvidence = "本机规则复验，整组换配";
-const directory = path.resolve(__dirname, "../../docs/验收/辅材核算");
+const directory = path.resolve(__dirname, "../../docs/验收/报价工作区");
+const quoteOnly = process.argv.includes("--quote-workspace");
+const quoteUrl = origin + "/odoo/technical-workbench";
+const button = (page, name) => page.getByRole("button", {name, exact:true});
+const standard = page => page.getByRole("table", {name:"标配辅材"});
 
-async function waitTotal(page, amount) {
-    await page.waitForFunction(value => document.querySelector("[data-auxiliary-total]")?.textContent === `${value} 元`, amount);
+async function waitAmount(page, selector, amount) {
+    await page.waitForFunction(([sel, value]) => document.querySelector(sel)?.textContent.trim() === value, [selector, amount]);
+}
+
+const waitTotal = (page, amount) => waitAmount(page, "[data-auxiliary-total]", amount);
+
+async function openQuote(page, url) {
+    await page.goto(url);
+    const entry = button(page, "报价");
+    await entry.waitFor();
+    const design = page.getByRole("group", {name:"设计工具"});
+    assert.deepEqual(await design.getByRole("button").allTextContents(), ["规格", "材料", "孔位"]);
+    assert.equal(await entry.evaluate(element => element.previousElementSibling.textContent.trim()), "附件库");
+    await entry.click();
+    await page.getByRole("group", {name:"报价页签"}).waitFor();
 }
 
 async function openAuxiliary(page, url) {
-    await page.goto(url);
-    await page.getByRole("button", {name:"辅材", exact:true}).click();
+    await page.goto(url + "&tab=auxiliary");
     await page.getByRole("region", {name:"辅材核算"}).waitFor();
 }
 
 async function chooseHeight(page, height) {
-    await page.getByRole("button", {name:"规格", exact:true}).click();
+    await button(page, "设计视图").click();
+    await button(page, "规格").click();
     await page.getByRole("spinbutton", {name:"柜高", exact:true}).fill(String(height));
-    await page.getByRole("button", {name:"辅材", exact:true}).click();
+    await button(page, "报价").click();
+    await button(page, "辅材").click();
 }
 
 async function saveChoices(page) {
-    await page.getByRole("button", {name:"保存辅材选配"}).click();
+    await button(page, "保存辅材选配").click();
     await page.getByText("辅材选配已保存", {exact:true}).waitFor();
 }
 
@@ -42,11 +60,68 @@ async function changeRate(page, price) {
     assert.ok(!response.error, response.error?.message);
 }
 
-async function captureCabinet(page, file) {
+async function capture(page, file) {
     await page.bringToFront();
-    await page.locator(".nd-three-host:not([hidden]) canvas").waitFor({state:"visible", timeout:90000});
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.screenshot({path:path.join(directory, file), animations:"disabled"});
+}
+
+async function verifyParts(page) {
+    const rows = page.getByRole("table", {name:"逐件板料用量"}).locator("tbody tr");
+    await waitAmount(page, "[data-quote-sheet]", "275.32");
+    await waitAmount(page, "[data-quote-total]", "299.52");
+    assert.equal(await rows.count(), 7);
+    assert.match(await page.locator("[data-usage-weight]").innerText(), /45\.886\s*kg/);
+    assert.deepEqual(await rows.filter({hasText:"待校核"}).evaluateAll(items => items.map(row => row.dataset.usageKey)),
+        ["door", "door_right", "brace"]);
+    const door = button(page, "选择右门板并查看展开图");
+    await door.click();
+    await page.waitForFunction(() => document.querySelector('[data-flat-key="door_right"] img')?.naturalWidth > 0);
+    assert.equal(await door.getAttribute("aria-pressed"), "true");
+    await page.locator(".nd-three-host canvas").waitFor({state:"visible"});
+    await capture(page, "AE-202-报价零件.png");
+    await button(page, "零件结构").click();
+    await page.getByRole("region", {name:"零件结构"}).waitFor();
+    await waitAmount(page, "[data-quote-sheet]", "275.32");
+    await button(page, "板料用量").click();
+    assert.equal(await door.getAttribute("aria-pressed"), "true");
+}
+
+async function verifyPicker(page) {
+    const drawer = page.getByRole("region", {name:"选料抽屉"});
+    const open = button(page, "添加辅材");
+    await open.click();
+    const search = drawer.getByRole("searchbox", {name:"搜索物料名称或编码"});
+    await search.fill("接地编织带");
+    await page.waitForFunction(() => document.querySelectorAll("[data-picker-code]").length === 1);
+    await button(page, "取消").click();
+    await drawer.waitFor({state:"hidden"});
+    assert.equal(await page.getByRole("table", {name:"自选辅材"}).count(), 0);
+    await waitTotal(page, "24.20");
+
+    await open.click();
+    await drawer.waitFor();
+    const box = await page.locator(".nd-aux-drawer").boundingBox();
+    const viewport = page.viewportSize();
+    assert.ok(box.x > viewport.width / 2 && Math.abs(box.x + box.width - viewport.width) < 5
+        && box.y < 5 && Math.abs(box.height - viewport.height) < 5, "选料抽屉应贴右边并贯穿窗口");
+    await search.fill(sampleCode);
+    const matching = drawer.locator("[data-picker-code]");
+    await page.waitForFunction(code => {
+        const items = document.querySelectorAll("[data-picker-code]");
+        return items.length === 1 && items[0].dataset.pickerCode === code;
+    }, sampleCode);
+    assert.match(await matching.innerText(), /2\.50 元\/件/);
+    await matching.click();
+    const quantity = drawer.getByRole("spinbutton", {name:"添加的每台用量"});
+    await quantity.fill("1.5");
+    await drawer.getByText("请输入 1 至 10000 的整数。", {exact:true}).waitFor();
+    assert.ok(await button(page, "加入清单").isDisabled());
+    await quantity.fill("2");
+    await waitAmount(page, "[data-picker-amount]", "5.00 元/台");
+    await capture(page, "AE-202-选料抽屉.png");
+    await button(page, "加入清单").click();
+    await drawer.waitFor({state:"hidden"});
 }
 
 async function verify() {
@@ -60,7 +135,7 @@ async function verify() {
     let restoreLock = false;
     try {
         engineer = await signInRole(browser, "engineering");
-        costing = await signInRole(browser, "costing");
+        if (!quoteOnly) costing = await signInRole(browser, "costing");
         design = (await call(engineer, designModel, "list_designs", [])).find(item => item.source === "AE-202");
         assert.ok(design);
         const base = await preview();
@@ -69,46 +144,71 @@ async function verify() {
         assert.deepEqual(base.saved, {items:[], lock:null}, "仅在未额外配置的 AE-202 基础样柜验收");
         rate = base.catalog.find(item => item.code === sampleCode);
         assert.ok(rate);
-        assert.equal((await currentRate()).price_per_unit, 2.5);
+        assert.equal(rate.price, 2.5);
+        if (!quoteOnly) assert.equal((await currentRate()).price_per_unit, 2.5);
 
         const work = await engineer.newPage();
         const errors = [];
         work.on("pageerror", error => errors.push(error.message));
-        const url = `${origin}/odoo/technical-workbench?design=${design.id}`;
-        await openAuxiliary(work, url);
+        work.on("console", entry => {
+            if (entry.type() === "error" && /OwlError|TypeError/.test(entry.text())) errors.push(entry.text());
+        });
+        const url = `${quoteUrl}?design=${design.id}`;
+        await openQuote(work, url);
+        await verifyParts(work);
+        await button(work, "辅材").click();
         await waitTotal(work, "24.20");
-        assert.deepEqual(await work.getByRole("table", {name:"标配辅材"}).locator("[data-aux-code]").evaluateAll(
+        assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
             rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30102000002"]);
-        await captureCabinet(work, "AE202-标配与参考价.png");
+        assert.equal(await work.locator(".nd-layout").isVisible(), false);
 
-        await work.getByRole("combobox", {name:"自选辅材目录"}).selectOption(String(rate.id));
-        await work.getByRole("button", {name:"添加辅材", exact:true}).click();
-        await waitTotal(work, "26.70");
+        await verifyPicker(work);
         const quantity = work.getByRole("spinbutton", {name:"接地编织带 200 mm每台用量"});
-        await quantity.fill("2");
-        await quantity.press("Tab");
         await waitTotal(work, "29.20");
+        await button(work, "零件").click();
+        await button(work, "辅材").click();
+        assert.equal(await quantity.inputValue(), "2");
         restoreSelection = true;
         await saveChoices(work);
         await openAuxiliary(work, url);
         await waitTotal(work, "29.20");
         assert.equal(await quantity.inputValue(), "2");
+        await waitAmount(work, "[data-quote-total]", "304.52");
+        await capture(work, "AE-202-自选保存重开.png");
 
         await chooseHeight(work, 800);
         await waitTotal(work, "29.20");
+        await work.locator(".nd-aux-basis").getByText(/柜体高 800 mm/).waitFor();
+        assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
+            rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30102000002"]);
+        await capture(work, "AE-202-800mm.png");
         await chooseHeight(work, 801);
         await waitTotal(work, "44.60");
-        assert.equal(await work.locator("[data-aux-lock-difference]").textContent(), "+15.40 元");
-        const standard = work.getByRole("table", {name:"标配辅材"});
-        assert.equal(await standard.locator('[data-aux-code="30102000002"]').count(), 0);
-        for (const code of ["30104000002", "30199000155", "30199000156"]) {
-            await standard.locator(`[data-aux-code="${code}"]`).waitFor();
-        }
+        assert.equal(await work.locator("[data-aux-lock-difference]").textContent(), "+15.40 元/台");
+        assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
+            rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30104000002", "30199000155", "30199000156"]);
+        assert.deepEqual(await standard(work).locator(".nd-aux-quantity b").allTextContents(), ["6", "2", "1", "1", "1"]);
         assert.equal(await quantity.inputValue(), "2");
-        assert.ok(await work.getByRole("button", {name:"保存辅材选配"}).isDisabled());
-        await captureCabinet(work, "801毫米-整组换锁与自选.png");
+        assert.ok(await button(work, "保存辅材选配").isDisabled());
+        await work.getByText("待重算", {exact:true}).waitFor();
+        assert.equal(await work.locator("[data-quote-total]").count(), 0);
+        await capture(work, "AE-202-801mm.png");
         await openAuxiliary(work, url);
         await waitTotal(work, "29.20");
+
+        if (quoteOnly) {
+            await button(work, "移除接地编织带 200 mm").click();
+            await waitTotal(work, "24.20");
+            await saveChoices(work);
+            const restored = await preview();
+            assert.deepEqual({edit:restored.spec_edit, height:restored.height, saved:restored.saved},
+                {edit:base.spec_edit, height:base.height, saved:base.saved});
+            restoreSelection = false;
+            assert.deepEqual(errors, []);
+            console.log(JSON.stringify({design:design.id, board:275.32, base700:24.2, withExtras700:29.2,
+                withExtras800:29.2, withExtras801:44.6, lockDifference:15.4, reopened:true, restored:true, screenshots:5}));
+            return;
+        }
 
         const book = await costing.newPage();
         book.on("pageerror", error => errors.push(error.message));
@@ -121,7 +221,7 @@ async function verify() {
         await waitTotal(work, "30.20");
         await changeRate(book, "0");
         await work.getByText("待补价", {exact:true}).waitFor();
-        assert.equal(await work.locator("[data-auxiliary-total]").count(), 0);
+        await waitTotal(work, "");
         await changeRate(book, "2.5");
         await waitTotal(work, "29.20");
         restorePrice = false;

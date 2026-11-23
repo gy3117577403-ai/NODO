@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
-const {target, drawWorkspace} = require("./verify_selection.cjs");
+const {target, drawWorkspace, openParts} = require("./verify_selection.cjs");
 
 const root = path.resolve(__dirname,"../..");
 const exchange = path.join(root,".nodo-draw/exchange");
@@ -210,7 +210,7 @@ async function singleDoor(page, mesh) {
 }
 
 async function doubleDoor(page, mesh, positionModel) {
-    await btn(page,"零件").click();
+    await openParts(page);
     await btn(page,"零件结构").click();
     const fitted = positionModel(mesh), part = id => fitted.parts.find(part=>part.id===id);
     assert.deepEqual(part("stud_0").explode,part("wrap").explode);

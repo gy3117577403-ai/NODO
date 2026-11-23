@@ -14,6 +14,7 @@
         'nodo_draw_cost/static/src/costed_sheets.js',
         'nodo_draw_cost/static/src/costed_sheets.xml',
         'nodo_draw_cost/static/src/costed_sheets.scss',
+        'nodo_draw_cost/static/src/auxiliary_picker.js',
         'nodo_draw_cost/static/src/auxiliary_cost.js',
         'nodo_draw_cost/static/src/auxiliary_cost.xml',
         'nodo_draw_cost/static/src/auxiliary_cost.scss',

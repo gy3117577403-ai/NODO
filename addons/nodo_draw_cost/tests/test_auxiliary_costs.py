@@ -43,8 +43,8 @@ class TestAuxiliaryCosts(TransactionCase):
             self.assertEqual([r['quantity'] for r in result['standard']], [6, 2, 1])
             self.assertEqual(result['reference_count'], 3)
         taller = self.calculation(height=801)
-        codes = [r['code'] for r in taller['standard']]
-        self.assertEqual(codes[-3:], list(rules.LOCKS['MS821']))
+        lock_codes = [row['code'] for row in taller['standard'] if row['lock_item']]
+        self.assertEqual(lock_codes, list(rules.LOCKS['MS821']))
         self.assertEqual(taller['total'], 39.6)
         self.assertEqual(taller['lock_change'], dict(previous='MS813', current='MS821', difference=15.4))
         self.assertNotIn(rules.RING, [r['code'] for r in self.calculation(height=1100)['standard']])
@@ -87,6 +87,17 @@ class TestAuxiliaryCosts(TransactionCase):
         hinge.active = False
         self.assertIsNone(self.calculation()['total'])
         self.assertEqual(self.calculation()['saved']['items'], selected['saved']['items'])
+
+    def test_picker_uses_the_current_price_and_standard_quantity(self):
+        rates = {row['code']: row for row in self.calculation()['catalog']}
+        self.assertEqual((rates[rules.HINGE]['standard_quantity'], rates[rules.HINGE]['price']), (6, 2))
+        self.assertEqual((rates[self.extra.code]['standard_quantity'], rates[self.extra.code]['basis']), (0, 'reference'))
+        self.assertEqual(rates[self.stripe.code]['measure'], 'metre')
+        self.assertNotIn('30104000002', rates)
+        self.stripe.price_per_unit = 0
+        unpriced = next(row for row in self.calculation()['catalog'] if row['id'] == self.stripe.id)
+        self.assertIsNone(unpriced['price'])
+        self.assertEqual(unpriced['basis'], '')
 
     def test_lock_override_requires_basis_and_revalidation_on_spec_change(self):
         lock = dict(scheme='MS821', reason='', confirm=True)

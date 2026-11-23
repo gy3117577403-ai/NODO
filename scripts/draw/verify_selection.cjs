@@ -240,5 +240,11 @@ async function main() {
         }
     } finally { await browser.close(); }
 }
-module.exports = {target, faceSurface, near, drawWorkspace, latestMesh};
+async function openParts(page) {
+    const quote = page.getByRole("button", {name:"报价", exact:true});
+    if (await quote.isVisible()) await quote.click();
+    await page.getByRole("button", {name:"零件", exact:true}).click();
+}
+
+module.exports = {target, faceSurface, near, drawWorkspace, latestMesh, openParts};
 if (require.main === module) main().catch(e=>{console.error(e);process.exitCode=1;});

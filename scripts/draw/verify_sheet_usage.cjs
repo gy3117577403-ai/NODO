@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
-const {drawWorkspace} = require("./verify_selection.cjs");
+const {drawWorkspace, openParts} = require("./verify_selection.cjs");
 
 const root = path.resolve(__dirname, "../..");
 const out = path.join(root, "docs/验收/AE-202板料用量");
@@ -19,7 +19,7 @@ const button = (page, name) => page.getByRole("button", {name, exact:true});
 const table = page => page.getByRole("table", {name:"逐件板料用量"});
 
 async function openUsage(page) {
-    await button(page, "零件").click();
+    await openParts(page);
     await table(page).waitFor({timeout:90000});
     assert.match(await page.locator(".nd-usage-summary").innerText(), /45\.886\s*kg/);
     assert.match(await page.locator(".nd-sheet-usage").innerText(), /7 种 · 10 件/);
@@ -104,9 +104,10 @@ async function main() {
         assert.equal(await page.getByLabel("图纸缩放比例").innerText(),"125%");
         await button(page,"适应窗口").click();
         const usageUrl = await page.locator("[data-flat-key] img").getAttribute("src");
+        await button(page,"设计视图").click();
         await button(page,"规格").click();
         await page.getByLabel("柜宽",{exact:true}).fill("1010");
-        await button(page,"零件").click();
+        await openParts(page);
         await page.getByText("请保存并预览已修改的柜体，再查看板料用量").waitFor();
         assert.equal(await table(page).count(),0);
 

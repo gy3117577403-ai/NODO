@@ -146,12 +146,13 @@ class DrawAuxiliaryCost(models.Model):
             return ''
 
         standard_rows = []
+        lock_codes = rules.LOCKS.get(selected_lock, ())
         for row in standard:
             rate = by_key.get((row['code'], row['variant']))
             issue = '待核对采购单位' if rate and rate.unit != row['unit'] else ''
             if rate and rate.scope not in ('any', kind):
                 issue = '单价档案的适用柜型不符'
-            standard_rows.append(priced(row, rate, issue))
+            standard_rows.append(priced(dict(row, lock_item=row['code'] in lock_codes), rate, issue))
 
         prior_lock = rules.default_lock(self.settings['height'])
         lock_change = None
@@ -196,7 +197,9 @@ class DrawAuxiliaryCost(models.Model):
                                              quantity=quantity, source='manual', variant=rate.variant if rate else '',
                                              unit=rate.unit if rate else ''), rate, issue))
         catalog = [dict(id=rate.id, code=rate.code, name=rate.name, unit=unit_labels[rate.unit],
-                        measure=rate.unit, variant=variant_labels[rate.variant])
+                        measure=rate.unit, variant=variant_labels[rate.variant],
+                        price=rate.price_per_unit or None, basis=rate.basis if rate.price_per_unit else '',
+                        standard_quantity=expected.get(rate.code, {}).get('quantity', 0))
                    for rate in rates if not availability(rate, adding=True)]
         return dict(rule=rules.RULE_VERSION, rule_source=rules.RULE_SOURCE, height=height, kind=kind,
                     variant=variant_labels.get(variant, ''), revision=self.auxiliary_revision,

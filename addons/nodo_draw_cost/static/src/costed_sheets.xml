@@ -5,7 +5,7 @@
         <button t-if="this.usageOpen()" type="button" class="nd-history-link" t-on-click="this.openSheetCostHistory">核算版本</button>
     </xpath>
     <xpath expr="//div[hasclass('nd-parts-views')]" position="after">
-        <div t-if="!this.hasSheetUsage()" class="nd-parts-views">
+        <div t-if="!this.panelHidden() &amp;&amp; !this.hasSheetUsage()" class="nd-parts-views">
             <button type="button" t-on-click="this.openSheetCostHistory">核算版本</button>
         </div>
     </xpath>

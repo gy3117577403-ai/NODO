@@ -84,7 +84,7 @@ export class Workbench extends Component {
         this.cameraSequence = 0;
         this.views=[["top","俯视"],["left","左视"],["door","正视"],["right","右视"],["back","后视"],["bottom","仰视"]];
         this.downloads=[["bundle","整套图包"],["step","整柜 STEP"],["bom","零件清单"],["holes","孔位表"]];
-        useSetupAction({beforeLeave:()=>!this.dirty()||window.confirm("离开并放弃未保存的设计修改？")});
+        useSetupAction({beforeLeave:()=>!this.hasUnsavedChanges()||window.confirm("离开并放弃未保存的修改？")});
         useListener(document, "click", event => this.dismissArchiveMenu(event));
         useListener(document, "keydown", event => this.keyArchiveMenu(event));
         onWillStart(async()=>{
@@ -104,7 +104,7 @@ export class Workbench extends Component {
             const initial = designs.find(design => String(design.id) === initialId) || designs[0];
             if (initial) {
                 await this.loadDesign(initial.id);
-                if (query.get("tab") === "parts") this.selectTab("parts");
+                this.openInitialTab(query.get("tab"));
             }
         });
         useEffect(()=>{
@@ -138,6 +138,10 @@ export class Workbench extends Component {
             this.draftPreviewAbort?.abort();
         });
     }
+    openInitialTab(tab) {
+        if (tab === "parts") this.selectTab("parts");
+    }
+    viewportPaused() { return this.mode() !== "3d"; }
     flatDisplay(){
         const overlay = this.holeOverlay();
         return {face:this.face(), holes:this.form()?.holes || [], active:overlay?.active, editing:overlay?.editing, issue:overlay?.issue};
@@ -147,7 +151,7 @@ export class Workbench extends Component {
         return design.source + " · " + design.name + (versions.length > 1 ? " · 交接版 " + design.source_version : "");
     }
     updateThree(){
-        const mesh = this.displayMesh(), open = this.opened(), paused = this.mode() !== "3d", reset = this.viewReset();
+        const mesh = this.displayMesh(), open = this.opened(), paused = this.viewportPaused(), reset = this.viewReset();
         const selection = this.accessoryPicker();
         const boardView = this.boardView(), drillFace = this.drillFace();
         const picked = this.inspectedPart()?.id, showParts = this.tab() === "parts";
@@ -274,7 +278,7 @@ export class Workbench extends Component {
         }
     }
     async loadDesign(id){
-        if(this.dirty()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
+        if(this.hasUnsavedChanges()&&!window.confirm("切换柜体并放弃未保存的修改？")) return;
         this.closeAccessoryPicker();
         this.leaveDrilling();
         this.explosion.set(0);
@@ -335,6 +339,7 @@ export class Workbench extends Component {
         }
     }
     dirty() { return this.settingsDirty() || !!this.form() && this.form().holes !== this.savedHoles; }
+    hasUnsavedChanges() { return this.dirty(); }
     patch(p){
         if (this.draftPreview()?.assembly) this.resetDraftPreview();
         this.form.set({...this.form(),...p});this.settingsDirty.set(true);this.issue.set("");
