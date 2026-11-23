@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="nodo_draw.Workbench" t-inherit-mode="extension">
+        <xpath expr="//SheetSettings/parent::div" position="after">
+            <AuxiliaryCost t-key="doc.id" designId="doc.id" edit="this.localEdit" spec="this.auxiliarySpec(doc, form)"
+                dirty="this.dirty() || this.busy()" visible="!this.panelHidden() &amp;&amp; this.tab()==='auxiliary'"/>
+        </xpath>
+    </t>
+
+    <t t-name="nodo_draw_cost.AuxiliaryCost">
+        <section t-if="this.props.visible" class="nd-fields nd-auxiliary" aria-label="辅材核算">
+            <t t-set="data" t-value="this.costs().value"/>
+            <p t-if="this.costs().error" class="nd-aux-issue" role="alert" t-out="this.costs().error"/>
+            <p t-elif="!data" class="nd-empty" role="status">正在核算辅材…</p>
+            <t t-else="">
+                <header class="nd-aux-summary">
+                    <div><span>每台辅材成本</span>
+                        <strong t-if="data.total!==null" data-auxiliary-total="" t-out="data.total.toFixed(2)+' 元'"/>
+                        <strong t-else="" class="nd-aux-unpriced">待核对</strong>
+                    </div>
+                    <div class="nd-aux-scope">
+                        <span t-if="data.kind" t-out="data.kind==='single'?'单开门':'双开门'"/>
+                        <span t-if="data.height">柜体高 <b t-out="data.height"/> mm</span>
+                        <span t-if="data.variant" t-out="data.variant"/>
+                    </div>
+                </header>
+                <div class="nd-aux-basis">
+                    <span t-out="data.rule_source+' · 采购清单待核对'"/>
+                    <a href="/odoo/auxiliary-prices" target="_blank" rel="noopener">辅材单价库 ↗</a>
+                </div>
+                <p t-if="this.props.dirty" class="nd-aux-note">当前为规格预览。保存柜体规格后可保存辅材选配。</p>
+                <p t-if="data.missing" role="status" class="nd-aux-issue">
+                    <t t-out="data.missing"/> 项待核对 · 已计价 <t t-out="data.known_subtotal.toFixed(2)"/> 元/台
+                </p>
+                <p t-foreach="data.issues" t-as="issue" t-key="issue" class="nd-aux-issue" t-out="issue"/>
+
+                <div class="nd-aux-heading">
+                    <h3>标配</h3>
+                    <button t-if="data.auto_lock" type="button" class="nd-aux-quiet"
+                        t-on-click="() => this.lockEditor.set(!this.lockEditor())">锁具换配</button>
+                </div>
+                <p t-if="data.lock_change" class="nd-aux-note" role="status">
+                    锁具 <t t-out="data.lock_change.previous"/> → <t t-out="data.lock_change.current"/>
+                    <t t-if="data.lock_change.difference!==null"> · 一台价差 <b data-aux-lock-difference=""
+                        t-out="(data.lock_change.difference>=0?'+':'')+data.lock_change.difference.toFixed(2)+' 元'"/></t>
+                </p>
+                <div t-if="this.lockEditor() || data.lock_pending" class="nd-aux-lock">
+                    <t t-set="lock" t-value="this.choices().lock"/>
+                    <label>锁具组合
+                        <select aria-label="锁具组合" t-att-disabled="this.saving()" t-on-change="ev => this.setLock(ev.target.value)">
+                            <option value="" t-att-selected="!lock">按柜高选取</option>
+                            <option value="MS813" t-att-selected="lock?.scheme==='MS813'">MS813 × 1</option>
+                            <option value="MS821" t-att-selected="lock?.scheme==='MS821'">MS821 × 1 ＋ 配套锁杆</option>
+                        </select>
+                    </label>
+                    <label t-if="lock">换配依据
+                        <input type="text" maxlength="240" aria-label="换配依据" t-att-value="lock.reason"
+                            placeholder="填写图纸或项目要求" t-att-disabled="this.saving()" t-on-change="ev => this.confirmLock(ev.target.value)"/>
+                    </label>
+                    <button t-if="lock &amp;&amp; data.lock_pending &amp;&amp; lock.reason" type="button"
+                        class="nd-aux-quiet" t-on-click="() => this.confirmLock(lock.reason)">按当前规格确认换配</button>
+                </div>
+                <p t-if="this.choices().lock &amp;&amp; !data.lock_pending" class="nd-aux-note">
+                    换配依据 · <t t-out="this.choices().lock.reason"/>
+                </p>
+                <table t-if="data.standard.length" class="nd-aux-table" aria-label="标配辅材">
+                    <t t-set="rows" t-value="data.standard"/><t t-call="nodo_draw_cost.AuxiliaryRows"/>
+                </table>
+                <p t-else="" class="nd-aux-note">等待柜型与图版确认。</p>
+
+                <div class="nd-aux-heading"><h3>自选</h3></div>
+                <div class="nd-aux-add">
+                    <select aria-label="自选辅材目录" t-att-disabled="this.saving()" t-on-change="ev => this.choice.set(ev.target.value)">
+                        <option value="">从成本库选物料</option>
+                        <option t-foreach="this.remaining()" t-as="item" t-key="item.id" t-att-value="item.id"
+                            t-att-selected="this.choice()===item.id.toString()"
+                            t-out="item.name+' · '+item.code+' · '+item.variant"/>
+                    </select>
+                    <button type="button" t-att-disabled="!this.choice() || this.saving()" t-on-click="this.add">添加辅材</button>
+                </div>
+                <table t-if="data.optional.length" class="nd-aux-table" aria-label="自选辅材">
+                    <t t-set="rows" t-value="data.optional"/><t t-call="nodo_draw_cost.AuxiliaryRows"/>
+                </table>
+                <p t-else="" class="nd-aux-note">当前没有自选辅材。</p>
+                <footer class="nd-aux-actions">
+                    <span t-if="this.message()" role="status" t-out="this.message()"/>
+                    <span t-elif="this.draft()">有未保存的辅材选配</span>
+                    <button t-if="this.draft()" type="button" class="nd-aux-quiet"
+                        t-att-disabled="this.saving()" t-on-click="this.discard">恢复已保存选配</button>
+                    <button type="button" class="nd-aux-save" t-att-disabled="!this.draft() || this.props.dirty || this.saving()"
+                        t-on-click="this.save" t-out="this.saving()?'正在保存…':'保存辅材选配'"/>
+                </footer>
+            </t>
+            <p t-if="this.saveError()" class="nd-aux-issue" role="alert" t-out="this.saveError()"/>
+        </section>
+    </t>
+
+    <t t-name="nodo_draw_cost.AuxiliaryRows">
+        <thead><tr><th scope="col">物料</th><th scope="col">每台</th><th scope="col">单价</th><th scope="col">金额</th></tr></thead>
+        <tbody>
+            <tr t-foreach="rows" t-as="row" t-key="row.source+':'+(row.id || row.code)" t-att-data-aux-code="row.code">
+                <th scope="row">
+                    <b t-out="row.name"/>
+                    <small t-if="row.code" t-out="row.code"/>
+                    <small t-if="row.condition" class="nd-aux-condition" t-out="row.condition"/>
+                    <small t-elif="row.source==='handoff'">交接清单</small>
+                    <small t-if="row.issue &amp;&amp; row.issue!=='待补价'" class="nd-aux-row-issue" t-out="row.issue"/>
+                </th>
+                <td class="nd-aux-quantity">
+                    <input t-if="row.source==='manual'" type="number" t-att-aria-label="row.name+'每台用量'"
+                        t-att-min="row.unit==='metre'?0.001:1" t-att-step="row.unit==='metre'?0.001:1" max="10000" required=""
+                        t-att-value="row.quantity" t-att-disabled="this.saving()" t-on-change="ev => this.setQuantity(row, ev.target)"/>
+                    <b t-else="" t-out="row.quantity"/> <small t-out="row.unit_label"/>
+                </td>
+                <td><t t-if="row.price!==null"><t t-out="this.unitPrice(row.price)"/><small t-if="row.basis==='reference'">参考价</small></t>
+                    <small t-else="" class="nd-aux-row-issue" t-out="row.issue==='待补价'?'待补价':'—'"/>
+                </td>
+                <td><b t-out="row.amount===null?'—':row.amount.toFixed(2)"/>
+                    <button t-if="row.source==='manual'" type="button" class="nd-aux-remove"
+                        t-att-disabled="this.saving()" t-att-aria-label="'移除'+row.name" t-on-click="() => this.remove(row.id)">移除</button>
+                </td>
+            </tr>
+        </tbody>
+    </t>
+</templates>

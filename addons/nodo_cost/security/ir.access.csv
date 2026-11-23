@@ -3,3 +3,7 @@ sheet_costing,核算维护板料价格,nodo.cost.sheet.price,nodo_base.group_rol
 sheet_engineering,技术查看板料价格,nodo.cost.sheet.price,nodo_base.group_role_engineering,r,
 sheet_admin,管理员维护板料价格,nodo.cost.sheet.price,base.group_system,cru,
 sheet_company,本公司板料成本,nodo.cost.sheet.price,,crud,"[('company_id','in',company_ids)]"
+auxiliary_costing,核算维护辅材价格,nodo.cost.auxiliary.price,nodo_base.group_role_costing,cru,
+auxiliary_engineering,技术查看辅材价格,nodo.cost.auxiliary.price,nodo_base.group_role_engineering,r,
+auxiliary_admin,管理员维护辅材价格,nodo.cost.auxiliary.price,base.group_system,cru,
+auxiliary_company,本公司辅材价格,nodo.cost.auxiliary.price,,crud,"[('company_id','in',company_ids)]"

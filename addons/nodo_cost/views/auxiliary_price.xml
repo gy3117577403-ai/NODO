@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="auxiliary_price_list" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.price.list</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="arch" type="xml">
+            <list string="辅材单价" delete="0">
+                <field name="code"/><field name="name"/><field name="variant"/><field name="unit"/>
+                <field name="price_per_unit"/>
+                <field name="basis" widget="badge" decoration-warning="basis == 'reference'" decoration-success="basis == 'business'"/>
+                <field name="selectable"/><field name="scope" optional="hide"/>
+                <field name="source_note" optional="show"/><field name="write_date" string="更新时间" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="auxiliary_price_form" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.price.form</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="arch" type="xml">
+            <form string="辅材单价" delete="0">
+                <sheet>
+                    <widget name="web_ribbon" title="已归档" bg_color="text-bg-secondary" invisible="active"/>
+                    <group><group string="物料">
+                        <field name="code" readonly="id"/><field name="name"/><field name="variant" readonly="id"/>
+                        <field name="unit" readonly="id"/><field name="scope"/><field name="selectable"/>
+                        <field name="company_id" readonly="id" groups="base.group_multi_company" options="{'no_create': True}"/>
+                    </group><group string="当前单价">
+                        <field name="price_per_unit"/>
+                        <div class="text-muted" colspan="2">未维护单价时，工作台显示待补价。</div>
+                        <field name="basis"/><field name="source_note"/><field name="active" invisible="1"/>
+                    </group></group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="auxiliary_price_search" model="ir.ui.view">
+        <field name="name">nodo.cost.auxiliary.price.search</field>
+        <field name="model">nodo.cost.auxiliary.price</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" filter_domain="['|', ('name','ilike',self), ('code','ilike',self)]"/>
+                <field name="variant"/>
+                <filter name="selectable" string="可自选" domain="[('selectable','=',True)]"/>
+                <filter name="unpriced" string="待补价" domain="[('price_per_unit','=',0)]"/>
+                <separator/><filter name="archived" string="已归档" domain="[('active','=',False)]"/>
+            </search>
+        </field>
+    </record>
+    <record id="action_auxiliary_prices" model="ir.actions.act_window">
+        <field name="name">辅材单价</field><field name="res_model">nodo.cost.auxiliary.price</field>
+        <field name="path">auxiliary-prices</field><field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="auxiliary_price_search"/>
+    </record>
+    <menuitem id="menu_auxiliary_prices" name="辅材单价" parent="menu_root" action="action_auxiliary_prices" sequence="20"/>
+</odoo>

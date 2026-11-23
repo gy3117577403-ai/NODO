@@ -6,7 +6,7 @@ const unitFormat = new Intl.NumberFormat("zh-CN", {minimumFractionDigits:2, maxi
 export const unitPrice = value => unitFormat.format(value);
 
 // A price edit invalidates only the figures on screen. The CAD mesh and flat files stay cached.
-export function useLiveSheetPrices(source, read) {
+export function useLiveSheetPrices(source, read, topic = "nodo.cost/sheet_prices_changed") {
     const bus = usePlugin(BusPlugin);
     const orm = useService("orm");
     const result = signal({});
@@ -25,7 +25,7 @@ export function useLiveSheetPrices(source, read) {
             }
         }
         const whenVisible = () => { if (!document.hidden) refresh(); };
-        const unsubscribe = bus.subscribe("nodo.cost/sheet_prices_changed", refresh);
+        const unsubscribe = bus.subscribe(topic, refresh);
         window.addEventListener("focus", whenVisible);
         document.addEventListener("visibilitychange", whenVisible);
         const fallback = window.setInterval(whenVisible, 30000);
