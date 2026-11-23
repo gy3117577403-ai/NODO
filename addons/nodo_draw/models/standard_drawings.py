@@ -5,6 +5,18 @@ from .sheet_settings import DATA, MATERIALS, SHEETS
 
 
 STANDARDS = json.loads((DATA / 'reference_cabinets.json').read_text('utf-8'))
+SHEET_PACKS = json.loads((DATA / 'sheet_sources.json').read_text('utf-8'))
+
+
+def sheet_profile(bom, kind):
+    pack = SHEET_PACKS.get(kind)
+    if not pack:
+        return {}
+    number = bom.get('drawing_number')
+    revision = bom.get('drawing_revision')
+    if (number or revision) and (number, revision) != (pack['number'], pack['revision']):
+        return {}
+    return {k: pack[k] for k in ('number', 'revision', 'template')}
 
 
 def catalog(exchange):

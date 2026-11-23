@@ -22,8 +22,8 @@ async function openUsage(page) {
     await button(page, "零件").click();
     await table(page).waitFor({timeout:90000});
     assert.match(await page.locator(".nd-usage-summary").innerText(), /45\.886\s*kg/);
-    assert.match(await page.locator(".nd-usage-summary").innerText(), /7 种 · 10 件/);
-    assert.match(await page.locator(".nd-usage-summary").innerText(), /3\.226993 m²/);
+    assert.match(await page.locator(".nd-sheet-usage").innerText(), /7 种 · 10 件/);
+    assert.match(await page.locator(".nd-sheet-usage").innerText(), /3\.226993 m²/);
 }
 
 async function selectSheet(page, key, name) {

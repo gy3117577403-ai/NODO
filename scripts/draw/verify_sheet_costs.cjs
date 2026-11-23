@@ -5,7 +5,7 @@ const path = require("node:path");
 const {chromium} = require("playwright");
 
 const root = path.resolve(__dirname, "../..");
-const out = path.join(root, "docs/验收/AE-202板料成本");
+const out = path.join(root, "docs/验收/统一AE柜板料核算/成本联动");
 const origin = "http://127.0.0.1:8079";
 const model = "nodo.cost.sheet.price";
 const marker = "AE202-验收临时牌号";
@@ -64,8 +64,8 @@ async function verify() {
         const total = parts.locator("[data-total-cost]");
         const expectedTotal = async value => parts.waitForFunction(amount =>
             document.querySelector("[data-total-cost]")?.innerText.includes(amount), value, {timeout:45000});
-        await expectedTotal("229.43");
-        const prices = ["66.840","18.321","18.321","30.155","29.129","61.548","5.116"];
+        await expectedTotal("275.32");
+        const prices = ["80.208","21.985","21.985","36.187","34.955","73.857","6.139"];
         assert.deepEqual(await parts.locator("[data-row-cost]").allTextContents(),prices);
         assert.match(await parts.locator("[data-usage-weight]").innerText(), /45\.886/);
         await parts.getByRole("button",{name:"选择右门板并查看展开图"}).click();
@@ -105,12 +105,12 @@ async function verify() {
         parts.on("request",onPriceChangeRequest);
         const started = Date.now();
         await saveField(book, "price_per_kg", "6");
-        await expectedTotal("241.29");
+        await expectedTotal("289.54");
         await materials.waitForFunction(() => document.querySelector('[data-stock-key="door"] b')?.textContent === "6.00",
             null, {timeout:45000});
         const syncMs = Date.now() - started;
-        assert.equal((await parts.locator('[data-usage-key="door_right"] [data-row-cost]').innerText()).trim(),"34.955");
-        assert.equal((await parts.locator('[data-usage-key="wrap"] [data-row-cost]').innerText()).trim(),"66.840");
+        assert.equal((await parts.locator('[data-usage-key="door_right"] [data-row-cost]').innerText()).trim(),"41.945");
+        assert.equal((await parts.locator('[data-usage-key="wrap"] [data-row-cost]').innerText()).trim(),"80.208");
         assert.match(await stock.innerText(), /6\.00/);
 
         await saveField(book,"grade",marker);
@@ -119,9 +119,9 @@ async function verify() {
         assert.equal(await parts.locator('[data-unit-price]').filter({hasText:"待补价"}).count(),2);
         await stock.getByText("该规格待补价",{exact:true}).waitFor({timeout:45000});
         await saveField(book,"grade","");
-        await expectedTotal("241.29");
+        await expectedTotal("289.54");
         await saveField(book,"price_per_kg","5");
-        await expectedTotal("229.43");
+        await expectedTotal("275.32");
         await materials.waitForFunction(() => document.querySelector('[data-stock-key="door"] b')?.textContent === "5.00",
             null, {timeout:45000});
         assert.equal(await flat.getAttribute("src"),flatUrl);
@@ -139,9 +139,9 @@ async function verify() {
         assert.deepEqual([after.edit_number,after.settings,after.jobs],
                          [settingsBefore.edit_number,settingsBefore.settings,settingsBefore.jobs]);
         await parts.goto(workUrl + "&tab=parts");
-        await expectedTotal("229.43");
+        await expectedTotal("275.32");
         assert.deepEqual(errors,[]);
-        return {design:design.id,rows:prices.length,total:229.43,changedTotal:241.29,missingRows:2,
+        return {design:design.id,rows:prices.length,total:275.32,changedTotal:289.54,missingRows:2,
                 syncMs,priceChangeCadRequests,geometryReused:true,stockChoice:true,restored:true,screenshots:3};
     } finally {
         try {

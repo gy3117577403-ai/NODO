@@ -177,7 +177,7 @@ export class Workbench extends Component {
                 sheetSelection:this.usageOpen()});
     }
     cabinetParts() { return this.displayMesh()?.parts ?? noParts; }
-    hasSheetUsage() { return this.doc()?.sheet_usage_enabled && this.form()?.kind === "double"; }
+    hasSheetUsage() { return !!this.doc()?.sheet_usage_enabled; }
     usageOpen() { return this.tab() === "parts" && this.hasSheetUsage() && this.partsView() === "usage"; }
     sheetMeshId() {
         const mesh = this.displayMesh(), draft = this.draftPreview();

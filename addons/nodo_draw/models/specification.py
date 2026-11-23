@@ -52,7 +52,11 @@ def intake(raw):
         raise ValueError('柜型须为单开门或双开门')
     dims = {k: number(raw[k], '箱体尺寸', 1, 10000) if raw.get(k) is not None else None
             for k in ('width', 'height', 'depth')}
-    return dict(source=label(raw.get('source'), '来源明细编号'), title=label(raw.get('title'), '设计名称'),
+    drawing = {}
+    if 'drawing_number' in raw or 'drawing_revision' in raw:
+        drawing = {k: label(raw.get(k), title) for k, title in
+                   [('drawing_number', '总装图号'), ('drawing_revision', '图版')]}
+    return dict(source=label(raw.get('source'), '来源明细编号'), title=label(raw.get('title'), '设计名称'), **drawing,
                 source_version=label(raw.get('source_version', '1'), '来源版本', 30),
                 quantity=count(raw.get('quantity'), '柜体台数', 10000), kind=kind, lines=lines, **dims)
 

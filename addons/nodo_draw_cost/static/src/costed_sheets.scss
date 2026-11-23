@@ -1,6 +1,16 @@
 .nd-work {
     .nd-usage-summary .nd-price-badge {padding:1px 5px;border-radius:4px;font-size:11px;background:#f8ebce;color:#744f0e;}
     .nd-usage-summary strong[data-usage-weight] {font-size:22px;}
+    .nd-cost-weights {display:grid;grid-template-columns:1.32fr 1fr 1fr 1fr;gap:8px;padding:11px 12px;}
+    .nd-cost-weights > div {text-align:left;align-content:start;}
+    .nd-cost-weights > div:last-child {text-align:left;}
+    .nd-cost-weights strong {font-size:22px;white-space:nowrap;}
+    .nd-cost-weights strong[data-total-cost] {font-size:28px;}
+    .nd-cost-weights strong small {font-size:11px;}
+    .nd-sheet-usage:has(.nd-cost-weights) .nd-usage-table {
+        font-size:12px;td,th {padding:6px 4px;} thead {font-size:11px;}
+        td[data-row-cost] {color:#164d3a;}
+    }
     .nd-rate-status {color:#805517;}
     .nd-usage-table [data-unit-price] small {font-size:10px;color:#855e22;}
     .nd-usage-basis {display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;margin:6px 0 10px;font-size:11px;color:#52675c;}

@@ -309,6 +309,20 @@ class TestDrawWorkbench(TransactionCase):
             with self.assertRaisesRegex(UserError, '另一窗口已修改'):
                 design.request_sheet_usage(version + 1, model_id)
 
+    def test_ae_sheet_source_is_bound_to_drawing_and_pack_edition(self):
+        sample = {**spec.SAMPLES[1], 'source': '同图异版', 'lines': []}
+        pack = workbench.standard_drawings.sheet_profile({}, 'double')
+        for edition, expected in [(pack['revision'], True), ('其他图版', False)]:
+            payload = {**sample, 'source_version': edition[:12], 'drawing_number': pack['number'], 'drawing_revision': edition}
+            design = self.model.browse(self.model.with_user(self.sales).handoff_bom(payload)['design_id']).with_user(self.engineer)
+            self.assertEqual(design.workspace()['sheet_usage_enabled'], expected)
+            self.assertEqual(design.workspace()['sheet_profile'], pack if expected else {})
+        with self.assertRaisesRegex(UserError, '图版'):
+            self.model.with_user(self.sales).handoff_bom({**sample, 'drawing_number': pack['number']})
+        self.assertFalse(workbench.standard_drawings.sheet_profile({'drawing_number': '另一张图',
+                         'drawing_revision': pack['revision']}, 'double'))
+        self.assertNotEqual(workbench.standard_drawings.sheet_profile({}, 'single')['revision'], pack['revision'])
+
     def test_original_drawing_reuse_and_parameter_change(self):
         raw = {**self.raw, 'source': '基础柜体', 'lines': []}
         design = self.model.browse(self.model.with_user(self.sales).handoff_bom(raw)['design_id']).with_user(self.engineer)

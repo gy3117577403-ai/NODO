@@ -1,6 +1,6 @@
 {
     'name': 'NODO 技术工作台板料成本',
-    'version': '20.0.2.0.0',
+    'version': '20.0.3.0.0',
     'author': 'NODO',
     'category': 'Hidden',
     'summary': '技术工作台的板材选择和板料用量使用成本库的当前价格',

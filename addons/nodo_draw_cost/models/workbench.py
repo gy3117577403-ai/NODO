@@ -1,13 +1,16 @@
 import hashlib
 import json
+from decimal import Decimal
 
 from odoo import fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.nodo_base.sheet_materials import MATERIALS
 from odoo.addons.nodo_cost.materials import stock_key
-from odoo.addons.nodo_draw.models import specification
+from odoo.addons.nodo_draw.models import specification, standard_drawings
 from odoo.addons.nodo_draw.models.workbench import read_json
+
+WASTE_FACTOR = Decimal('1.2')
 
 
 def part_stock(parameters, part, thickness):
@@ -28,8 +31,7 @@ class DrawDesign(models.Model):
         return self.env['nodo.cost.sheet.price'].search_read([('company_id', '=', self.company_id.id)],
             ['category', 'grade', 'supply_condition', 'thickness_mm', 'price_per_kg', 'basis', 'display_name'])
 
-    def _sheet_calculation(self, usage_id):
-        self._check_read()
+    def _native_sheet_inputs(self, usage_id):
         jobs = self.env['nodo.draw.job']
         usage = jobs.search([('id', '=', usage_id), ('design_id', '=', self.id),
             ('edit_number', '=', self.edit_number), ('preview_user_id', '=', self.env.uid),
@@ -45,18 +47,39 @@ class DrawDesign(models.Model):
         if not data.get('rows'):
             raise UserError('板料清单读取失败，请重新打开用量表。')
         parameters = model.payload['parameters']
-        rows = [dict(key=r['key'], weight=r['weight'], stock=part_stock(parameters, r['key'], r['thickness']))
-                for r in data['rows']]
+        profile = standard_drawings.sheet_profile(self.bom, parameters['configuration']['kind'])
+        if not profile or usage.payload.get('sheet_profile') != profile or data.get('sheet_profile') != profile:
+            raise UserError('展开清单的图号或图版已变化，请重新打开当前版本的板料用量。')
+        return data, parameters, profile
+
+    def _sheet_calculation(self, usage_id):
+        self._check_read()
+        data, parameters, profile = self._native_sheet_inputs(usage_id)
+        rows, weights = [], {}
+        loss_total = billable_total = Decimal(0)
+        for part in data['rows']:
+            base = Decimal(str(part['weight']))
+            billable = base * WASTE_FACTOR
+            loss = billable - base
+            loss_total += loss
+            billable_total += billable
+            key = part['key']
+            weights[key] = dict(loss_weight=float(loss), billable_weight=float(billable))
+            rows.append(dict(key=key, weight=billable, stock=part_stock(parameters, key, part['thickness'])))
         prices = self.env['nodo.cost.sheet.price']._sheet_costs(self.company_id, rows)
+        allowance = dict(waste_factor=float(WASTE_FACTOR), loss_weight=float(loss_total), billable_weight=float(billable_total))
+        prices.update(weights=weights, **allowance)
         columns = ('key', 'name', 'code', 'material', 'thickness', 'quantity', 'area', 'weight', 'needs_review')
         detail = []
         for measured, item in zip(data['rows'], rows):
             rate = prices['lines'][item['key']]
-            detail.append({**{k: measured.get(k) for k in columns}, 'stock': list(item['stock']),
+            detail.append({**{k: measured.get(k) for k in columns}, **weights[item['key']],
+                           'area_source': measured.get('area_source'), 'stock': list(item['stock']),
                            **(rate or {})})
         geometry = {k: parameters.get(k) for k in ('width', 'depth', 'height', 'configuration', 'thickness', 'materials', 'holes')}
         snapshot = dict(source=self.source, source_version=self.source_version, design_name=self.name,
-                        edit=self.edit_number, geometry=geometry, area_basis='outer_including_holes', rows=detail,
+                        edit=self.edit_number, geometry=geometry, sheet_profile=profile, **allowance,
+                        area_basis='outer_including_holes', rows=detail,
                         **{k: data.get(k) for k in ('area', 'weight', 'density', 'pieces')},
                         total=prices['total'], trial=prices['trial'])
         encoded = json.dumps(snapshot, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)

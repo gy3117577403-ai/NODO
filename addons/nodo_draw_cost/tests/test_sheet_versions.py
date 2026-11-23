@@ -37,10 +37,10 @@ class TestSheetCostVersion(TransactionCase):
             run = usage._folder() / 'run-test'
             run.mkdir(parents=True)
             rows = [dict(key=key, name=name, code=key, material='冷轧板', thickness=2, quantity=1,
-                         area=weight / 15.7, weight=weight, needs_review=True)
+                         area=weight / 15.7, weight=weight, needs_review=True, area_source={'method': 'pending'})
                     for key, name, weight in [('door', '左门板', 6.031095738), ('door_right', '右门板', 5.825763423)]]
             data = dict(rows=rows, area=sum(r['area'] for r in rows), weight=sum(r['weight'] for r in rows),
-                        density=7.85, pieces=2)
+                        density=7.85, pieces=2, sheet_profile=usage.payload['sheet_profile'])
             (run / 'usage.json').write_text(json.dumps(data))
             (usage._folder() / 'status.json').write_text(json.dumps({'state':'done', 'run':run.name,
                                                                      'files':{'usage':'usage.json'}}))
@@ -63,15 +63,32 @@ class TestSheetCostVersion(TransactionCase):
         self.assertEqual([v['number'] for v in reader.sheet_cost_versions()], [2, 1])
         v1, v2 = [reader.read_sheet_cost_version(i) for i in (first, second)]
         self.assertEqual(v1['saved_by'], self.engineer.display_name)
-        self.assertEqual([v1['snapshot']['total'], v2['snapshot']['total']], [59.28, 71.14])
+        self.assertEqual([v1['snapshot']['total'], v2['snapshot']['total']], [71.14, 85.37])
         self.assertIsNone(v1['comparison'])
-        self.assertEqual(v2['comparison']['delta'], 11.86)
-        self.assertEqual([line['delta'] for line in v2['comparison']['lines']], [6.031, 5.826])
+        self.assertEqual(v2['comparison']['delta'], 14.23)
+        self.assertEqual([line['delta'] for line in v2['comparison']['lines']], [7.237, 6.991])
         for version, unit in [(v1, 5), (v2, 6)]:
             self.assertEqual(version['snapshot']['area_basis'], 'outer_including_holes')
             self.assertEqual(version['snapshot']['trial'], 2)
             self.assertTrue(all(r['needs_review'] and r['unit'] == unit for r in version['snapshot']['rows']))
         self.assertEqual(design.edit_number, edit)
+
+    def test_legacy_snapshot_keeps_base_price_when_comparing_loss_allowance(self):
+        with self.measured() as usage:
+            _, old = self.design._sheet_calculation(usage)
+            for key in ('waste_factor', 'loss_weight', 'billable_weight', 'sheet_profile'):
+                old.pop(key)
+            for row in old['rows']:
+                for key in ('loss_weight', 'billable_weight', 'area_source'):
+                    row.pop(key)
+                row['amount'] = round(row['weight'] * row['unit'], 3)
+            old['total'] = 59.28
+            first = self.archive.create(dict(design_id=self.design.id, company_id=self.design.company_id.id,
+                                             number=1, fingerprint='archived', payload=old))
+            second = self.design.read_sheet_cost_version(self.save(usage))
+        self.assertEqual(self.design.read_sheet_cost_version(first.id)['snapshot'], old)
+        self.assertEqual(second['comparison']['delta'], 11.86)
+        self.assertEqual([r['delta'] for r in second['comparison']['lines']], [6.031, 5.826])
 
     def test_versions_reject_stale_amount_missing_price_and_unpersisted_geometry(self):
         design = self.design

@@ -10,6 +10,7 @@ export class SheetUsage extends Component {
     props = useProps({designId: Number, edit: Number, meshId: Number, selected: Array, select: Function});
     usage = signal(null);
     error = signal("");
+    originalKey = signal("");
 
     setup() {
         this.orm = useService("orm");
@@ -22,7 +23,13 @@ export class SheetUsage extends Component {
         return this.usage()?.rows.find(row => row.instances.some(part => ids.includes(part.id)));
     }
     selectRow(row) {
+        this.originalKey.set("");
         this.props.select(row.instances.map(part => part.id));
+    }
+    flatUrl(usage, row) {
+        if (this.originalKey() !== row.key || !row.area_source?.reference) return this.drawingUrl(row.key);
+        const kind = usage.sheet_profile.template === "AE-DOUBLE-02" ? "double" : "single";
+        return "/nodo/draw/reference/" + kind + "/" + row.area_source.reference + "/svg";
     }
     drawingUrl(key) {
         return "/nodo/draw/file/" + this.jobId + "/" + key;

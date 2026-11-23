@@ -102,9 +102,10 @@ class DrawDesign(models.Model):
         ], order='id desc')
         # Dispatch only on a separate request or by cron after the design transaction commits.
         jobs.filtered(lambda j: not j.final_state)._dispatch()
+        profile = standard_drawings.sheet_profile(self.bom, self.settings['kind'])
         return dict(id=self.id,name=self.name,bom=self.bom,library=self.library,
                     settings=sheet_settings.for_editor(self.settings),sheet_catalog=sheet_settings.CATALOG,
-                    sheet_usage_enabled=self.source == 'AE-202',
+                    sheet_profile=profile, sheet_usage_enabled=bool(profile),
                     assembly_validated=self._assembly_validated(self.settings),
                     edit_number=self.edit_number,online=online(),jobs=[j._info() for j in jobs])
 
@@ -166,12 +167,14 @@ class DrawDesign(models.Model):
         if not job:
             raise UserError('请更新当前柜体预览后再查看板料。')
         parameters = job.payload['parameters']
-        if self.source != 'AE-202' or (parameters.get('configuration') or {}).get('templateId') != 'AE-DOUBLE-02':
-            raise UserError('当前柜体未启用板料用量表。')
+        config = parameters.get('configuration') or {}
+        profile = standard_drawings.sheet_profile(self.bom, config.get('kind'))
+        if not profile or profile['template'] != config.get('templateId'):
+            raise UserError('当前柜体的图号或图版与三维模型不匹配，请核对展开原图。')
         info = job._info()
         if info['state'] != 'done' or 'mesh' not in info.get('files', ()) or info.get('issues'):
             raise UserError('请先完成当前柜体预览并处理工程校核问题。')
-        return self._private_preview(dict(operation='sheet_usage', model_token=job.token,
+        return self._private_preview(dict(operation='sheet_usage', model_token=job.token, sheet_profile=profile,
                                           source=self.source, source_version=self.source_version))
 
     def _prepared_assembly(self, values):

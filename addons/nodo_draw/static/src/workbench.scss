@@ -141,6 +141,11 @@
         span {font-size:12px;color:#4f695d;}
     }
     .nd-usage-table-wrap {overflow-x:auto;border:1px solid var(--stroke);border-radius:8px;}
+    .nd-usage-source {display:flex;align-items:center;gap:9px;margin:2px 0 8px;font-size:12px;color:var(--muted);}
+    .nd-usage-source b {color:var(--forest);}
+    .nd-usage-source span:last-child {margin-left:auto;}
+    .nd-source-note {margin:3px 0 6px;color:var(--muted);font-size:11px;}
+    .nd-flat-source {border:1px solid var(--stroke);border-radius:4px;padding:3px 8px;color:var(--forest);background:white;font-size:12px;}
     .nd-usage-table {
         width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px;line-height:1.25;
         td, th {padding:5px 7px;text-align:right;}

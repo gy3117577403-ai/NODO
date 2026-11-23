@@ -5,7 +5,9 @@ from odoo.exceptions import UserError
 
 
 def raw_amount(row):
-    return Decimal(str(row['weight'])) * Decimal(str(row['unit'])) if row else Decimal(0)
+    if not row:
+        return Decimal(0)
+    return Decimal(str(row.get('billable_weight', row['weight']))) * Decimal(str(row['unit']))
 
 
 class SheetCostVersion(models.Model):

@@ -38,7 +38,7 @@ class TestWorkbenchSheetCost(TransactionCase):
             usage = jobs.browse(design.request_sheet_usage(design.edit_number, model.id))
             run = usage._folder() / 'run-test'
             run.mkdir(parents=True, exist_ok=True)
-            (run/'usage.json').write_text(json.dumps({'rows': [
+            (run/'usage.json').write_text(json.dumps({'sheet_profile': usage.payload['sheet_profile'], 'rows': [
                 {'key':'door_right', 'weight':6.12795, 'thickness':2.0, 'material':'早期预览的显示名称'},
                 {'key':'mount', 'weight':12.0, 'thickness':2.5},
             ]}), 'utf-8')
@@ -46,11 +46,13 @@ class TestWorkbenchSheetCost(TransactionCase):
                                                                    'files':{'usage':'usage.json'}}), 'utf-8')
             self.assertIn(right.id, [p['id'] for p in design.sheet_price_choices()])
             original_version = design.edit_number
-            self.assertEqual(design.current_sheet_costs(usage.id)['total'], 138.64)
+            self.assertEqual(design.current_sheet_costs(usage.id)['total'], 166.37)
             right.price_per_kg = 7
             refreshed = design.current_sheet_costs(usage.id)
             self.assertEqual(refreshed['lines']['door_right']['unit'], 7)
-            self.assertEqual(refreshed['total'], 150.90)
+            self.assertEqual(refreshed['total'], 181.07)
+            self.assertAlmostEqual(refreshed['weights']['door_right']['loss_weight'], 6.12795 * .2)
+            self.assertAlmostEqual(refreshed['billable_weight'], 18.12795 * 1.2)
             mount.active = False
             self.assertIsNone(design.current_sheet_costs(usage.id)['total'])
             self.assertEqual(design.edit_number, original_version)

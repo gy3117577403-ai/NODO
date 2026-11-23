@@ -5,7 +5,7 @@
         <button t-if="this.usageOpen()" type="button" class="nd-history-link" t-on-click="this.openSheetCostHistory">核算版本</button>
     </xpath>
     <xpath expr="//div[hasclass('nd-parts-views')]" position="after">
-        <div t-if="doc.sheet_usage_enabled &amp;&amp; !this.hasSheetUsage()" class="nd-parts-views">
+        <div t-if="!this.hasSheetUsage()" class="nd-parts-views">
             <button type="button" t-on-click="this.openSheetCostHistory">核算版本</button>
         </div>
     </xpath>
@@ -13,32 +13,36 @@
 <t t-name="nodo_draw_cost.SheetUsage" t-inherit="nodo_draw.SheetUsage" t-inherit-mode="primary">
     <xpath expr="//div[hasclass('nd-usage-summary')]" position="replace">
         <t t-set="prices" t-value="this.prices().value"/>
-        <div class="nd-usage-summary">
+        <div class="nd-usage-summary nd-cost-weights">
             <div><span>每台板料成本 <b t-if="prices?.trial" class="nd-price-badge" t-out="prices.trial===usage.rows.length?'测试价':'含测试价'"/></span>
                 <strong data-total-cost="" t-if="prices?.total != null"><t t-out="prices.total.toFixed(2)"/> <small>元</small></strong>
                 <b t-else="" class="nd-rate-status" t-out="this.prices().error?'价格读取失败':prices?prices.missing+' 种待补价':'正在读取价格…'"/>
             </div>
-            <div><span>每台板料重量</span><strong data-usage-weight=""><t t-out="usage.weight.toFixed(3)"/> <small>kg</small></strong></div>
-            <div><b><t t-out="usage.rows.length"/> 种 · <t t-out="usage.pieces"/> 件</b><span>合计 <t t-out="usage.area.toFixed(6)"/> m²</span></div>
+            <div><span>基础重量</span><strong data-usage-weight=""><t t-out="usage.weight.toFixed(3)"/> <small>kg</small></strong></div>
+            <div><span>损耗预留</span><strong data-usage-loss=""><t t-out="prices?prices.loss_weight.toFixed(3):'—'"/> <small>kg</small></strong></div>
+            <div><span>计价重量</span><strong data-usage-billable=""><t t-out="prices?prices.billable_weight.toFixed(3):'—'"/> <small>kg</small></strong></div>
         </div>
         <div class="nd-save-version">
-            <span>按成本库当前价核算</span>
+            <span><b><t t-out="usage.rows.length"/> 种 · <t t-out="usage.pieces"/> 件</b> · 合计 <t t-out="usage.area.toFixed(6)"/> m²</span>
             <button type="button" t-att-disabled="this.saving() || prices?.total == null" t-on-click="this.saveVersion"
                     t-out="this.saving()?'正在保存…':'保存核算版本'"/>
         </div>
         <p t-if="this.saveError()" role="alert" class="nd-rate-status" t-out="this.saveError()"/>
     </xpath>
     <xpath expr="//thead/tr" position="inside">
+        <th scope="col">损耗预留<small>kg/台</small></th><th scope="col">计价重量<small>kg/台</small></th>
         <th scope="col">单价<small>元/kg</small></th><th scope="col">板料成本<small>元/台</small></th>
     </xpath>
     <xpath expr="//tbody/tr" position="inside">
         <t t-set="rate" t-value="prices?.lines[row.key]"/>
-        <td data-unit-price=""><t t-if="rate"><t t-out="this.unitPrice(rate.unit)"/><small t-if="rate.basis==='trial'">测试价</small></t>
+        <td data-row-loss="" t-out="prices?prices.weights[row.key].loss_weight.toFixed(3):'—'"/>
+        <td data-row-billable="" t-out="prices?prices.weights[row.key].billable_weight.toFixed(3):'—'"/>
+        <td data-unit-price=""><t t-if="rate"><t t-out="this.unitPrice(rate.unit)"/><small t-if="rate.basis==='trial' &amp;&amp; prices.trial!==usage.rows.length">测试价</small></t>
             <span t-else="" t-att-class="{'nd-rate-status':prices}" t-out="prices?'待补价':'—'"/></td>
         <td data-row-cost="" t-out="rate?rate.amount.toFixed(3):'—'"/>
     </xpath>
     <xpath expr="//p[hasclass('nd-usage-basis')]" position="replace">
-        <div class="nd-usage-basis"><span>面积含开孔 · 密度 <t t-out="usage.density"/> g/cm³ · 整柜按原值汇总至分</span>
+        <div class="nd-usage-basis"><span>孔面积计入 · 密度 <t t-out="usage.density"/> g/cm³ <t t-if="prices">· 损耗系数 <t t-out="prices.waste_factor"/>（预留 <t t-out="Math.round((prices.waste_factor-1)*100)"/>%）</t></span>
             <a href="/odoo/sheet-costs" target="_blank" rel="noopener">板料成本库 ↗</a></div>
     </xpath>
 </t>

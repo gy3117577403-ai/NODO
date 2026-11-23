@@ -115,6 +115,8 @@
                                change="values => this.patch(values)" save="() => this.apply('save')"/>
             </div>
             <t t-if="!this.panelHidden() &amp;&amp; this.tab()==='parts'">
+                <p t-if="!doc.sheet_usage_enabled &amp;&amp; doc.bom.drawing_number" class="nd-empty" role="status">
+                    本设计的图号和图版尚未匹配到基础展开图。</p>
                 <div t-if="this.hasSheetUsage()" class="nd-parts-views" role="group" aria-label="零件视图">
                     <button type="button" t-att-aria-pressed="this.partsView()==='usage' ? 'true':'false'"
                             t-on-click="() => this.partsView.set('usage')">板料用量</button>

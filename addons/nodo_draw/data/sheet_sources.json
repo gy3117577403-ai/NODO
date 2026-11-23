@@ -1,0 +1,70 @@
+{
+  "single": {
+    "template": "AE-SINGLE-02",
+    "number": "AE00.380.300.210",
+    "revision": "dc52520fcb9f676f987bf71efe437e642064b9d9d2a90b1d2124ac43471e381b",
+    "flats": {
+      "top": {
+        "file": "AE01.380.210.02-顶板展开图.dwg",
+        "reference": "basis_03",
+        "dwg": "e78c43ded450d84b6e1f1aeaaf53e75e9eb138aca100ed3db754341f15d551a2",
+        "dxf": "3ed66a3c50548aa23a47b667ae61e710cb157895032f6dd6eeef0ef53e3cb592"
+      },
+      "bottom": {
+        "file": "AE01.380.210.03-底板展开图.dwg",
+        "reference": "basis_05",
+        "dwg": "504fe6f3f56dbc5961cd94b04534379e90e51f4e53bd5a6b1542ff444f3b27db",
+        "dxf": "dab0ac2c6c2430f6b916b163e4ee3ee0559fba580acea79c50a88ea5dd8555e9"
+      },
+      "wrap": {
+        "file": "AE01.380.300.210.01-围板展开图.dwg",
+        "reference": "basis_08",
+        "dwg": "59ceeca6fd25b5732dd16c0712f412ddb47f0dee0f129cad5fa9e6b9690db78d",
+        "dxf": "5d47a409003af583cf3dfbee612dfdca266773342c2d9f03ce46584848bbcb34"
+      },
+      "mount": {
+        "file": "AE03.380.300-安装板展开图.dwg",
+        "reference": "basis_10",
+        "dwg": "f88dcab66361e42ac15419cc387a950af242345e4a4da76577dc3c366385dca9",
+        "dxf": "ebe1bc54577b3c10ec7eb9e224413c3f75f8466023863faa412cc4e377f1792c"
+      },
+      "door": {
+        "file": "AE04.380.300.01-门板展开图.dwg",
+        "reference": "basis_13",
+        "dwg": "21ff30c6f4d83ebabe9e3e8b3d4512b372052db93738f4b68094ce1da9c856cd",
+        "dxf": "8fd3be1d70c82cbf999f05b28ca337a4a150f4e8ce81c151e28d77d788ac2da9"
+      }
+    }
+  },
+  "double": {
+    "template": "AE-DOUBLE-02",
+    "number": "AE00.1000.700.300",
+    "revision": "904dea7503536e87b8f81b7d2d2cd1ed6a22e4d1b4548079948c0ab2ddbb1f3b",
+    "flats": {
+      "top": {
+        "file": "AE01.1000.300.02-顶板展开图.dwg",
+        "reference": "basis_03",
+        "dwg": "a1d8d90fb38b5c0eb9c30bc62630a753569c6648203a249b6ca4eaa9c613eaa5",
+        "dxf": "975bc08db436119a5a62de55d5cce0effcb057bb09d93b3da352c08c91d22e02"
+      },
+      "bottom": {
+        "file": "AE01.1000.300.03-底板展开图.dwg",
+        "reference": "basis_05",
+        "dwg": "5675f8bea0a9307e760ae9f925fe93ee9c303c3f4a6089e63de0929f5ae3b901",
+        "dxf": "82051a457a9368c57b5b7bcc511ad31caffb4bb81aac97f8c98e48f718c19083"
+      },
+      "wrap": {
+        "file": "AE01.1000.700.300.01-围板展开图.dwg",
+        "reference": "basis_08",
+        "dwg": "266491db038c93a3f87cbfa411238e1e7154c027ec785b96204ba625ce394eb1",
+        "dxf": "a3db8b8ad134a8956b099419e6847a569353fdf5af9bf751e35e94060ee291be"
+      },
+      "mount": {
+        "file": "AE03.1000.700-安装板展开图.dwg",
+        "reference": "basis_09",
+        "dwg": "c1e5ba4762a112ab847549dbbdaa337d3d779b1be7f2659d07d893c884ed0458",
+        "dxf": "686116e7ab170742c0db3eee0aec9e3f46cdaf0df32d5d6781972f96de90a6c7"
+      }
+    }
+  }
+}
