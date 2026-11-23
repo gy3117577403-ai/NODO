@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates xml:space="preserve">
+<t t-inherit="nodo_draw.Workbench" t-inherit-mode="extension">
+    <xpath expr="//div[hasclass('nd-parts-views')]" position="inside">
+        <button t-if="this.usageOpen()" type="button" class="nd-history-link" t-on-click="this.openSheetCostHistory">核算版本</button>
+    </xpath>
+    <xpath expr="//div[hasclass('nd-parts-views')]" position="after">
+        <div t-if="doc.sheet_usage_enabled &amp;&amp; !this.hasSheetUsage()" class="nd-parts-views">
+            <button type="button" t-on-click="this.openSheetCostHistory">核算版本</button>
+        </div>
+    </xpath>
+</t>
 <t t-name="nodo_draw_cost.SheetUsage" t-inherit="nodo_draw.SheetUsage" t-inherit-mode="primary">
     <xpath expr="//div[hasclass('nd-usage-summary')]" position="replace">
         <t t-set="prices" t-value="this.prices().value"/>
@@ -11,6 +21,12 @@
             <div><span>每台板料重量</span><strong data-usage-weight=""><t t-out="usage.weight.toFixed(3)"/> <small>kg</small></strong></div>
             <div><b><t t-out="usage.rows.length"/> 种 · <t t-out="usage.pieces"/> 件</b><span>合计 <t t-out="usage.area.toFixed(6)"/> m²</span></div>
         </div>
+        <div class="nd-save-version">
+            <span>按成本库当前价核算</span>
+            <button type="button" t-att-disabled="this.saving() || prices?.total == null" t-on-click="this.saveVersion"
+                    t-out="this.saving()?'正在保存…':'保存核算版本'"/>
+        </div>
+        <p t-if="this.saveError()" role="alert" class="nd-rate-status" t-out="this.saveError()"/>
     </xpath>
     <xpath expr="//thead/tr" position="inside">
         <th scope="col">单价<small>元/kg</small></th><th scope="col">板料成本<small>元/台</small></th>

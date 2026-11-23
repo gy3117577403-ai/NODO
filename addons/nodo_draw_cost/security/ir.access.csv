@@ -1,0 +1,4 @@
+id,name,model_id,group_id/id,operation,domain
+version_engineer,技术查看板料核算版本,nodo.draw.sheet.cost.version,nodo_base.group_role_engineering,r,
+version_admin,管理查看板料核算版本,nodo.draw.sheet.cost.version,base.group_system,r,
+version_company,板料核算所属公司,nodo.draw.sheet.cost.version,,crud,"[('company_id','in',company_ids)]"

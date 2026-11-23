@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="nodo_draw_cost.SheetCostHistory">
+    <Dialog title="'板料核算版本'" size="'xl'" bodyClass="'nd-cost-history'" footer="false">
+        <div t-if="this.error()" role="alert"><t t-out="this.error()"/> <button type="button" class="btn btn-link" t-on-click="this.load">重新读取</button></div>
+        <p t-elif="!this.versions().length" class="nd-history-empty">还没有核算版本。在板料用量表核对当前金额后，点「保存核算版本」。</p>
+        <t t-if="this.versions().length">
+            <t t-set="detail" t-value="this.detail()"/>
+            <div class="nd-history-head">
+                <div t-if="detail"><h3><t t-out="detail.snapshot.source"/> · <t t-out="detail.snapshot.design_name"/></h3><small>每台用量 · 宽 × 深 × 高 <t t-out="detail.snapshot.geometry.width"/> × <t t-out="detail.snapshot.geometry.depth"/> × <t t-out="detail.snapshot.geometry.height"/> mm</small></div>
+                <label>查看版本
+                    <select aria-label="查看核算版本" t-att-value="this.selected()" t-on-change="ev => this.select(ev.target.value)">
+                        <option t-foreach="this.versions()" t-as="v" t-key="v.id" t-att-value="v.id" t-att-selected="v.id === this.selected()"
+                                t-out="this.version(v.number)"/>
+                    </select>
+                </label>
+            </div>
+            <p t-if="!detail &amp;&amp; !this.error()" role="status">正在读取核算明细…</p>
+            <t t-if="detail">
+                <t t-set="s" t-value="detail.snapshot"/><t t-set="diff" t-value="detail.comparison"/>
+                <section class="nd-history-summary" aria-label="核算摘要" t-att-data-version-number="detail.number">
+                    <div><span>每台板料成本 <b t-if="s.trial" class="nd-history-trial" t-out="s.trial===s.rows.length?'测试价':'含测试价'"/></span>
+                        <strong data-version-total=""><t t-out="s.total.toFixed(2)"/> <small>元</small></strong></div>
+                    <div t-if="diff"><span>较 <t t-out="this.version(diff.number)"/></span>
+                        <strong data-version-delta=""><t t-out="this.signed(diff.delta,2)"/> <small>元</small></strong></div>
+                    <div><span>每台板料重量</span><strong><t t-out="s.weight.toFixed(3)"/> <small>kg</small></strong></div>
+                    <div><span>板件用量</span><strong><t t-out="s.rows.length"/> <small>种</small> <t t-out="s.pieces"/> <small>件</small></strong></div>
+                </section>
+                <section t-if="diff?.lines.length" class="nd-history-diff" aria-label="变动板件">
+                    <h4>变动板件 <small><t t-out="this.version(diff.number)"/> → <t t-out="this.version(detail.number)"/></small></h4>
+                    <div t-foreach="diff.lines" t-as="line" t-key="line.key" class="nd-history-change" t-att-data-change-key="line.key">
+                        <b t-out="line.name"/>
+                        <span t-if="!line.before">新增板件</span><span t-elif="!line.after">移除板件</span>
+                        <span t-elif="line.before.unit !== line.after.unit"><t t-out="this.unitPrice(line.before.unit)"/> → <t t-out="this.unitPrice(line.after.unit)"/> 元/kg</span>
+                        <span t-elif="line.before.weight !== line.after.weight"><t t-out="line.before.weight.toFixed(3)"/> → <t t-out="line.after.weight.toFixed(3)"/> kg</span>
+                        <span t-else="">板件明细更新</span>
+                        <strong><t t-out="this.signed(line.delta,3)"/> 元</strong>
+                    </div>
+                </section>
+                <div class="nd-history-table-wrap">
+                    <table aria-label="已保存的逐件板料明细">
+                        <thead><tr><th scope="col">板件</th><th scope="col">材质</th><th scope="col">板厚 <small>mm</small></th><th scope="col">件数</th>
+                            <th scope="col">单件展开 <small>m²</small></th><th scope="col">每台用量 <small>kg</small></th>
+                            <th scope="col">单价 <small>元/kg</small></th><th scope="col">板料成本 <small>元/台</small></th></tr></thead>
+                        <tbody>
+                            <tr t-foreach="s.rows" t-as="row" t-key="row.key" t-att-data-version-key="row.key"
+                                t-att-class="{'nd-history-changed':diff?.lines.some(line => line.key === row.key)}">
+                                <th scope="row"><t t-out="row.name"/> <small t-if="row.needs_review" class="nd-history-pending">待校核</small></th>
+                                <td t-out="row.material"/><td t-out="row.thickness % 1 ? row.thickness : row.thickness.toFixed(1)"/><td t-out="row.quantity"/>
+                                <td t-out="row.area.toFixed(6)"/><td t-out="row.weight.toFixed(3)"/>
+                                <td><t t-out="this.unitPrice(row.unit)"/><small t-if="s.trial &amp;&amp; s.trial !== s.rows.length &amp;&amp; row.basis==='trial'"> 测试价</small></td>
+                                <td t-out="row.amount.toFixed(3)"/>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="nd-history-notes"><span>展开面积含开孔 · 密度 <t t-out="s.density"/> g/cm³</span>
+                    <span>按原值计算金额及差额，明细到厘，整柜到分。</span></div>
+                <div class="nd-history-audit">由 <t t-out="detail.saved_by"/> 保存于 <t t-out="this.date(detail.saved_at)"/> · 设计编辑号 <t t-out="s.edit"/></div>
+            </t>
+        </t>
+    </Dialog>
+</t>
+</templates>
