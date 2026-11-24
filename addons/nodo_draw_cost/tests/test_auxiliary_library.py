@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, new_test_user, tagged
 
@@ -28,6 +30,7 @@ class TestAuxiliaryLibrary(TransactionCase):
 
     def test_exact_version_and_rules_are_available_to_engineering(self):
         self.assertEqual(self.rate.cad_model_status, 'unlinked')
+        self.assertEqual(self.rate.with_user(self.engineer).auxiliary_model_preview(), {'status': 'unlinked'})
         first, second = self.versions
         names = self.versions.with_user(self.admin).name_search('AUX-MOUNT')
         self.assertEqual(dict(names), {first.id: 'AUX-MOUNT · 安装固定件 · V01', second.id: 'AUX-MOUNT · 安装固定件 · V02'})
@@ -38,11 +41,19 @@ class TestAuxiliaryLibrary(TransactionCase):
         self.assertEqual(engineering.cad_model_label, 'AUX-MOUNT · 安装固定件 · V01')
         action = engineering.action_open_cad_model()
         self.assertEqual((action['tag'], action['params']['modelId']), ('nodo_draw.accessory_library', first.id))
+        preview = engineering.auxiliary_model_preview()
+        self.assertEqual((preview['status'], preview['model']['id']), ('no_mesh', first.id))
+        self.assertEqual(preview['model']['faces'], ['mount'])
+        with patch.object(type(first), '_preview_path', lambda model, kind: kind == 'mesh'):
+            preview = engineering.auxiliary_model_preview()
+            self.assertEqual(preview['status'], 'ready')
+            self.assertEqual(preview['model']['mesh'], f'/nodo/draw/accessory/{first.id}/mesh')
         self.assertEqual(self.rate.price_per_unit, 3.25)
 
         first.state = 'retired'
         self.assertEqual(engineering.cad_model_status, 'retired')
         self.assertEqual(self.rate.with_user(self.admin).cad_model_id.id, first.id)
+        self.assertEqual(engineering.auxiliary_model_preview(), {'status': 'retired'})
         with self.assertRaises(UserError):
             engineering.action_open_cad_model()
 
@@ -53,6 +64,8 @@ class TestAuxiliaryLibrary(TransactionCase):
         self.assertEqual(self.rate.cad_model_label, 'AUX-MOUNT · 安装固定件 · V01')
         with self.assertRaises(AccessError):
             self.rate.action_open_cad_model()
+        with self.assertRaises(AccessError):
+            self.rate.auxiliary_model_preview()
         with self.assertRaises(AccessError):
             self.rate.write({'cad_model_id': self.versions[1].id})
         with self.assertRaises(AccessError):

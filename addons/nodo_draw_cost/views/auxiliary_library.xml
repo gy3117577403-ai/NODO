@@ -5,6 +5,9 @@
         <field name="model">nodo.cost.auxiliary.price</field>
         <field name="inherit_id" ref="nodo_cost.auxiliary_library_list"/>
         <field name="arch" type="xml">
+            <list position="attributes">
+                <attribute name="js_class">nodo_auxiliary_library</attribute>
+            </list>
             <field name="scope" position="after">
                 <field name="cad_model_status" widget="badge" decoration-success="cad_model_status == 'available'"
                     decoration-warning="cad_model_status == 'pending'" decoration-muted="cad_model_status in ('unlinked', 'retired')"/>

@@ -1,6 +1,6 @@
 {
     'name': 'NODO 技术工作台成本核算',
-    'version': '20.0.5.0.0',
+    'version': '20.0.6.0.0',
     'author': 'NODO',
     'category': 'Hidden',
     'summary': '连接技术工作台、成本库现价和辅料模型版本',
@@ -18,6 +18,9 @@
         'nodo_draw_cost/static/src/auxiliary_cost.js',
         'nodo_draw_cost/static/src/auxiliary_cost.xml',
         'nodo_draw_cost/static/src/auxiliary_cost.scss',
+        'nodo_draw_cost/static/src/auxiliary_workspace.js',
+        'nodo_draw_cost/static/src/auxiliary_workspace.xml',
+        'nodo_draw_cost/static/src/auxiliary_workspace.scss',
     ]},
     'auto_install': True,
     'installable': True,

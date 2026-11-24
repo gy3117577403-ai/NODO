@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_draw_cost.AuxiliaryWorkspace">
+        <ListRenderer t-if="this.props.list.isGrouped" t-props="this.props"/>
+        <main t-else="" class="nd-aux-catalog" aria-label="辅料库">
+            <t t-set="record" t-value="this.record()"/>
+            <aside class="nd-al-index" aria-label="辅料目录">
+                <header class="nd-al-pane-head"><h2>辅料目录</h2></header>
+                <div class="nd-al-list">
+                    <button t-foreach="this.props.list.records" t-as="item" t-key="item.resId" type="button" class="nd-al-item"
+                        t-att-data-material-code="item.data.code"
+                        t-att-aria-pressed="item.resId===record?.resId?'true':'false'" t-on-click="() => this.selectedId.set(item.resId)">
+                        <b t-out="item.data.name"/>
+                        <small>
+                            <span t-out="item.data.code"/>
+                            <t t-if="item.data.variant!=='common'"> · <t t-out="this.label('variant',item.data.variant)"/></t>
+                        </small>
+                        <span t-att-class="'nd-al-item-indicator nd-al-'+item.data.cad_model_status"
+                            t-att-title="this.label('cad_model_status',item.data.cad_model_status)"
+                            t-att-aria-label="this.label('cad_model_status',item.data.cad_model_status)"/>
+                    </button>
+                </div>
+            </aside>
+            <t t-if="record">
+                <t t-set="item" t-value="record.data"/>
+                <t t-set="view" t-value="this.viewport(record)"/>
+                <section class="nd-al-preview" aria-label="三维预览">
+                    <header class="nd-al-pane-head">
+                        <div class="nd-al-preview-title">
+                            <h2>三维预览</h2>
+                            <span t-if="view.example?.model" class="nd-al-example-badge">示例模型</span>
+                            <span t-elif="item.cad_model_status==='pending'" class="nd-al-example-badge">待工程核对</span>
+                        </div>
+                        <button t-if="view.example?.model" type="button" class="nd-al-text-button" t-on-click="this.closeExample">退出示例</button>
+                        <small t-elif="view.model" class="nd-al-model-ref" t-out="this.version(view.model)"/>
+                    </header>
+                    <div class="nd-al-viewport">
+                        <AccessoryMesh t-if="view.model?.mesh" t-key="record.resId+':'+view.model.mesh"
+                            src="view.model.mesh" name="view.model.name"/>
+                        <div t-else="" class="nd-al-empty" t-att-role="view.state==='error'?'alert':'status'">
+                            <span class="nd-al-empty-icon" aria-hidden="true"><i class="oi" data-icon="deployed_code"/></span>
+                            <h3 t-out="view.message[0]"/>
+                            <p t-if="view.message[1]" t-out="view.message[1]"/>
+                            <button t-if="view.state==='unlinked' &amp;&amp; this.canPreview" type="button" class="nd-al-button"
+                                t-att-disabled="view.example?.loading" t-on-click="this.showExample">
+                                <t t-out="view.example?.loading?'正在读取示例…':'预览示例模型'"/>
+                            </button>
+                            <button t-elif="view.state==='error' || view.state==='no_mesh'" type="button" class="nd-al-button"
+                                t-on-click="this.readModel">重新读取</button>
+                            <small t-if="view.example?.error" class="nd-al-error" role="alert" t-out="view.example.error"/>
+                        </div>
+                    </div>
+                    <footer t-if="view.model?.mesh" class="nd-al-preview-foot">
+                        <span t-if="view.example?.model"><t t-out="view.model.name"/> · <t t-out="this.version(view.model)"/></span>
+                        <span>拖动旋转 · 滚轮缩放</span>
+                    </footer>
+                </section>
+                <aside class="nd-al-detail" aria-label="辅料档案摘要">
+                    <header class="nd-al-detail-head">
+                        <small t-out="item.code"/>
+                        <h1 t-out="item.name"/>
+                    </header>
+                    <section class="nd-al-price" aria-label="当前单价">
+                        <div class="nd-al-price-head">
+                            <small>当前单价</small>
+                            <span t-if="item.price_per_unit" t-att-class="'nd-al-price-basis nd-al-basis-'+item.basis"
+                                t-out="this.label('basis',item.basis)"/>
+                        </div>
+                        <div class="nd-al-price-value" t-if="item.price_per_unit">
+                            <strong t-out="this.unitPrice(item.price_per_unit)"/>
+                            <span>元 / <t t-out="this.label('unit',item.unit)"/></span>
+                        </div>
+                        <b t-else="" class="nd-al-error">待补价</b>
+                    </section>
+                    <div class="nd-al-detail-body">
+                        <section class="nd-al-detail-section">
+                            <h2>物料规格</h2>
+                            <dl class="nd-al-facts">
+                                <div><dt>配置规格</dt><dd t-out="this.label('variant',item.variant)"/></div>
+                                <div><dt>适用柜型</dt><dd t-out="this.label('scope',item.scope)"/></div>
+                                <div><dt>计价单位</dt><dd t-out="this.label('unit',item.unit)"/></div>
+                                <div><dt>允许自选</dt><dd t-out="item.selectable?'是':'否'"/></div>
+                                <div t-if="item.source_note"><dt>价格依据</dt><dd t-out="item.source_note"/></div>
+                            </dl>
+                        </section>
+                        <section class="nd-al-detail-section">
+                            <h2>模型与安装规则</h2>
+                            <p t-if="!item.cad_model_label" class="nd-al-muted">暂无关联型号</p>
+                            <p t-else="" class="nd-al-model-name" t-out="item.cad_model_label"/>
+                            <dl t-if="view.model &amp;&amp; !view.example?.model" class="nd-al-facts">
+                                <t t-set="selected" t-value="view.model"/>
+                                <div><dt>安装面</dt><dd t-out="this.faceNames(selected)"/></div>
+                                <t t-call="nodo_draw.AccessoryRules"/>
+                            </dl>
+                        </section>
+                    </div>
+                    <footer class="nd-al-detail-actions">
+                        <button type="button" class="nd-al-button" t-on-click="() => this.openRecord(record)"
+                            t-out="this.canEdit?'编辑档案':'查看档案'"/>
+                    </footer>
+                </aside>
+            </t>
+            <section t-else="" class="nd-al-blank" role="status">没有符合条件的辅料。</section>
+        </main>
+    </t>
+</templates>

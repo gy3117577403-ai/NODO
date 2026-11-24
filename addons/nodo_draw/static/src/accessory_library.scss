@@ -306,6 +306,8 @@
         color: var(--library-muted);
         text-align: center;
         pointer-events: none;
+
+        button { pointer-events: auto; }
     }
 
     .nd-library-reset,

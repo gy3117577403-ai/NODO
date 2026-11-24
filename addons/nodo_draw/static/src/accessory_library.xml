@@ -142,7 +142,10 @@
         <div class="nd-library-view" t-att-aria-label="this.props.name+' 三维模型'">
             <div class="nd-library-mesh" t-ref="this.host"/>
             <div t-if="this.loading()" class="nd-library-overlay" role="status">正在加载模型</div>
-            <div t-elif="this.error()" class="nd-library-overlay" role="alert" t-out="this.error()"/>
+            <div t-elif="this.error()" class="nd-library-overlay" role="alert">
+                <p t-out="this.error()"/>
+                <button type="button" class="btn btn-secondary btn-sm pointer-events-auto" t-on-click="this.load">重试加载</button>
+            </div>
             <button t-else="" type="button" class="nd-library-reset" t-on-click="this.resetView">复位视角</button>
         </div>
     </t>

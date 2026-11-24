@@ -31,24 +31,33 @@ export function accessoryRestriction(item, picker) {
     return blocked[accessoryStatus(item,picker)] || "";
 }
 
-class AccessoryMesh extends Component {
+export function accessoryFaceNames(item) {
+    return item.faces.map(face => faces[face]).filter(Boolean).join("、") || "待核对";
+}
+
+export class AccessoryMesh extends Component {
     static template = "nodo_draw.AccessoryMesh";
-    props = useProps({src:String, name:String});
+    props = useProps({src:t.string(), name:t.string()});
     host = signal.ref();
     loading = signal(true);
     error = signal("");
 
     setup() {
-        this.request = new AbortController();
         this.reset = 0;
         onMounted(() => this.load());
         onWillUnmount(() => {
-            this.request.abort();
+            this.request?.abort();
             this.view?.dispose();
         });
     }
 
     async load() {
+        this.request?.abort();
+        this.view?.dispose();
+        this.view = null;
+        this.request = new AbortController();
+        this.error.set("");
+        this.loading.set(true);
         const {signal} = this.request;
         try {
             await loadBundle("nodo_draw.assets_ae");
@@ -164,7 +173,7 @@ export class AccessoryCatalog extends Component {
 
     version(item) { return `V${String(item.version).padStart(2,"0")}`; }
     stateName(status) { return labels[status]; }
-    faceNames(item) { return item.faces.map(face=>faces[face]).filter(Boolean).join("、") || "待核对"; }
+    faceNames = accessoryFaceNames;
     cabinetKinds(item) {
         return item.state === "pending" ? "待核对" : item.kinds.map(kind=>kind==="double" ? "双开门" : "单开门").join("、");
     }

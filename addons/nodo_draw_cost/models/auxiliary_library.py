@@ -44,14 +44,30 @@ class AuxiliaryPrice(models.Model):
         if any(item.sudo().cad_model_id.state == 'retired' for item in self):
             raise ValidationError('请选择尚未停用的模型版本。')
 
-    def action_open_cad_model(self):
+    def _read_linked_cad_model(self):
         self.ensure_one()
         guard(self.env)
         self.check_access('read')
         model = self.sudo().cad_model_id.with_env(self.env)
+        if model:
+            model.check_access('read')
+        return model
+
+    def auxiliary_model_preview(self):
+        model = self._read_linked_cad_model()
+        if not model:
+            return {'status': 'unlinked'}
+        if model.state == 'retired':
+            return {'status': 'retired'}
+        if model.company_id != self.env.company:
+            return {'status': 'other_company'}
+        card = model._card()
+        return {'status': 'ready' if card['mesh'] else 'no_mesh', 'model': card}
+
+    def action_open_cad_model(self):
+        model = self._read_linked_cad_model()
         if not model or model.state == 'retired':
             raise UserError('当前辅料没有可查看的模型版本。')
-        model.check_access('read')
         if model.company_id != self.env.company:
             raise UserError('请切换到此辅料所属公司后查看模型。')
         action = self.env['ir.actions.actions']._for_xml_id('nodo_draw.action_accessory_library')
