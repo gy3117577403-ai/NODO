@@ -10,13 +10,14 @@ const designModel = "nodo.draw.design";
 const priceModel = "nodo.cost.auxiliary.price";
 const sampleCode = "AE-REF-EARTH-200";
 const lockEvidence = "本机规则复验，整组换配";
-const reviewMode = process.argv.includes("--review");
+const reviewDialogOnly = process.argv.includes("--review-dialog");
+const reviewMode = reviewDialogOnly || process.argv.includes("--review");
 const directory = path.resolve(__dirname, "../../docs/验收", reviewMode ? "辅材核对" : "报价工作区");
 const quoteOnly = reviewMode || process.argv.includes("--quote-workspace");
 const quoteUrl = origin + "/odoo/technical-workbench";
 const button = (page, name) => page.getByRole("button", {name, exact:true});
 const standard = page => page.getByRole("table", {name:"标配辅材"});
-const review = page => page.getByRole("complementary", {name:"辅材核对面板"});
+const review = page => page.getByRole("dialog").filter({has:page.locator(".nd-aux-review-dialog")});
 
 async function waitAmount(page, selector, amount) {
     await page.waitForFunction(([sel, value]) => document.querySelector(sel)?.textContent.trim() === value, [selector, amount]);
@@ -128,7 +129,7 @@ async function verifyPicker(page) {
         await drawer.getByText("待关联模型", {exact:true}).waitFor();
         assert.equal(await quantity.inputValue(), "2");
     }
-    await capture(page, "AE-202-选料抽屉.png");
+    if (!reviewDialogOnly) await capture(page, "AE-202-选料抽屉.png");
     await button(page, "加入清单").click();
     await drawer.waitFor({state:"hidden"});
 }
@@ -136,17 +137,30 @@ async function verifyPicker(page) {
 async function verifyReview(page) {
     await waitAmount(page, "[data-aux-standard-subtotal]", "24.20");
     await waitAmount(page, "[data-aux-optional-subtotal]", "5.00");
-    const side = review(page);
-    await button(page, "核对接地编织带 200 mm").click();
-    await side.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
-    await side.getByText("待关联模型", {exact:true}).waitFor();
-    assert.match(await side.locator(".nd-aux-review-calculation").innerText(), /2\.50 元\/件[\s\S]*5\.00 元/);
-    await button(side, "上一项").click();
-    await side.getByRole("heading", {name:"MS813 小方锁", exact:true}).waitFor();
-    await button(side, "预览示例模型").click();
-    const reset = button(side, "复位视角");
+    const dialog = review(page);
+    const opener = button(page, "核对接地编织带 200 mm");
+    const originalWidth = (await standard(page).boundingBox()).width;
+    await opener.locator(".nd-aux-model-mark").click();
+    await dialog.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
+    const panel = await dialog.locator(".nd-aux-review-dialog").boundingBox();
+    const viewport = page.viewportSize();
+    assert.equal(await dialog.locator(".nd-aux-review-layout").evaluate(node => getComputedStyle(node).display),
+        "grid", "核对弹窗样式应加载");
+    assert.ok(Math.abs(2 * panel.x + panel.width - viewport.width) < 12 &&
+        Math.abs(2 * panel.y + panel.height - viewport.height) < 12, "核对窗口应在视口居中");
+    assert.ok(panel.width >= 850 && (await dialog.locator(".nd-aux-model-stage").boundingBox()).height >= 360,
+        "桌面弹窗应留出足够的三维预览空间");
+    assert.equal((await standard(page).boundingBox()).width, originalWidth, "弹窗打开后清单宽度应保持");
+    await dialog.getByText("待关联模型", {exact:true}).waitFor();
+    assert.match(await dialog.locator(".nd-aux-review-calculation").innerText(), /2\.50 元\/件[\s\S]*5\.00 元/);
+    await button(dialog, "上一项").click();
+    await dialog.getByRole("heading", {name:"MS813 小方锁", exact:true}).waitFor();
+    assert.ok(await dialog.getByText("柜体高 ≤ 800 mm", {exact:true}).isVisible());
+    assert.match(await dialog.locator(".nd-aux-review-calculation").innerText(), /5\.20 元\/件[\s\S]*5\.20 元/);
+    await button(dialog, "预览示例模型").click();
+    const reset = button(dialog, "复位视角");
     await reset.waitFor();
-    const canvas = side.locator(".nd-library-mesh canvas");
+    const canvas = dialog.locator(".nd-library-mesh canvas");
     const pixels = async () => {
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         return canvas.screenshot({style:".nd-library-reset { visibility: hidden !important }", animations:"disabled"});
@@ -170,12 +184,16 @@ async function verifyReview(page) {
     }
     assert.ok(difference <= .0025, "核对面板模型复位差异 " + difference);
     await capture(page, "AE-202-清单与三维核对.png");
-    await button(side, "下一项").click();
-    await side.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
-    await side.getByText("待关联模型", {exact:true}).waitFor();
+    await button(dialog, "下一项").click();
+    await dialog.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
+    await dialog.getByText("待关联模型", {exact:true}).waitFor();
     assert.equal(await canvas.count(), 0, "切换物料后应清除上一项的示例模型");
-    await button(side, "关闭核对").click();
-    await side.waitFor({state:"hidden"});
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({state:"hidden"});
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "核对接地编织带 200 mm");
+    await opener.click();
+    await button(dialog, "关闭核对").click();
+    await dialog.waitFor({state:"hidden"});
 }
 
 async function checkReviewFilter(work) {
@@ -183,10 +201,18 @@ async function checkReviewFilter(work) {
     await waitAmount(work, "[data-aux-review-count]", "1");
     await waitAmount(work, "[data-aux-priced]", "24.20");
     await work.getByRole("button", {name:/^只看待核对/}).click();
-    await review(work).getByText("待补价", {exact:true}).waitFor();
-    assert.deepEqual(await work.locator(".nd-aux-table [data-aux-code]").evaluateAll(
-        rows => rows.map(row => row.dataset.auxCode)), [sampleCode]);
+    const row = work.locator(".nd-aux-table [data-aux-code]");
+    await row.getByText("待补价", {exact:true}).waitFor();
+    const dialog = review(work);
+    assert.equal(await dialog.count(), 0, "筛选时应先显示清单");
+    assert.deepEqual(await row.evaluateAll(rows => rows.map(item => item.dataset.auxCode)), [sampleCode]);
+    await button(work, "核对接地编织带 200 mm").click();
+    await dialog.getByText("待补价", {exact:true}).waitFor();
+    assert.ok(await button(dialog, "上一项").isDisabled());
+    assert.ok(await button(dialog, "下一项").isDisabled());
     await capture(work, "AE-202-只看待核对.png");
+    await button(dialog, "关闭核对").click();
+    await dialog.waitFor({state:"hidden"});
 }
 
 async function verify() {
@@ -234,39 +260,41 @@ async function verify() {
         await verifyPicker(work);
         const quantity = work.getByRole("spinbutton", {name:"接地编织带 200 mm每台用量"});
         await waitTotal(work, "29.20");
-        await button(work, "零件").click();
-        await button(work, "辅材").click();
-        assert.equal(await quantity.inputValue(), "2");
-        restoreSelection = true;
-        await saveChoices(work);
-        await openAuxiliary(work, url);
-        await waitTotal(work, "29.20");
-        assert.equal(await quantity.inputValue(), "2");
-        await waitAmount(work, "[data-quote-total]", "304.52");
-        if (reviewMode) await verifyReview(work);
-        else await capture(work, "AE-202-自选保存重开.png");
+        if (!reviewDialogOnly) {
+            await button(work, "零件").click();
+            await button(work, "辅材").click();
+            assert.equal(await quantity.inputValue(), "2");
+            restoreSelection = true;
+            await saveChoices(work);
+            await openAuxiliary(work, url);
+            await waitTotal(work, "29.20");
+            assert.equal(await quantity.inputValue(), "2");
+            await waitAmount(work, "[data-quote-total]", "304.52");
+            if (!reviewMode) await capture(work, "AE-202-自选保存重开.png");
 
-        await chooseHeight(work, 800);
-        await waitTotal(work, "29.20");
-        await work.locator(".nd-aux-basis").getByText(/柜体高 800 mm/).waitFor();
-        assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
-            rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30102000002"]);
-        if (!reviewMode) await capture(work, "AE-202-800mm.png");
-        await chooseHeight(work, 801);
-        await waitTotal(work, "44.60");
-        assert.equal(await work.locator("[data-aux-lock-difference]").textContent(), "+15.40 元/台");
-        assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
-            rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30104000002", "30199000155", "30199000156"]);
-        assert.deepEqual(await standard(work).locator(".nd-aux-quantity b").allTextContents(), ["6", "2", "1", "1", "1"]);
-        assert.equal(await quantity.inputValue(), "2");
-        assert.ok(await button(work, "保存辅材选配").isDisabled());
-        await work.getByText("待重算", {exact:true}).waitFor();
-        assert.equal(await work.locator("[data-quote-total]").count(), 0);
-        await waitAmount(work, "[data-aux-standard-subtotal]", "39.60");
-        await waitAmount(work, "[data-aux-optional-subtotal]", "5.00");
-        await capture(work, "AE-202-801mm.png");
-        await openAuxiliary(work, url);
-        await waitTotal(work, "29.20");
+            await chooseHeight(work, 800);
+            await waitTotal(work, "29.20");
+            await work.locator(".nd-aux-basis").getByText(/柜体高 800 mm/).waitFor();
+            assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
+                rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30102000002"]);
+            if (!reviewMode) await capture(work, "AE-202-800mm.png");
+            await chooseHeight(work, 801);
+            await waitTotal(work, "44.60");
+            assert.equal(await work.locator("[data-aux-lock-difference]").textContent(), "+15.40 元/台");
+            assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
+                rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30104000002", "30199000155", "30199000156"]);
+            assert.deepEqual(await standard(work).locator(".nd-aux-quantity b").allTextContents(), ["6", "2", "1", "1", "1"]);
+            assert.equal(await quantity.inputValue(), "2");
+            assert.ok(await button(work, "保存辅材选配").isDisabled());
+            await work.getByText("待重算", {exact:true}).waitFor();
+            assert.equal(await work.locator("[data-quote-total]").count(), 0);
+            await waitAmount(work, "[data-aux-standard-subtotal]", "39.60");
+            await waitAmount(work, "[data-aux-optional-subtotal]", "5.00");
+            await capture(work, "AE-202-801mm.png");
+            await openAuxiliary(work, url);
+            await waitTotal(work, "29.20");
+        }
+        if (reviewMode) await verifyReview(work);
 
         if (quoteOnly) {
             if (reviewMode) {
@@ -282,17 +310,21 @@ async function verify() {
                 restorePrice = false;
                 await button(work, "全部物料").click();
             }
-            await button(work, "移除接地编织带 200 mm").click();
+            if (reviewDialogOnly) await button(work, "恢复已保存选配").click();
+            else await button(work, "移除接地编织带 200 mm").click();
             await waitTotal(work, "24.20");
-            await saveChoices(work);
+            if (!reviewDialogOnly) await saveChoices(work);
             const restored = await preview();
             assert.deepEqual({edit:restored.spec_edit, height:restored.height, saved:restored.saved},
                 {edit:base.spec_edit, height:base.height, saved:base.saved});
             restoreSelection = false;
             assert.deepEqual(errors, []);
-            console.log(JSON.stringify({design:design.id, board:275.32, base700:24.2, withExtras700:29.2,
-                withExtras800:29.2, withExtras801:44.6, lockDifference:15.4, reopened:true, restored:true,
-                reviewPreview:reviewMode, missingPriceFilter:reviewMode, screenshots:reviewMode ? 4 : 5}));
+            const result = reviewDialogOnly ?
+                {design:design.id, reviewDialog:true, missingPriceFilter:true, restored:true, screenshots:2} :
+                {design:design.id, board:275.32, base700:24.2, withExtras700:29.2,
+                    withExtras800:29.2, withExtras801:44.6, lockDifference:15.4, reopened:true, restored:true,
+                    reviewPreview:reviewMode, missingPriceFilter:reviewMode, screenshots:reviewMode ? 4 : 5};
+            console.log(JSON.stringify(result));
             return;
         }
 

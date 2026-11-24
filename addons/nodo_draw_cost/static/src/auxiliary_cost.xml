@@ -75,11 +75,7 @@
         <section t-if="this.props.visible" class="nd-auxiliary" aria-label="辅材核算">
             <t t-set="data" t-value="this.rowsData()"/>
             <t t-set="ready" t-value="this.currentData()"/>
-            <t t-set="queue" t-value="data ? this.reviewQueue(data) : []"/>
-            <t t-set="position" t-value="this.reviewIndex(queue)"/>
-            <t t-set="focus" t-value="queue[position]"/>
-            <div class="nd-aux-content" t-att-class="{'nd-aux-with-review':!!focus}">
-            <div class="nd-aux-body" t-ref="this.ledger" t-att-aria-busy="!ready &amp;&amp; !this.readError()?'true':'false'">
+            <div class="nd-aux-body" t-att-aria-busy="!ready &amp;&amp; !this.readError()?'true':'false'">
                 <p t-if="this.readError()" class="nd-aux-issue" role="alert" t-out="this.readError()"/>
                 <p t-if="!data &amp;&amp; !this.readError()" class="nd-empty" role="status">正在核算辅材…</p>
                 <t t-if="data">
@@ -93,9 +89,9 @@
                     <div class="nd-aux-review-toolbar">
                         <div role="group" aria-label="辅材核对筛选">
                             <button type="button" t-att-aria-pressed="!this.onlyReview()?'true':'false'"
-                                t-on-click="() => this.setReviewFilter(false)">全部物料</button>
+                                t-on-click="() => this.onlyReview.set(false)">全部物料</button>
                             <button type="button" class="nd-aux-review-filter" t-att-aria-pressed="this.onlyReview()?'true':'false'"
-                                t-on-click="() => this.setReviewFilter(true)">
+                                t-on-click="() => this.onlyReview.set(true)">
                                 只看待核对 <b data-aux-review-count="" t-att-class="{'nd-aux-has-issues':data.missing+data.issues.length>0}"
                                     t-out="data.missing+data.issues.length"/>
                             </button>
@@ -106,7 +102,7 @@
                     </div>
                     <p t-foreach="data.issues" t-as="issue" t-key="issue" class="nd-aux-issue" t-out="issue"/>
                     <small t-if="data.rounding_difference">合计按原始精度汇总，与显示小计相差 <t t-out="data.rounding_difference.toFixed(2)"/> 元/台。</small>
-                    <p t-if="this.onlyReview() &amp;&amp; !queue.length" class="nd-aux-empty" role="status"
+                    <p t-if="this.onlyReview() &amp;&amp; !this.reviewQueue(data).length" class="nd-aux-empty" role="status"
                         t-out="data.issues.length?'物料行无待核对项，请处理上方提示。':'当前没有待核对项。'"/>
 
                     <section class="nd-aux-list" aria-labelledby="nd-aux-standard-title">
@@ -209,10 +205,6 @@
                     </section>
                 </t>
             </div>
-            <AuxiliaryReview t-if="focus" t-key="this.rowKey(focus)+':'+(focus.rate_id || 0)+':'+focus.model_status"
-                row="focus" position="position+1" count="queue.length" basis="this.rowBasis(focus)"
-                move="step => this.moveReview(step)" close="() => this.reviewKey.set(null)"/>
-            </div>
             <footer class="nd-aux-actions" t-if="data || this.draft()">
                 <div class="nd-aux-save-status" aria-live="polite">
                     <p t-if="this.saveError()" class="nd-aux-row-issue" role="alert" t-out="this.saveError()"/>
@@ -240,11 +232,11 @@
     </t>
 
     <t t-name="nodo_draw_cost.AuxiliaryLine">
-        <tr t-att-data-aux-code="row.code" t-att-data-aux-review="this.rowKey(row)"
+        <tr t-att-data-aux-code="row.code"
             t-att-class="{'nd-aux-row-active':this.reviewKey()===this.rowKey(row),'nd-aux-row-alert':!!row.issue}">
             <th scope="row">
                 <button type="button" class="nd-aux-inspect-button" t-att-aria-label="'核对'+row.name"
-                    t-att-aria-pressed="this.reviewKey()===this.rowKey(row)?'true':'false'" t-on-click="() => this.inspect(row)">
+                    aria-haspopup="dialog" t-on-click="() => this.inspect(row)">
                     <span><b t-out="row.name"/><small t-if="row.code" t-out="row.code"/></span>
                     <span class="nd-aux-model-mark" t-att-data-model="row.model_status"
                         t-att-title="this.modelStatusLabel(row.model_status)" aria-hidden="true">3D</span>

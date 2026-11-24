@@ -1,38 +1,46 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="nodo_draw_cost.AuxiliaryReview">
-        <aside class="nd-aux-review" aria-label="辅材核对面板">
-            <t t-set="row" t-value="this.props.row"/>
-            <header class="nd-aux-review-head">
+        <t t-set="selection" t-value="this.props.selection()"/>
+        <t t-set="row" t-value="selection?.row"/>
+        <Dialog title="row?.name || '辅材核对'" size="'md'" contentClass="'nd-aux-review-dialog'"
+            bodyClass="'nd-aux-review-body'" withBodyPadding="false">
+            <t t-set-slot="header">
                 <div>
-                    <h3 t-out="row.name"/>
-                    <small><t t-out="row.code"/><t t-if="row.variant_label"> · <t t-out="row.variant_label"/></t></small>
+                    <h2 aria-live="polite" t-out="row?.name || '辅材核对'"/>
+                    <small t-if="row"><t t-out="row.code"/><t t-if="row.variant_label"> · <t t-out="row.variant_label"/></t></small>
                 </div>
-                <button type="button" class="nd-aux-quiet" t-on-click="this.props.close">关闭核对</button>
-            </header>
-            <div class="nd-aux-review-body">
-                <div class="nd-aux-review-calculation">
-                    <div><small>每台用量</small><b><t t-out="row.quantity"/> <t t-out="row.unit_label"/></b></div>
-                    <div><small>单价</small><b t-if="row.price!==null"><t t-out="this.unitPrice(row.price)"/> 元/<t t-out="row.unit_label"/></b>
-                        <b t-else="">—</b></div>
-                    <div><small>每台金额</small><b t-out="row.amount===null?'待核对':row.amount.toFixed(2)+' 元'"/></div>
-                </div>
-                <p t-if="row.issue" class="nd-aux-review-warning" role="status" t-out="row.issue"/>
-                <AuxiliaryModelPreview rateId="row.rate_id || 0"/>
-                <dl class="nd-aux-review-facts">
-                    <div><dt>选用依据</dt><dd t-out="this.props.basis"/></div>
-                    <div t-if="row.price!==null"><dt>价格性质</dt><dd t-out="row.basis==='reference'?'参考价':'业务价'"/></div>
-                    <div t-if="row.price_source"><dt>价格依据</dt><dd t-out="row.price_source"/></div>
-                </dl>
+                <button type="button" class="btn-close" aria-label="关闭核对" title="关闭核对" t-on-click="this.props.close"/>
+            </t>
+            <div t-if="row" class="nd-aux-review-layout">
+                <AuxiliaryModelPreview t-key="selection.key+':'+(row.rate_id || 0)+':'+row.model_status" rateId="row.rate_id || 0"/>
+                <section class="nd-aux-review-details" aria-label="计价明细">
+                    <h3>计价明细</h3>
+                    <p t-if="row.issue" class="nd-aux-review-warning" role="status" t-out="row.issue"/>
+                    <div class="nd-aux-review-calculation">
+                        <div><small>每台用量</small><b><t t-out="row.quantity"/> <t t-out="row.unit_label"/></b></div>
+                        <div><small>单价</small><b t-if="row.price!==null"><t t-out="this.unitPrice(row.price)"/> 元/<t t-out="row.unit_label"/></b>
+                            <b t-else="">—</b></div>
+                        <div><small>每台金额</small><b t-out="row.amount===null?'待核对':row.amount.toFixed(2)+' 元'"/></div>
+                    </div>
+                    <dl class="nd-aux-review-facts">
+                        <div><dt>选用依据</dt><dd t-out="selection.basis"/></div>
+                        <div t-if="row.price!==null"><dt>价格性质</dt><dd t-out="row.basis==='reference'?'参考价':'业务价'"/></div>
+                        <div t-if="row.price_source"><dt>价格依据</dt><dd t-out="row.price_source"/></div>
+                    </dl>
+                </section>
             </div>
-            <footer class="nd-aux-review-nav">
-                <button type="button" class="nd-aux-quiet" t-att-disabled="this.props.position&lt;=1"
-                    t-on-click="() => this.props.move(-1)">上一项</button>
-                <span aria-label="当前核对位置"><t t-out="this.props.position"/> / <t t-out="this.props.count"/></span>
-                <button type="button" class="nd-aux-quiet" t-att-disabled="this.props.position>=this.props.count"
-                    t-on-click="() => this.props.move(1)">下一项</button>
-            </footer>
-        </aside>
+            <p t-else="" class="p-3 my-0" role="status">当前物料暂不可核对，请关闭后重新选择。</p>
+            <t t-set-slot="footer">
+                <div t-if="selection" class="nd-aux-review-nav">
+                    <button type="button" class="nd-aux-preview-button" t-att-disabled="selection.position&lt;=1"
+                        t-on-click="() => this.props.move(-1)">上一项</button>
+                    <span aria-label="当前核对位置"><t t-out="selection.position"/> / <t t-out="selection.count"/></span>
+                    <button type="button" class="nd-aux-preview-button" t-att-disabled="selection.position>=selection.count"
+                        t-on-click="() => this.props.move(1)">下一项</button>
+                </div>
+            </t>
+        </Dialog>
     </t>
 
     <t t-name="nodo_draw_cost.AuxiliaryModelPreview">

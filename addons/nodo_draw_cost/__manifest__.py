@@ -1,6 +1,6 @@
 {
     'name': 'NODO 技术工作台成本核算',
-    'version': '20.0.7.0.0',
+    'version': '20.0.8.0.0',
     'author': 'NODO',
     'category': 'Hidden',
     'summary': '连接技术工作台、成本库现价和辅料模型版本',

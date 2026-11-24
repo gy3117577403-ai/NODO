@@ -10,7 +10,6 @@ const MODEL = "nodo.draw.design";
 
 class AuxiliaryCost extends Component {
     static template = "nodo_draw_cost.AuxiliaryCost";
-    static components = {AuxiliaryReview};
     props = useProps({designId: t.number(), spec: t.string(), edit: t.number(), dirty: t.boolean(),
         active: t.boolean(), visible: t.boolean(), onCosts: t.function()});
     draft = signal(null);
@@ -18,7 +17,6 @@ class AuxiliaryCost extends Component {
     lockExpanded = signal(true);
     onlyReview = signal(false);
     reviewKey = signal(null);
-    ledger = signal.ref();
     saving = signal(false);
     refresh = signal(0);
     message = signal("");
@@ -81,7 +79,8 @@ class AuxiliaryCost extends Component {
 
     lockOpen() { return this.lockExpanded() || this.onlyReview(); }
 
-    reviewQueue(data) {
+    reviewQueue(data = this.rowsData()) {
+        if (!data) return [];
         const standard = this.visibleRows(data.standard);
         const ordinary = standard.filter(row => !row.lock_item);
         const locks = this.lockOpen() ? standard.filter(row => row.lock_item) : [];
@@ -92,26 +91,26 @@ class AuxiliaryCost extends Component {
         return rows.findIndex(row => this.rowKey(row) === this.reviewKey());
     }
 
+    reviewSelection() {
+        const rows = this.reviewQueue();
+        const index = this.reviewIndex(rows);
+        const row = rows[index];
+        return row ? {
+            row, position: index + 1, count: rows.length, basis: this.rowBasis(row), key: this.rowKey(row),
+        } : null;
+    }
+
     inspect(row) {
+        if (this.reviewKey()) return;
         this.reviewKey.set(this.rowKey(row));
-    }
-
-    moveReview(step) {
-        const rows = this.reviewQueue(this.rowsData());
-        const row = rows[this.reviewIndex(rows) + step];
-        if (!row) return;
-        this.inspect(row);
-        const target = Array.from(this.ledger()?.querySelectorAll("[data-aux-review]") || [])
-            .find(item => item.dataset.auxReview === this.reviewKey());
-        target?.scrollIntoView({block:"nearest"});
-    }
-
-    setReviewFilter(enabled) {
-        this.onlyReview.set(enabled);
-        if (!enabled) return;
-        const rows = this.reviewQueue(this.rowsData());
-        const first = rows[this.reviewIndex(rows)] || rows[0];
-        this.reviewKey.set(first ? this.rowKey(first) : null);
+        this.addDialog(AuxiliaryReview, {
+            selection: () => this.reviewSelection(),
+            move: step => {
+                const rows = this.reviewQueue();
+                const next = rows[this.reviewIndex(rows) + step];
+                if (next) this.reviewKey.set(this.rowKey(next));
+            },
+        }, {onClose: () => this.reviewKey.set(null)});
     }
 
     rowBasis(row) {

@@ -1,4 +1,5 @@
 import {Component, onMounted, onWillUnmount, signal, t, useProps} from "@odoo/owl";
+import {Dialog} from "@web/core/dialog/dialog";
 import {useService} from "@web/core/utils/hooks";
 import {AccessoryMesh, accessoryFaceNames, accessoryPreviewExample} from "@nodo_draw/accessory_library";
 import {unitPrice} from "./live_sheet_prices";
@@ -67,8 +68,7 @@ export class AuxiliaryModelPreview extends Component {
 
 export class AuxiliaryReview extends Component {
     static template = "nodo_draw_cost.AuxiliaryReview";
-    static components = {AuxiliaryModelPreview};
-    props = useProps({row:t.object(), position:t.number(), count:t.number(), move:t.function(), close:t.function(),
-        basis:t.string()});
+    static components = {AuxiliaryModelPreview, Dialog};
+    props = useProps({selection:t.function(), move:t.function(), close:t.function()});
     unitPrice = unitPrice;
 }
