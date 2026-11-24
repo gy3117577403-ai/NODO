@@ -3,17 +3,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
 const {call, signInRole} = require("./verify_sheet_costs.cjs");
+const {imageDifference, modelBounds} = require("./verify_accessory_library.cjs");
 
 const origin = "http://127.0.0.1:8079";
 const designModel = "nodo.draw.design";
 const priceModel = "nodo.cost.auxiliary.price";
 const sampleCode = "AE-REF-EARTH-200";
 const lockEvidence = "本机规则复验，整组换配";
-const directory = path.resolve(__dirname, "../../docs/验收/报价工作区");
-const quoteOnly = process.argv.includes("--quote-workspace");
+const reviewMode = process.argv.includes("--review");
+const directory = path.resolve(__dirname, "../../docs/验收", reviewMode ? "辅材核对" : "报价工作区");
+const quoteOnly = reviewMode || process.argv.includes("--quote-workspace");
 const quoteUrl = origin + "/odoo/technical-workbench";
 const button = (page, name) => page.getByRole("button", {name, exact:true});
 const standard = page => page.getByRole("table", {name:"标配辅材"});
+const review = page => page.getByRole("complementary", {name:"辅材核对面板"});
 
 async function waitAmount(page, selector, amount) {
     await page.waitForFunction(([sel, value]) => document.querySelector(sel)?.textContent.trim() === value, [selector, amount]);
@@ -119,9 +122,71 @@ async function verifyPicker(page) {
     assert.ok(await button(page, "加入清单").isDisabled());
     await quantity.fill("2");
     await waitAmount(page, "[data-picker-amount]", "5.00 元/台");
+    await waitAmount(page, "[data-picker-after]", "29.20 元/台");
+    if (reviewMode) {
+        await button(drawer, "查看三维").click();
+        await drawer.getByText("待关联模型", {exact:true}).waitFor();
+        assert.equal(await quantity.inputValue(), "2");
+    }
     await capture(page, "AE-202-选料抽屉.png");
     await button(page, "加入清单").click();
     await drawer.waitFor({state:"hidden"});
+}
+
+async function verifyReview(page) {
+    await waitAmount(page, "[data-aux-standard-subtotal]", "24.20");
+    await waitAmount(page, "[data-aux-optional-subtotal]", "5.00");
+    const side = review(page);
+    await button(page, "核对接地编织带 200 mm").click();
+    await side.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
+    await side.getByText("待关联模型", {exact:true}).waitFor();
+    assert.match(await side.locator(".nd-aux-review-calculation").innerText(), /2\.50 元\/件[\s\S]*5\.00 元/);
+    await button(side, "上一项").click();
+    await side.getByRole("heading", {name:"MS813 小方锁", exact:true}).waitFor();
+    await button(side, "预览示例模型").click();
+    const reset = button(side, "复位视角");
+    await reset.waitFor();
+    const canvas = side.locator(".nd-library-mesh canvas");
+    const pixels = async () => {
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        return canvas.screenshot({style:".nd-library-reset { visibility: hidden !important }", animations:"disabled"});
+    };
+    const initial = await pixels();
+    const bounds = await modelBounds(page, initial);
+    const box = await canvas.boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.wheel(0, -150);
+    const closer = await pixels();
+    assert.ok((await modelBounds(page, closer)).height > bounds.height + 5, "核对面板应缩放实际模型");
+    await page.mouse.down();
+    await page.mouse.move(x + 58, y + 24, {steps:8});
+    await page.mouse.up();
+    assert.ok(await imageDifference(page, closer, await pixels()) > .005, "核对面板应旋转实际模型");
+    await reset.click();
+    let difference = 1;
+    for (let frame = 0; frame < 4 && difference > .0025; frame++) {
+        difference = await imageDifference(page, initial, await pixels());
+    }
+    assert.ok(difference <= .0025, "核对面板模型复位差异 " + difference);
+    await capture(page, "AE-202-清单与三维核对.png");
+    await button(side, "下一项").click();
+    await side.getByRole("heading", {name:"接地编织带 200 mm", exact:true}).waitFor();
+    await side.getByText("待关联模型", {exact:true}).waitFor();
+    assert.equal(await canvas.count(), 0, "切换物料后应清除上一项的示例模型");
+    await button(side, "关闭核对").click();
+    await side.waitFor({state:"hidden"});
+}
+
+async function checkReviewFilter(work) {
+    await waitTotal(work, "");
+    await waitAmount(work, "[data-aux-review-count]", "1");
+    await waitAmount(work, "[data-aux-priced]", "24.20");
+    await work.getByRole("button", {name:/^只看待核对/}).click();
+    await review(work).getByText("待补价", {exact:true}).waitFor();
+    assert.deepEqual(await work.locator(".nd-aux-table [data-aux-code]").evaluateAll(
+        rows => rows.map(row => row.dataset.auxCode)), [sampleCode]);
+    await capture(work, "AE-202-只看待核对.png");
 }
 
 async function verify() {
@@ -135,7 +200,7 @@ async function verify() {
     let restoreLock = false;
     try {
         engineer = await signInRole(browser, "engineering");
-        if (!quoteOnly) costing = await signInRole(browser, "costing");
+        if (!quoteOnly || reviewMode) costing = await signInRole(browser, "costing");
         design = (await call(engineer, designModel, "list_designs", [])).find(item => item.source === "AE-202");
         assert.ok(design);
         const base = await preview();
@@ -145,7 +210,11 @@ async function verify() {
         rate = base.catalog.find(item => item.code === sampleCode);
         assert.ok(rate);
         assert.equal(rate.price, 2.5);
-        if (!quoteOnly) assert.equal((await currentRate()).price_per_unit, 2.5);
+        if (costing) {
+            const price = await currentRate();
+            assert.equal(price.price_per_unit, 2.5);
+            assert.equal(price.source_note, "自选流程参考值", "只在验收样料上模拟缺价");
+        }
 
         const work = await engineer.newPage();
         const errors = [];
@@ -155,7 +224,7 @@ async function verify() {
         });
         const url = `${quoteUrl}?design=${design.id}`;
         await openQuote(work, url);
-        await verifyParts(work);
+        if (!reviewMode) await verifyParts(work);
         await button(work, "辅材").click();
         await waitTotal(work, "24.20");
         assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
@@ -174,14 +243,15 @@ async function verify() {
         await waitTotal(work, "29.20");
         assert.equal(await quantity.inputValue(), "2");
         await waitAmount(work, "[data-quote-total]", "304.52");
-        await capture(work, "AE-202-自选保存重开.png");
+        if (reviewMode) await verifyReview(work);
+        else await capture(work, "AE-202-自选保存重开.png");
 
         await chooseHeight(work, 800);
         await waitTotal(work, "29.20");
         await work.locator(".nd-aux-basis").getByText(/柜体高 800 mm/).waitFor();
         assert.deepEqual(await standard(work).locator("[data-aux-code]").evaluateAll(
             rows => rows.map(row => row.dataset.auxCode)), ["30209000001", "30215000004", "30102000002"]);
-        await capture(work, "AE-202-800mm.png");
+        if (!reviewMode) await capture(work, "AE-202-800mm.png");
         await chooseHeight(work, 801);
         await waitTotal(work, "44.60");
         assert.equal(await work.locator("[data-aux-lock-difference]").textContent(), "+15.40 元/台");
@@ -192,11 +262,26 @@ async function verify() {
         assert.ok(await button(work, "保存辅材选配").isDisabled());
         await work.getByText("待重算", {exact:true}).waitFor();
         assert.equal(await work.locator("[data-quote-total]").count(), 0);
+        await waitAmount(work, "[data-aux-standard-subtotal]", "39.60");
+        await waitAmount(work, "[data-aux-optional-subtotal]", "5.00");
         await capture(work, "AE-202-801mm.png");
         await openAuxiliary(work, url);
         await waitTotal(work, "29.20");
 
         if (quoteOnly) {
+            if (reviewMode) {
+                const book = await costing.newPage();
+                await book.goto(origin + "/odoo/auxiliary-prices");
+                await book.locator(".o_list_view .o_data_row").filter({hasText:sampleCode}).first().click();
+                restorePrice = true;
+                await changeRate(book, "0");
+                await checkReviewFilter(work);
+                await changeRate(book, "2.5");
+                await waitTotal(work, "29.20");
+                await waitAmount(work, "[data-aux-review-count]", "0");
+                restorePrice = false;
+                await button(work, "全部物料").click();
+            }
             await button(work, "移除接地编织带 200 mm").click();
             await waitTotal(work, "24.20");
             await saveChoices(work);
@@ -206,7 +291,8 @@ async function verify() {
             restoreSelection = false;
             assert.deepEqual(errors, []);
             console.log(JSON.stringify({design:design.id, board:275.32, base700:24.2, withExtras700:29.2,
-                withExtras800:29.2, withExtras801:44.6, lockDifference:15.4, reopened:true, restored:true, screenshots:5}));
+                withExtras800:29.2, withExtras801:44.6, lockDifference:15.4, reopened:true, restored:true,
+                reviewPreview:reviewMode, missingPriceFilter:reviewMode, screenshots:reviewMode ? 4 : 5}));
             return;
         }
 

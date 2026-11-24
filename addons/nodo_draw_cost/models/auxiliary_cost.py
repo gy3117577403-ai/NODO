@@ -9,8 +9,12 @@ from odoo.addons.nodo_draw.models import sheet_settings, specification, standard
 from .. import auxiliary_rules as rules
 
 
+def rounded_money(amount):
+    return amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+
+
 def money(amount):
-    return float(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+    return float(rounded_money(amount))
 
 
 def parse_draft(draft):
@@ -130,7 +134,9 @@ class DrawAuxiliaryCost(models.Model):
             return dict(row, unit_label=unit_labels.get(row['unit'], ''),
                         variant_label=variant_labels.get(row['variant'], ''),
                         issue=issue, price=price, amount=money(amount) if amount is not None else None,
-                        basis=rate.basis if amount is not None else '', rate_id=rate.id if rate else None)
+                        basis=rate.basis if amount is not None else '', rate_id=rate.id if rate else None,
+                        price_source=(rate.source_note or '') if rate else '',
+                        model_status=rate.cad_model_status if rate else '')
 
         def availability(rate, adding=False):
             if not rate or not rate.active:
@@ -153,6 +159,7 @@ class DrawAuxiliaryCost(models.Model):
             if rate and rate.scope not in ('any', kind):
                 issue = '单价档案的适用柜型不符'
             standard_rows.append(priced(dict(row, lock_item=row['code'] in lock_codes), rate, issue))
+        standard_amount, standard_missing = subtotal, missing
 
         prior_lock = rules.default_lock(self.settings['height'])
         lock_change = None
@@ -199,13 +206,21 @@ class DrawAuxiliaryCost(models.Model):
         catalog = [dict(id=rate.id, code=rate.code, name=rate.name, unit=unit_labels[rate.unit],
                         measure=rate.unit, variant=variant_labels[rate.variant],
                         price=rate.price_per_unit or None, basis=rate.basis if rate.price_per_unit else '',
+                        model_status=rate.cad_model_status,
                         standard_quantity=expected.get(rate.code, {}).get('quantity', 0))
                    for rate in rates if not availability(rate, adding=True)]
+        standard_display = rounded_money(standard_amount)
+        optional_display = rounded_money(subtotal - standard_amount)
+        displayed_subtotal = rounded_money(subtotal)
+        groups = dict(standard=dict(amount=float(standard_display), missing=standard_missing),
+                      optional=dict(amount=float(optional_display), missing=missing - standard_missing))
         return dict(rule=rules.RULE_VERSION, rule_source=rules.RULE_SOURCE, height=height, kind=kind,
                     variant=variant_labels.get(variant, ''), revision=self.auxiliary_revision,
                     spec_edit=self.edit_number, standard=standard_rows, optional=optional_rows,
                     catalog=catalog, issues=issues, missing=missing, reference_count=reference_count,
-                    known_subtotal=money(subtotal), total=None if issues or missing else money(subtotal),
+                    groups=groups, known_subtotal=float(displayed_subtotal), exact_subtotal=format(subtotal, 'f'),
+                    rounding_difference=float(displayed_subtotal - standard_display - optional_display),
+                    total=None if issues or missing else float(displayed_subtotal),
                     saved=dict(items=saved['items'], lock=dict(scheme=saved['lock']['scheme'], reason=saved['lock']['reason'],
                                                                confirm=False) if saved['lock'] else None),
                     auto_lock=auto_lock, selected_lock=selected_lock, lock_pending=lock_pending, lock_change=lock_change,

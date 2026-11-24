@@ -1,18 +1,32 @@
 import {Component, onMounted, signal, t, useProps} from "@odoo/owl";
 import {Dialog} from "@web/core/dialog/dialog";
 import {unitPrice} from "./live_sheet_prices";
+import {AuxiliaryModelPreview, modelStatusLabel} from "./auxiliary_review";
+
+// Four price decimals and three quantity decimals produce amounts in 10^-7 yuan.
+function scaledInteger(value, decimalPlaces) {
+    const [whole, fraction = ""] = value.split(".");
+    return BigInt(whole + fraction.padEnd(decimalPlaces, "0").slice(0, decimalPlaces));
+}
+
+function moneyText(raw) {
+    const cents = (raw + 50000n) / 100000n;
+    return (cents / 100n).toString() + "." + (cents % 100n).toString().padStart(2, "0");
+}
 
 export class AuxiliaryPicker extends Component {
     static template = "nodo_draw_cost.AuxiliaryPicker";
-    static components = {Dialog};
-    props = useProps({catalog: t.function(), add: t.function(), close: t.function()});
+    static components = {Dialog, AuxiliaryModelPreview};
+    props = useProps({catalog: t.function(), pricing:t.function(), add: t.function(), close: t.function()});
     query = signal("");
     selectedId = signal(null);
     quantity = signal(1);
+    modelOpen = signal(false);
     validQuantity = signal(true);
     issue = signal("");
     search = signal.ref();
     unitPrice = unitPrice;
+    modelStatusLabel = modelStatusLabel;
 
     setup() {
         onMounted(() => this.search()?.focus());
@@ -35,6 +49,7 @@ export class AuxiliaryPicker extends Component {
         this.selectedId.set(id);
         this.quantity.set(1);
         this.validQuantity.set(true);
+        this.modelOpen.set(false);
         this.issue.set("");
     }
 
@@ -43,9 +58,18 @@ export class AuxiliaryPicker extends Component {
         this.validQuantity.set(input.checkValidity());
     }
 
-    amount(item) {
-        const value = item.price * Number(this.quantity());
-        return (Math.round((value + Number.EPSILON * value) * 100) / 100).toFixed(2);
+    addition(item) {
+        const pricing = this.props.pricing();
+        if (!pricing || !this.validQuantity()) return null;
+        const quantity = scaledInteger(Number(this.quantity()).toFixed(3), 3);
+        const price = item.price === null ? 0n : scaledInteger(item.price.toFixed(4), 4);
+        const amount = price * quantity;
+        const subtotal = scaledInteger(pricing.exact_subtotal, 7);
+        return {
+            amount:item.price === null ? null : moneyText(amount),
+            after:moneyText(subtotal + amount),
+            incomplete:pricing.total === null || item.price === null,
+        };
     }
 
     add() {

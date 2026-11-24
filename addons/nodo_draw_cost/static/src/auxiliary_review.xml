@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="nodo_draw_cost.AuxiliaryReview">
+        <aside class="nd-aux-review" aria-label="辅材核对面板">
+            <t t-set="row" t-value="this.props.row"/>
+            <header class="nd-aux-review-head">
+                <div>
+                    <h3 t-out="row.name"/>
+                    <small><t t-out="row.code"/><t t-if="row.variant_label"> · <t t-out="row.variant_label"/></t></small>
+                </div>
+                <button type="button" class="nd-aux-quiet" t-on-click="this.props.close">关闭核对</button>
+            </header>
+            <div class="nd-aux-review-body">
+                <div class="nd-aux-review-calculation">
+                    <div><small>每台用量</small><b><t t-out="row.quantity"/> <t t-out="row.unit_label"/></b></div>
+                    <div><small>单价</small><b t-if="row.price!==null"><t t-out="this.unitPrice(row.price)"/> 元/<t t-out="row.unit_label"/></b>
+                        <b t-else="">—</b></div>
+                    <div><small>每台金额</small><b t-out="row.amount===null?'待核对':row.amount.toFixed(2)+' 元'"/></div>
+                </div>
+                <p t-if="row.issue" class="nd-aux-review-warning" role="status" t-out="row.issue"/>
+                <AuxiliaryModelPreview rateId="row.rate_id || 0"/>
+                <dl class="nd-aux-review-facts">
+                    <div><dt>选用依据</dt><dd t-out="this.props.basis"/></div>
+                    <div t-if="row.price!==null"><dt>价格性质</dt><dd t-out="row.basis==='reference'?'参考价':'业务价'"/></div>
+                    <div t-if="row.price_source"><dt>价格依据</dt><dd t-out="row.price_source"/></div>
+                </dl>
+            </div>
+            <footer class="nd-aux-review-nav">
+                <button type="button" class="nd-aux-quiet" t-att-disabled="this.props.position&lt;=1"
+                    t-on-click="() => this.props.move(-1)">上一项</button>
+                <span aria-label="当前核对位置"><t t-out="this.props.position"/> / <t t-out="this.props.count"/></span>
+                <button type="button" class="nd-aux-quiet" t-att-disabled="this.props.position>=this.props.count"
+                    t-on-click="() => this.props.move(1)">下一项</button>
+            </footer>
+        </aside>
+    </t>
+
+    <t t-name="nodo_draw_cost.AuxiliaryModelPreview">
+        <section class="nd-aux-model-preview" aria-label="辅材三维预览">
+            <t t-set="example" t-value="this.example()"/>
+            <t t-set="linked" t-value="this.result().model"/>
+            <t t-set="model" t-value="example?.model || linked"/>
+            <header>
+                <b>三维预览</b>
+                <span t-if="example?.model" class="nd-aux-model-tag">示例模型</span>
+                <span t-elif="linked?.state==='pending'" class="nd-aux-model-tag">待工程核对</span>
+                <button t-if="example?.model" type="button" class="nd-aux-preview-button"
+                    t-on-click="() => this.example.set(null)">退出示例</button>
+            </header>
+            <div class="nd-library nd-aux-model-stage">
+                <AccessoryMesh t-if="model?.mesh" t-key="model.mesh" src="model.mesh" name="model.name"/>
+                <div t-else="" class="nd-aux-model-empty">
+                    <i class="oi" data-icon="deployed_code" aria-hidden="true"/>
+                    <b role="status" t-out="this.status()"/>
+                    <button t-if="this.result().status==='unlinked'" type="button" class="nd-aux-preview-button"
+                        t-att-disabled="example?.loading" t-on-click="this.showExample"
+                        t-out="example?.loading?'正在读取示例…':'预览示例模型'"/>
+                    <button t-elif="this.result().status==='error' || this.result().status==='no_mesh'" type="button"
+                        class="nd-aux-preview-button" t-on-click="this.readModel">重新读取</button>
+                    <small t-if="example?.error" role="alert" t-out="example.error"/>
+                </div>
+            </div>
+            <div t-if="model" class="nd-aux-model-meta">
+                <small><t t-if="example?.model"><t t-out="model.name"/> · </t><t t-out="this.version(model)"/></small>
+                <small t-if="model.mesh">拖动旋转 · 滚轮缩放</small>
+                <small t-if="linked &amp;&amp; !example?.model">安装面 · <t t-out="this.faceNames(linked)"/></small>
+            </div>
+        </section>
+    </t>
+</templates>

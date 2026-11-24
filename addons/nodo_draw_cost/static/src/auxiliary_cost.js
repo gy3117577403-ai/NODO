@@ -4,21 +4,27 @@ import {patch} from "@web/core/utils/patch";
 import {Workbench} from "@nodo_draw/workbench";
 import {unitPrice, useLiveSheetPrices} from "./live_sheet_prices";
 import {AuxiliaryPicker} from "./auxiliary_picker";
+import {AuxiliaryReview, modelStatusLabel} from "./auxiliary_review";
 
 const MODEL = "nodo.draw.design";
 
 class AuxiliaryCost extends Component {
     static template = "nodo_draw_cost.AuxiliaryCost";
+    static components = {AuxiliaryReview};
     props = useProps({designId: t.number(), spec: t.string(), edit: t.number(), dirty: t.boolean(),
         active: t.boolean(), visible: t.boolean(), onCosts: t.function()});
     draft = signal(null);
     lockEditor = signal(false);
     lockExpanded = signal(true);
+    onlyReview = signal(false);
+    reviewKey = signal(null);
+    ledger = signal.ref();
     saving = signal(false);
     refresh = signal(0);
     message = signal("");
     saveError = signal("");
     unitPrice = unitPrice;
+    modelStatusLabel = modelStatusLabel;
 
     setup() {
         this.orm = useService("orm");
@@ -67,6 +73,56 @@ class AuxiliaryCost extends Component {
         return (this.rowsData()?.catalog ?? []).filter(row => !selected.has(row.id));
     }
 
+    rowKey(row) { return row.source + ":" + (row.id || row.code); }
+
+    visibleRows(rows) {
+        return this.onlyReview() ? rows.filter(row => row.issue) : rows;
+    }
+
+    lockOpen() { return this.lockExpanded() || this.onlyReview(); }
+
+    reviewQueue(data) {
+        const standard = this.visibleRows(data.standard);
+        const ordinary = standard.filter(row => !row.lock_item);
+        const locks = this.lockOpen() ? standard.filter(row => row.lock_item) : [];
+        return [...ordinary, ...locks, ...this.visibleRows(data.optional)];
+    }
+
+    reviewIndex(rows) {
+        return rows.findIndex(row => this.rowKey(row) === this.reviewKey());
+    }
+
+    inspect(row) {
+        this.reviewKey.set(this.rowKey(row));
+    }
+
+    moveReview(step) {
+        const rows = this.reviewQueue(this.rowsData());
+        const row = rows[this.reviewIndex(rows) + step];
+        if (!row) return;
+        this.inspect(row);
+        const target = Array.from(this.ledger()?.querySelectorAll("[data-aux-review]") || [])
+            .find(item => item.dataset.auxReview === this.reviewKey());
+        target?.scrollIntoView({block:"nearest"});
+    }
+
+    setReviewFilter(enabled) {
+        this.onlyReview.set(enabled);
+        if (!enabled) return;
+        const rows = this.reviewQueue(this.rowsData());
+        const first = rows[this.reviewIndex(rows)] || rows[0];
+        this.reviewKey.set(first ? this.rowKey(first) : null);
+    }
+
+    rowBasis(row) {
+        if (row.condition) return row.condition;
+        if (row.source === "handoff") return "交接清单";
+        if (row.source === "manual") {
+            return this.rowsData().standard.some(item => item.code === row.code) ? "增购" : "手工自选";
+        }
+        return "固定标配";
+    }
+
     change(mutator) {
         const current = this.draft();
         const latest = this.rowsData();
@@ -80,8 +136,10 @@ class AuxiliaryCost extends Component {
         if (!this.currentData() || this.saving() || this.choices().items.length >= 100) return;
         this.addDialog(AuxiliaryPicker, {
             catalog: () => this.remaining(),
+            pricing: () => this.currentData(),
             add: (id, quantity) => {
-                if (!this.remaining().some(row => row.id === id) || this.choices().items.length >= 100) return false;
+                if (!this.currentData() || !this.remaining().some(row => row.id === id) ||
+                    this.choices().items.length >= 100) return false;
                 this.change(values => ({...values, items: [...values.items, {id, quantity}]}));
                 return true;
             },

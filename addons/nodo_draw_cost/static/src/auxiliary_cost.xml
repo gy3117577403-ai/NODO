@@ -29,7 +29,7 @@
                 <dl class="nd-quote-totals" aria-label="每台成本">
                     <div><dt>板料</dt><dd data-quote-sheet=""><b t-if="totals.boards!==null" t-out="totals.boards.toFixed(2)"/></dd>
                         <small t-if="totals.boardNote" t-out="totals.boardNote"/></div>
-                    <div><dt>辅材</dt><dd data-auxiliary-total=""><b t-if="totals.supplies!==null" t-out="totals.supplies.toFixed(2)"/></dd>
+                    <div t-att-class="{'nd-quote-aux-primary':this.auxiliaryOpen()}"><dt t-out="this.auxiliaryOpen()?'每台辅材成本':'辅材'"/><dd data-auxiliary-total=""><b t-if="totals.supplies!==null" t-out="totals.supplies.toFixed(2)"/></dd>
                         <small t-if="totals.auxiliaryNote" t-out="totals.auxiliaryNote"/></div>
                     <div class="nd-quote-sum"><dt>合计 <small>元/台</small></dt>
                         <dd t-if="totals.sum!==null" data-quote-total=""><b t-out="totals.sum.toFixed(2)"/></dd>
@@ -75,7 +75,11 @@
         <section t-if="this.props.visible" class="nd-auxiliary" aria-label="辅材核算">
             <t t-set="data" t-value="this.rowsData()"/>
             <t t-set="ready" t-value="this.currentData()"/>
-            <div class="nd-aux-body" t-att-aria-busy="!ready &amp;&amp; !this.readError()?'true':'false'">
+            <t t-set="queue" t-value="data ? this.reviewQueue(data) : []"/>
+            <t t-set="position" t-value="this.reviewIndex(queue)"/>
+            <t t-set="focus" t-value="queue[position]"/>
+            <div class="nd-aux-content" t-att-class="{'nd-aux-with-review':!!focus}">
+            <div class="nd-aux-body" t-ref="this.ledger" t-att-aria-busy="!ready &amp;&amp; !this.readError()?'true':'false'">
                 <p t-if="this.readError()" class="nd-aux-issue" role="alert" t-out="this.readError()"/>
                 <p t-if="!data &amp;&amp; !this.readError()" class="nd-empty" role="status">正在核算辅材…</p>
                 <t t-if="data">
@@ -86,33 +90,57 @@
                         <a href="/odoo/auxiliary-library" target="_blank" rel="noopener">辅料库 ↗</a>
                     </div>
                     <p t-if="this.props.dirty" class="nd-aux-issue" role="status">当前为规格预览，保存柜体规格后可保存辅材选配。</p>
-                    <p t-if="ready &amp;&amp; data.missing" role="status" class="nd-aux-issue">
-                        <t t-out="data.missing"/> 项待核对 · 已计价 <t t-out="data.known_subtotal.toFixed(2)"/> 元/台
-                    </p>
+                    <div class="nd-aux-review-toolbar">
+                        <div role="group" aria-label="辅材核对筛选">
+                            <button type="button" t-att-aria-pressed="!this.onlyReview()?'true':'false'"
+                                t-on-click="() => this.setReviewFilter(false)">全部物料</button>
+                            <button type="button" class="nd-aux-review-filter" t-att-aria-pressed="this.onlyReview()?'true':'false'"
+                                t-on-click="() => this.setReviewFilter(true)">
+                                只看待核对 <b data-aux-review-count="" t-att-class="{'nd-aux-has-issues':data.missing+data.issues.length>0}"
+                                    t-out="data.missing+data.issues.length"/>
+                            </button>
+                        </div>
+                        <span t-if="ready &amp;&amp; data.total===null" class="nd-aux-review-warning" role="status">
+                            已计价 <b data-aux-priced="" t-out="data.known_subtotal.toFixed(2)"/> 元/台
+                        </span>
+                    </div>
                     <p t-foreach="data.issues" t-as="issue" t-key="issue" class="nd-aux-issue" t-out="issue"/>
+                    <small t-if="data.rounding_difference">合计按原始精度汇总，与显示小计相差 <t t-out="data.rounding_difference.toFixed(2)"/> 元/台。</small>
+                    <p t-if="this.onlyReview() &amp;&amp; !queue.length" class="nd-aux-empty" role="status"
+                        t-out="data.issues.length?'物料行无待核对项，请处理上方提示。':'当前没有待核对项。'"/>
 
                     <section class="nd-aux-list" aria-labelledby="nd-aux-standard-title">
-                        <header class="nd-aux-heading"><h3 id="nd-aux-standard-title">标配</h3>
-                            <span t-out="data.rule_source+' · 采购清单待核对'"/>
+                        <header class="nd-aux-heading">
+                            <div><h3 id="nd-aux-standard-title">标配</h3>
+                                <small t-out="data.rule_source+' · 参考配置'"/>
+                            </div>
+                            <span class="nd-aux-subtotal">
+                                <t t-out="data.groups.standard.missing?'标配已计价':'标配小计'"/>
+                                <b data-aux-standard-subtotal="" t-out="data.groups.standard.amount.toFixed(2)"/> 元/台
+                            </span>
                         </header>
-                        <div t-if="data.standard.length" class="nd-aux-table-wrap">
+                        <t t-set="visibleStandard" t-value="this.visibleRows(data.standard)"/>
+                        <t t-set="visibleLocks" t-value="visibleStandard.filter(row => row.lock_item)"/>
+                        <t t-set="showLock" t-value="data.auto_lock &amp;&amp; (!this.onlyReview() || data.lock_pending || visibleLocks.length)"/>
+                        <div t-if="visibleStandard.length || showLock" class="nd-aux-table-wrap">
                             <table class="nd-aux-table" aria-label="标配辅材">
-                                <t t-set="editable" t-value="false"/>
                                 <t t-call="nodo_draw_cost.AuxiliaryColumns"/>
                                 <tbody>
-                                    <t t-foreach="data.standard.filter(row => !row.lock_item)" t-as="row" t-key="row.code">
+                                    <t t-foreach="visibleStandard.filter(row => !row.lock_item)" t-as="row" t-key="row.code">
                                         <t t-call="nodo_draw_cost.AuxiliaryLine"/>
                                     </t>
                                 </tbody>
-                                <tbody t-if="data.auto_lock">
+                                <tbody t-if="showLock">
                                     <tr class="nd-aux-lock-row">
-                                        <th colspan="5" scope="rowgroup">
+                                        <th colspan="6" scope="rowgroup">
                                             <div class="nd-aux-lock-bar">
-                                                <button type="button" class="nd-aux-quiet" t-att-aria-expanded="this.lockExpanded()?'true':'false'"
+                                                <b t-if="this.onlyReview()">锁具组合 <t t-out="data.selected_lock"/></b>
+                                                <button t-else="" type="button" class="nd-aux-quiet" t-att-aria-expanded="this.lockOpen()?'true':'false'"
                                                     aria-label="锁具组合明细" t-on-click="() => this.lockExpanded.set(!this.lockExpanded())">
                                                     <i class="fa" t-att-class="this.lockExpanded()?'fa-angle-down':'fa-angle-right'" aria-hidden="true"/>
                                                     锁具组合 <b t-out="data.selected_lock"/>
                                                 </button>
+                                                <small t-out="data.standard.find(row => row.lock_item)?.condition"/>
                                                 <span t-if="data.lock_change" role="status" class="nd-aux-lock-difference">
                                                     <t t-out="data.lock_change.previous"/> → <t t-out="data.lock_change.current"/>
                                                     <b t-if="data.lock_change.difference!==null" data-aux-lock-difference=""
@@ -147,35 +175,43 @@
                                             </p>
                                         </th>
                                     </tr>
-                                    <t t-if="this.lockExpanded()" t-foreach="data.standard.filter(row => row.lock_item)" t-as="row" t-key="row.code">
+                                    <t t-if="this.lockOpen()" t-foreach="visibleLocks" t-as="row" t-key="row.code">
                                         <t t-call="nodo_draw_cost.AuxiliaryLine"/>
                                     </t>
                                 </tbody>
                             </table>
                         </div>
-                        <p t-else="" class="nd-aux-empty">等待柜型与图版确认。</p>
+                        <p t-else="" class="nd-aux-empty" t-out="this.onlyReview()?'标配无待核对项。':'等待柜型与图版确认。'"/>
                     </section>
 
                     <section class="nd-aux-list" aria-labelledby="nd-aux-optional-title">
                         <header class="nd-aux-heading">
                             <h3 id="nd-aux-optional-title">自选</h3>
+                            <span class="nd-aux-subtotal">
+                                <t t-out="data.groups.optional.missing?'自选已计价':'自选小计'"/>
+                                <b data-aux-optional-subtotal="" t-out="data.groups.optional.amount.toFixed(2)"/> 元/台
+                            </span>
                             <button type="button" class="nd-aux-add-button" t-att-disabled="!ready || this.saving() || this.choices().items.length>=100"
                                 t-on-click="this.openPicker"><i class="fa fa-plus" aria-hidden="true"/> 添加辅材</button>
                         </header>
-                        <div t-if="data.optional.length" class="nd-aux-table-wrap">
-                            <table class="nd-aux-table nd-aux-optional-table" aria-label="自选辅材">
-                                <t t-set="editable" t-value="true"/>
+                        <t t-set="visibleOptional" t-value="this.visibleRows(data.optional)"/>
+                        <div t-if="visibleOptional.length" class="nd-aux-table-wrap">
+                            <table class="nd-aux-table" aria-label="自选辅材">
                                 <t t-call="nodo_draw_cost.AuxiliaryColumns"/>
                                 <tbody>
-                                    <t t-foreach="data.optional" t-as="row" t-key="row.source+':'+(row.id || row.code)">
+                                    <t t-foreach="visibleOptional" t-as="row" t-key="this.rowKey(row)">
                                         <t t-call="nodo_draw_cost.AuxiliaryLine"/>
                                     </t>
                                 </tbody>
                             </table>
                         </div>
-                        <p t-else="" class="nd-aux-empty">暂无自选辅材</p>
+                        <p t-else="" class="nd-aux-empty" t-out="this.onlyReview()?'自选无待核对项。':'暂无自选辅材'"/>
                     </section>
                 </t>
+            </div>
+            <AuxiliaryReview t-if="focus" t-key="this.rowKey(focus)+':'+(focus.rate_id || 0)+':'+focus.model_status"
+                row="focus" position="position+1" count="queue.length" basis="this.rowBasis(focus)"
+                move="step => this.moveReview(step)" close="() => this.reviewKey.set(null)"/>
             </div>
             <footer class="nd-aux-actions" t-if="data || this.draft()">
                 <div class="nd-aux-save-status" aria-live="polite">
@@ -195,22 +231,27 @@
     <t t-name="nodo_draw_cost.AuxiliaryColumns">
         <colgroup>
             <col class="nd-aux-col-item"/><col class="nd-aux-col-condition"/><col class="nd-aux-col-quantity"/>
-            <col class="nd-aux-col-price"/><col class="nd-aux-col-amount"/><col t-if="editable" class="nd-aux-col-action"/>
+            <col class="nd-aux-col-price"/><col class="nd-aux-col-amount"/><col class="nd-aux-col-action"/>
         </colgroup>
         <thead><tr>
-            <th scope="col">物料</th><th scope="col">依据／状态</th><th scope="col">每台用量</th><th scope="col">单价（元）</th><th scope="col">金额（元）</th>
-            <th t-if="editable" scope="col"><span class="visually-hidden">操作</span></th>
+            <th scope="col">物料</th><th scope="col">依据／状态</th><th scope="col">每台用量</th><th scope="col">单价</th><th scope="col">金额（元/台）</th>
+            <th scope="col"><span class="visually-hidden">操作</span></th>
         </tr></thead>
     </t>
 
     <t t-name="nodo_draw_cost.AuxiliaryLine">
-        <tr t-att-data-aux-code="row.code">
-            <th scope="row"><b t-out="row.name"/><small t-if="row.code" t-out="row.code"/></th>
+        <tr t-att-data-aux-code="row.code" t-att-data-aux-review="this.rowKey(row)"
+            t-att-class="{'nd-aux-row-active':this.reviewKey()===this.rowKey(row),'nd-aux-row-alert':!!row.issue}">
+            <th scope="row">
+                <button type="button" class="nd-aux-inspect-button" t-att-aria-label="'核对'+row.name"
+                    t-att-aria-pressed="this.reviewKey()===this.rowKey(row)?'true':'false'" t-on-click="() => this.inspect(row)">
+                    <span><b t-out="row.name"/><small t-if="row.code" t-out="row.code"/></span>
+                    <span class="nd-aux-model-mark" t-att-data-model="row.model_status"
+                        t-att-title="this.modelStatusLabel(row.model_status)" aria-hidden="true">3D</span>
+                </button>
+            </th>
             <td class="nd-aux-condition">
-                <span t-if="row.condition" t-out="row.condition"/>
-                <span t-elif="row.source==='handoff'">交接清单</span>
-                <span t-elif="row.source==='manual'" t-out="this.rowsData().standard.some(item => item.code===row.code)?'增购':'手工自选'"/>
-                <span t-else="">固定标配</span>
+                <span t-out="row.lock_item?'配套锁具':this.rowBasis(row)"/>
                 <small t-if="row.issue &amp;&amp; row.issue!=='待补价'" class="nd-aux-row-issue" t-out="row.issue"/>
             </td>
             <td class="nd-aux-quantity"><div>
@@ -219,11 +260,11 @@
                         t-att-value="row.quantity" t-att-disabled="this.saving()" t-on-change="ev => this.setQuantity(row, ev.target)"/>
                     <b t-else="" t-out="row.quantity"/><small t-out="row.unit_label"/>
                 </div></td>
-            <td><t t-if="row.price!==null"><t t-out="this.unitPrice(row.price)"/><small t-if="row.basis==='reference'">参考价</small></t>
+            <td><t t-if="row.price!==null"><span class="nd-aux-unit-rate"><t t-out="this.unitPrice(row.price)"/> 元/<t t-out="row.unit_label"/></span><small t-if="row.basis==='reference'">参考价</small></t>
                 <small t-else="" class="nd-aux-row-issue" t-out="row.issue==='待补价'?'待补价':'—'"/>
             </td>
             <td><b t-out="row.amount===null?'—':row.amount.toFixed(2)"/></td>
-            <td t-if="row.source==='manual' || row.source==='handoff'">
+            <td>
                 <button t-if="row.source==='manual'" type="button" class="nd-aux-remove"
                     t-att-disabled="this.saving()" t-att-aria-label="'移除'+row.name" t-on-click="() => this.remove(row.id)">移除</button>
             </td>
@@ -259,7 +300,15 @@
                 </div>
                 <t t-set="selected" t-value="this.selected()"/>
                 <div class="nd-aux-picker-selected" t-if="selected" t-key="selected.id">
-                    <b t-out="selected.name"/>
+                    <t t-set="addition" t-value="this.addition(selected)"/>
+                    <div class="nd-aux-picker-selected-head">
+                        <b t-out="selected.name"/>
+                        <button type="button" class="nd-aux-preview-button"
+                            t-att-aria-expanded="this.modelOpen()?'true':'false'" t-att-title="this.modelStatusLabel(selected.model_status)"
+                            t-on-click="() => this.modelOpen.set(!this.modelOpen())"
+                            t-out="this.modelOpen()?'收起三维':'查看三维'"/>
+                    </div>
+                    <AuxiliaryModelPreview t-if="this.modelOpen()" t-key="selected.id" rateId="selected.id"/>
                     <small t-if="selected.standard_quantity">标配 <t t-out="selected.standard_quantity"/> <t t-out="selected.unit"/>，填写每台增购用量</small>
                     <div class="nd-aux-picker-quantity">
                         <label>每台用量
@@ -270,10 +319,13 @@
                                 <small t-out="selected.unit"/>
                             </span>
                         </label>
-                        <strong t-if="selected.price!==null &amp;&amp; this.validQuantity()" data-picker-amount=""
-                            t-out="this.amount(selected)+' 元/台'"/>
-                        <small t-elif="selected.price===null" class="nd-aux-row-issue">待补价</small>
                     </div>
+                    <dl t-if="addition" class="nd-aux-picker-totals">
+                        <div><dt>本次增加</dt><dd t-if="addition.amount!==null" data-picker-amount="" t-out="addition.amount+' 元/台'"/>
+                            <dd t-else="" class="nd-aux-row-issue">待补价</dd></div>
+                        <div><dt t-out="addition.incomplete?'加入后已计价':'加入后辅材合计'"/>
+                            <dd data-picker-after="" t-out="addition.after+' 元/台'"/></div>
+                    </dl>
                     <p t-if="!this.validQuantity()" class="nd-aux-row-issue" role="status"
                         t-out="selected.measure==='metre'?'请输入 0.001 至 10000 米，最多三位小数。':'请输入 1 至 10000 的整数。'"/>
                 </div>
@@ -281,7 +333,7 @@
             </section>
             <t t-set-slot="footer">
                 <button type="button" class="btn btn-secondary" t-on-click="this.props.close">取消</button>
-                <button type="button" class="btn btn-primary" t-att-disabled="!this.selected() || !this.validQuantity()" t-on-click="this.add">加入清单</button>
+                <button type="button" class="btn btn-primary" t-att-disabled="!this.selected() || !this.validQuantity() || !this.props.pricing()" t-on-click="this.add">加入清单</button>
             </t>
         </Dialog>
     </t>

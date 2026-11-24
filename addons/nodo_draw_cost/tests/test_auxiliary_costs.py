@@ -93,11 +93,38 @@ class TestAuxiliaryCosts(TransactionCase):
         self.assertEqual((rates[rules.HINGE]['standard_quantity'], rates[rules.HINGE]['price']), (6, 2))
         self.assertEqual((rates[self.extra.code]['standard_quantity'], rates[self.extra.code]['basis']), (0, 'reference'))
         self.assertEqual(rates[self.stripe.code]['measure'], 'metre')
+        self.assertEqual(rates[self.extra.code]['model_status'], 'unlinked')
         self.assertNotIn('30104000002', rates)
         self.stripe.price_per_unit = 0
         unpriced = next(row for row in self.calculation()['catalog'] if row['id'] == self.stripe.id)
         self.assertIsNone(unpriced['price'])
         self.assertEqual(unpriced['basis'], '')
+
+    def test_review_groups_take_the_unrounded_amount_and_keep_missing_rows_separate(self):
+        self.stripe.price_per_unit = 0.3333
+        result = self.save([(self.stripe, 0.123), (self.extra, 2)])
+        self.assertEqual(result['groups'], {
+            'standard': {'amount': 24.2, 'missing': 0},
+            'optional': {'amount': 5.04, 'missing': 0},
+        })
+        self.assertEqual(result['exact_subtotal'], '29.2409959')
+        fact = next(row for row in result['optional'] if row['id'] == self.stripe.id)
+        self.assertEqual((fact['rate_id'], fact['model_status']), (self.stripe.id, 'unlinked'))
+
+        self.extra.price_per_unit = 0
+        unresolved = self.calculation()
+        self.assertEqual(unresolved['groups']['optional'], {'amount': 0.04, 'missing': 1})
+        self.assertIsNone(unresolved['total'])
+        self.assertEqual(unresolved['known_subtotal'], 24.24)
+
+        hinge = self.book.search([('code', '=', rules.HINGE)])
+        hinge.price_per_unit = 2.001
+        self.stripe.price_per_unit = 0.005
+        rounded = self.design.preview_auxiliary_costs(None, dict(
+            items=[dict(id=self.stripe.id, quantity=1)], lock=None,
+        ))
+        self.assertEqual((rounded['groups']['standard']['amount'], rounded['groups']['optional']['amount']), (24.21, 0.01))
+        self.assertEqual((rounded['total'], rounded['rounding_difference']), (24.21, -0.01))
 
     def test_lock_override_requires_basis_and_revalidation_on_spec_change(self):
         lock = dict(scheme='MS821', reason='', confirm=True)

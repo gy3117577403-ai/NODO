@@ -35,6 +35,11 @@ export function accessoryFaceNames(item) {
     return item.faces.map(face => faces[face]).filter(Boolean).join("、") || "待核对";
 }
 
+export async function accessoryPreviewExample(orm) {
+    const models = await orm.call("nodo.draw.accessory", "list_accessory_models", []);
+    return models.find(item => item.state === "available" && item.mesh);
+}
+
 export class AccessoryMesh extends Component {
     static template = "nodo_draw.AccessoryMesh";
     props = useProps({src:t.string(), name:t.string()});

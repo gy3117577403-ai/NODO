@@ -106,6 +106,7 @@
     .nd-aux-table {
         width: 100%;
         min-width: 610px;
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 13px;
         font-variant-numeric: tabular-nums;
@@ -115,17 +116,15 @@
         tbody:last-child tr:last-child > * { border-bottom: 0; }
         th:first-child, td.nd-aux-condition, thead th:nth-child(2) { text-align: left; }
         small { display: block; font-size: 11px; font-weight: 400; }
-        .nd-aux-col-item { width: 35%; }
-        .nd-aux-col-condition { width: 27%; }
-        .nd-aux-col-quantity, .nd-aux-col-price, .nd-aux-col-amount { width: 12%; }
+        .nd-aux-col-item { width: 30%; }
+        .nd-aux-col-condition { width: 21%; }
+        .nd-aux-col-quantity, .nd-aux-col-price { width: 15%; }
+        .nd-aux-col-amount { width: 12%; }
+        .nd-aux-col-action { width: 7%; }
         .nd-aux-quantity { white-space: nowrap; }
         .nd-aux-quantity div { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
-        .nd-aux-quantity input { width: 70px; padding: 3px 6px; text-align: right; }
-    }
-    .nd-aux-optional-table {
-        .nd-aux-col-item { width: 33%; }
-        .nd-aux-col-condition { width: 25%; }
-        .nd-aux-col-action { width: 72px; }
+        .nd-aux-quantity input { width: 70px; max-width: 72%; padding: 3px 6px; text-align: right; }
+        th:last-child, td:last-child { padding-inline: 4px; }
     }
     .nd-aux-condition { color: var(--muted); }
     .nd-aux-row-issue { color: #805613; }

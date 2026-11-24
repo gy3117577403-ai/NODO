@@ -5,7 +5,7 @@ import {useOwnedDialogs, useService} from "@web/core/utils/hooks";
 import {listView} from "@web/views/list/list_view";
 import {ListRenderer, listRendererProps} from "@web/views/list/list_renderer";
 import {FormViewDialog} from "@web/views/view_dialogs/form_view_dialog";
-import {AccessoryMesh, accessoryFaceNames} from "@nodo_draw/accessory_library";
+import {AccessoryMesh, accessoryFaceNames, accessoryPreviewExample} from "@nodo_draw/accessory_library";
 import {unitPrice} from "./live_sheet_prices";
 
 const modelStatusMessages = {
@@ -90,8 +90,7 @@ class AuxiliaryWorkspace extends Component {
         const request = ++this.exampleRequest;
         this.example.set({id, loading:true});
         try {
-            const models = await this.orm.call("nodo.draw.accessory", "list_accessory_models", []);
-            const model = models.find(item => item.state === "available" && item.mesh);
+            const model = await accessoryPreviewExample(this.orm);
             if (request !== this.exampleRequest) return;
             this.example.set({id, model, error:model ? "" : "附件库中暂时没有可预览的模型。"});
         } catch {
